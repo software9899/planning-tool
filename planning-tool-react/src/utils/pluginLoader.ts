@@ -30,7 +30,7 @@ const PLUGIN_STORAGE_KEY = 'enabled_plugins';
  */
 export async function getAvailablePlugins(): Promise<PluginMetadata[]> {
   try {
-    const response = await fetch('http://localhost:8002/api/plugins');
+    const response = await fetch('/api/plugins');
     if (!response.ok) {
       throw new Error('Failed to fetch plugins');
     }
@@ -93,7 +93,7 @@ export function isPluginEnabled(pluginId: string): boolean {
  * Load plugin files (script and style)
  */
 export async function loadPluginFiles(plugin: PluginMetadata): Promise<void> {
-  const baseUrl = 'http://localhost:8002/api/plugins';
+  const baseUrl = '/api/plugins';
 
   // Load CSS
   if (plugin.files.style) {

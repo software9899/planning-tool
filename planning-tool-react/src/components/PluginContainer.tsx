@@ -68,7 +68,7 @@ export default function PluginContainer() {
   }
 
   // Construct the plugin URL
-  const pluginUrl = `http://localhost:8002/api/plugins/${plugin.id}/html`;
+  const pluginUrl = `/api/plugins/${plugin.id}/html`;
 
   const handlePopOut = () => {
     window.open(pluginUrl, '_blank');
