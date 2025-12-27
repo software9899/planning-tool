@@ -531,8 +531,21 @@ export default function TasksBoard() {
         isOpen={showAssigneeModal}
         taskTitle={pendingTaskMove?.task.title || pendingTaskMove?.task.text || 'Untitled'}
         currentAssignee={(() => {
-          const assignee = pendingTaskMove?.draggedBy || pendingTaskMove?.task.assignee || pendingTaskMove?.task.assignedTo || pendingTaskMove?.task.assigned_to;
-          return Array.isArray(assignee) ? assignee[0] : assignee;
+          // If draggedBy is set, get current user's ID
+          if (pendingTaskMove?.draggedBy) {
+            const currentUserData = localStorage.getItem('currentUser');
+            if (currentUserData) {
+              try {
+                const currentUser = JSON.parse(currentUserData);
+                return currentUser.id ? String(currentUser.id) : undefined;
+              } catch (e) {
+                console.error('Error parsing currentUser:', e);
+              }
+            }
+          }
+          // Otherwise use the task's assigned_to (which should be a number/user ID)
+          const assignee = pendingTaskMove?.task.assigned_to;
+          return assignee ? String(assignee) : undefined;
         })()}
         currentEstimate={pendingTaskMove?.task.estimateHours || pendingTaskMove?.task.estimate_hours}
         onConfirm={handleAssigneeConfirm}

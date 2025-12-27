@@ -77,10 +77,6 @@ export default function AssigneeModal({
             onChange={(e) => setAssignee(e.target.value)}
           >
             <option value="">-- Select Member --</option>
-            {/* Add current assignee if not in members list */}
-            {currentAssignee && !members.some(m => m.name === currentAssignee) && (
-              <option value={currentAssignee}>{currentAssignee} (You)</option>
-            )}
             {members.map(member => (
               <option key={member.id} value={member.id}>
                 {member.name}
