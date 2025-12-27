@@ -1142,7 +1142,8 @@ import json
 from pathlib import Path
 from fastapi.responses import FileResponse, JSONResponse
 
-PLUGINS_DIR = Path("/Users/testtorial/Documents/MCP/planning-tool/plugins")
+# Get plugins directory - works both locally and in Docker
+PLUGINS_DIR = Path(__file__).parent.parent / "plugins"
 
 @app.get("/api/plugins")
 def get_plugins():
