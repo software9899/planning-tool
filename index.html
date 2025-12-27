@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planning Tool - Task Manager</title>
+    <link rel="stylesheet" href="assets/css/theme.css">
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <link rel="stylesheet" href="assets/css/timeline.css">
+    <style>
+        /* Dashboard Dropdown Styles */
+        .dashboard-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dashboard-dropdown .dropdown-toggle {
+            cursor: pointer;
+        }
+
+        .dashboard-dropdown .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 220px;
+            margin-top: 8px;
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        .dashboard-dropdown .dropdown-menu.show {
+            display: block;
+            animation: dropdownFadeIn 0.2s ease;
+        }
+
+        @keyframes dropdownFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .dashboard-dropdown .dropdown-item {
+            display: block;
+            padding: 12px 16px;
+            color: #333;
+            text-decoration: none;
+            transition: background 0.2s;
+            font-size: 14px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .dashboard-dropdown .dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .dashboard-dropdown .dropdown-item:hover {
+            background: #f9fafb;
+            color: #667eea;
+        }
+
+        .dashboard-dropdown .dropdown-toggle::after {
+            content: '';
+            display: inline-block;
+            margin-left: 4px;
+        }
+
+        /* Profile Dropdown Styles */
+        .profile-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .profile-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .profile-btn:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .profile-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .profile-name {
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 14px;
+        }
+
+        .profile-arrow {
+            font-size: 10px;
+            color: #a0aec0;
+        }
+
+        .profile-dropdown .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            min-width: 280px;
+            margin-top: 8px;
+            z-index: 1000;
+            overflow: hidden;
+        }
+
+        .profile-dropdown .dropdown-menu.show {
+            display: block;
+            animation: dropdownFadeIn 0.2s ease;
+        }
+
+        .profile-info {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .profile-avatar-large {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 22px;
+            border: 3px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .profile-details {
+            flex: 1;
+        }
+
+        .profile-display-name {
+            font-weight: 700;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .profile-email {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .profile-role-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: #e2e8f0;
+            margin: 0;
+        }
+
+        .profile-dropdown .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            color: #4a5568;
+            text-decoration: none;
+            transition: all 0.2s;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .profile-dropdown .dropdown-item:hover {
+            background: #f7fafc;
+            color: #667eea;
+        }
+
+        .profile-dropdown .dropdown-item .item-icon {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .profile-dropdown .logout-item {
+            color: #e53e3e;
+        }
+
+        .profile-dropdown .logout-item:hover {
+            background: #fff5f5;
+            color: #c53030;
+        }
+
+        /* Bookmark Button Styles */
+        .bookmark-btn {
+            padding: 10px 20px;
+            background: white;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            color: #667eea;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .bookmark-btn:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        /* Bookmark Modal Tabs */
+        .bookmark-tab {
+            padding: 12px 20px;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: #6b7280;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .bookmark-tab:hover {
+            color: #667eea;
+            background: #f9fafb;
+        }
+
+        .bookmark-tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        /* Bookmark Checkbox Item */
+        .bookmark-checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 6px;
+            transition: background 0.2s;
+            margin-bottom: 8px;
+        }
+
+        .bookmark-checkbox-item:hover {
+            background: #f9fafb;
+        }
+
+        .bookmark-checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .bookmark-checkbox-item label {
+            flex: 1;
+            cursor: pointer;
+            font-size: 14px;
+            color: #374151;
+            font-weight: 500;
+        }
+
+        /* Saved Bookmark Item */
+        .saved-bookmark-item {
+            padding: 15px;
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            transition: all 0.3s;
+        }
+
+        .saved-bookmark-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+        }
+
+        .saved-bookmark-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .saved-bookmark-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: #1f2937;
+        }
+
+        .saved-bookmark-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .saved-bookmark-actions button {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: none;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .bookmark-open-btn {
+            background: #667eea;
+            color: white;
+        }
+
+        .bookmark-open-btn:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+        }
+
+        .bookmark-delete-btn {
+            background: #fee;
+            color: #dc2626;
+        }
+
+        .bookmark-delete-btn:hover {
+            background: #dc2626;
+            color: white;
+        }
+
+        .saved-bookmark-tabs {
+            font-size: 13px;
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .saved-bookmark-tabs span {
+            display: inline-block;
+            margin-right: 8px;
+            padding: 2px 8px;
+            background: #f3f4f6;
+            border-radius: 4px;
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar will be loaded here by load-sidebar.js -->
+        <div id="sidebar-container"></div>
+
+        <div class="main-content">
+            <header>
+                <h1>📋 Current Tasks</h1>
+                <div class="header-buttons">
+                    <!-- AI Agent Button -->
+                    <button class="bookmark-btn" onclick="window.location.href='ai-agent.html'" title="AI Agent Workflow" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                        🤖 AI Agent
+                    </button>
+
+                    <!-- Bookmark Button -->
+                    <button class="bookmark-btn" onclick="openBookmarkMenu()" title="Bookmarks">
+                        🔖 Bookmarks
+                    </button>
+
+                    <!-- Profile Dropdown -->
+                    <div class="profile-dropdown">
+                <div class="profile-btn dropdown-toggle">
+                    <div class="profile-avatar" id="profileAvatar">U</div>
+                    <span class="profile-name" id="profileName">User</span>
+                    <span class="profile-arrow">▼</span>
+                </div>
+                <div class="dropdown-menu profile-menu">
+                    <div class="profile-info">
+                        <div class="profile-avatar-large" id="profileAvatarLarge">U</div>
+                        <div class="profile-details">
+                            <div class="profile-display-name" id="profileDisplayName">User</div>
+                            <div class="profile-email" id="profileEmail">user@demo.com</div>
+                            <div class="profile-role-badge" id="profileRoleBadge">Member</div>
+                        </div>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <a href="#" class="dropdown-item" onclick="viewProfile()">
+                        <span class="item-icon">👤</span> My Profile
+                    </a>
+                    <a href="user_management.html" class="dropdown-item admin-only" id="userManagementLink" style="display: none;">
+                        <span class="item-icon">👥</span> User Management
+                    </a>
+                    <a href="#" class="dropdown-item" onclick="openSettings()">
+                        <span class="item-icon">⚙️</span> Settings
+                    </a>
+                    <div class="dropdown-divider"></div>
+                    <a href="#" class="dropdown-item logout-item" onclick="logout()">
+                        <span class="item-icon">🚪</span> Logout
+                    </a>
+                </div>
+            </div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <!-- Current Content -->
+                <div class="current-controls">
+        <button id="createTaskCurrentBtn" class="create-task-btn" onclick="openCreateTaskModal(false)">➕ สร้าง Task</button>
+        <button id="addColumnBtn" class="add-column-btn">➕ Add Column</button>
+        <button id="reorderColumnsBtn" class="settings-btn">↕️ Reorder</button>
+        <div style="flex: 1;"></div>
+        <div class="view-selector">
+            <select id="viewDropdown" class="view-dropdown" onchange="changeView(this.value)">
+                <option value="kanban">📋 Kanban Board</option>
+                <option value="table">📊 Table View</option>
+                <option value="timeline">📅 Timeline (Gantt)</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Card View (Default) -->
+    <div class="container" id="currentColumns" style="display: block;">
+        <!-- Columns will be rendered here dynamically -->
+    </div>
+
+    <!-- Table View -->
+    <div class="table-view-container" id="tableViewContainer" style="display: none;">
+        <!-- Table View Tabs -->
+        <div class="table-view-tabs" id="tableViewTabs">
+            <!-- Tabs will be rendered dynamically -->
+        </div>
+        <div class="table-wrapper">
+            <table class="tasks-table" id="tasksTable">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">#</th>
+                        <th style="width: 250px;">Task Name</th>
+                        <th style="width: 200px;">Subtasks</th>
+                        <th style="width: 120px;">Owner</th>
+                        <th style="width: 100px;">Due Date</th>
+                        <th style="width: 100px;">Est. Hours</th>
+                        <th style="width: 120px;">Status</th>
+                        <th style="width: 100px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Table rows will be rendered here -->
+                </tbody>
+            </table>
+        </div>
+        <button class="create-task-btn" style="margin-top: 20px;" onclick="openCreateTaskModal(false)">➕ Add New Task</button>
+    </div>
+
+    <!-- Timeline/Gantt View -->
+    <div class="timeline-view-container" id="timelineViewContainer" style="display: none;">
+        <div class="timeline-header">
+            <h3>📅 Timeline View</h3>
+            <div class="timeline-controls">
+                <button class="btn-secondary" onclick="zoomTimeline('out')">➖ Zoom Out</button>
+                <button class="btn-secondary" onclick="zoomTimeline('in')">➕ Zoom In</button>
+                <button class="btn-primary" onclick="todayTimeline()">📍 Today</button>
+            </div>
+        </div>
+        <div class="timeline-content" id="timelineContent">
+            <!-- Timeline will be rendered here -->
+        </div>
+    </div>
+
+    <!-- Reorder Actions (Hidden by default) -->
+    <div class="reorder-actions" id="reorderActions">
+        <button class="btn-primary" onclick="saveColumnOrder()">💾 บันทึก</button>
+        <button class="btn-secondary" onclick="cancelReorder()">❌ ยกเลิก</button>
+    </div>
+
+    <!-- Create Task Modal (Multi-Step) -->
+    <div id="createTaskModal" class="modal">
+        <div class="modal-content">
+            <span class="close-create">&times;</span>
+            <h2>➕ สร้าง Task ใหม่</h2>
+            
+            <!-- Progress Indicator -->
+            <div class="progress-indicator">
+                <div class="progress-step active" id="progressStep1">
+                    <div class="step-number">1</div>
+                    <div class="step-label">ข้อมูลพื้นฐาน</div>
+                </div>
+                <div class="progress-line"></div>
+                <div class="progress-step" id="progressStep2">
+                    <div class="step-number">2</div>
+                    <div class="step-label">รายละเอียดเพิ่มเติม</div>
+                </div>
+            </div>
+            
+            <!-- Step 1: Basic Information -->
+            <div id="step1" class="form-step active">
+                <div style="display: grid; grid-template-columns: 1fr auto; gap: 15px; align-items: start;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>ชื่อ Task *</label>
+                        <input type="text" id="taskTitle" placeholder="ชื่อ Task" />
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0; min-width: 200px;">
+                        <label>ชนิด *</label>
+                        <select id="taskType"></select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>รายละเอียด</label>
+                    <textarea id="taskDesc" placeholder="รายละเอียด (optional)"></textarea>
+                </div>
+                
+                <div class="step-buttons">
+                    <button class="btn-secondary" onclick="closeCreateTaskModal()">ยกเลิก</button>
+                    <button class="btn-primary" onclick="goToStep2()">ถัดไป →</button>
+                </div>
+            </div>
+            
+            <!-- Step 2: Additional Details -->
+            <div id="step2" class="form-step">
+                <div id="readinessChecklistContainer" class="checklist-container">
+                    <h4>📋 Readiness Checklist</h4>
+                    <p class="checklist-note">⚠️ ต้องเช็คครบทุกข้อ ถึงจะไปอยู่ "Ready to Implement" ได้</p>
+                    <div id="readinessChecklist" class="checklist-items"></div>
+                    <div id="noChecklistMessage" style="display: none; color: #666; font-style: italic; padding: 20px; text-align: center;">
+                        ✅ ชนิด Task นี้ไม่มี Checklist<br>
+                        <span style="font-size: 12px;">Task จะถูกสร้างที่ Ready to Implement ทันที</span>
+                    </div>
+                </div>
+                
+                <div class="step-buttons">
+                    <button class="btn-secondary" onclick="goToStep1()">← ย้อนกลับ</button>
+                    <button id="createTaskBtn" class="btn-primary" onclick="createTask()">สร้าง Task</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Backlog Task Modal -->
+    <div id="editBacklogModal" class="modal">
+        <div class="modal-content small">
+            <span class="close" onclick="closeEditBacklogModal()">&times;</span>
+            <h3>✏️ แก้ไข Task Details</h3>
+            <input type="hidden" id="editBacklogTaskId">
+            <div class="form-group">
+                <label>Assignee</label>
+                <select id="editAssignee">
+                    <option value="">-- Select Member --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>ETA (วันที่คาดว่าจะเสร็จ)</label>
+                <input type="date" id="editETA" />
+            </div>
+            <div class="confirm-buttons">
+                <button class="btn-secondary" onclick="closeEditBacklogModal()">ยกเลิก</button>
+                <button class="btn-primary" onclick="saveBacklogTaskDetails()">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assignee & Points Modal -->
+    <div id="assigneeModal" class="modal">
+        <div class="modal-content small">
+            <span class="close-assignee">&times;</span>
+            <h3 id="assigneeModalTitle">กรุณาใส่ข้อมูล</h3>
+            <div class="form-group">
+                <label>Assignee *</label>
+                <select id="assigneeInput">
+                    <option value="">-- Select Member --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Estimate Hours *</label>
+                <input type="text" id="estimateInput" inputmode="numeric" pattern="[0-9]*\.?[0-9]*" onkeydown="if(event.key === 'Enter') confirmAssignee()" />
+            </div>
+            <div class="confirm-buttons">
+                <button class="btn-secondary" onclick="closeAssigneeModal(false)">ยกเลิก</button>
+                <button class="btn-primary" onclick="confirmAssignee()">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assignees Multi-Select Modal -->
+    <div id="assigneesModal" class="modal">
+        <div class="modal-content small">
+            <span class="close" onclick="closeAssigneesModal(false)">&times;</span>
+            <h3>👥 Select Assignees</h3>
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 15px;">Select one or more people to assign to this task</p>
+            <div id="assigneesCheckboxContainer" style="max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px;">
+                <!-- Checkboxes will be rendered here -->
+            </div>
+            <div class="confirm-buttons" style="margin-top: 15px; display: flex; gap: 10px;">
+                <button class="btn-secondary" onclick="closeAssigneesModal(false)">Cancel</button>
+                <button class="btn-primary" style="background: #10b981; border-color: #10b981;" onclick="assignToMe()">👤 Assign to Me</button>
+                <button class="btn-primary" onclick="closeAssigneesModal(true)">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actual Points Modal -->
+    <div id="actualPointsModal" class="modal">
+        <div class="modal-content small">
+            <span class="close-actual">&times;</span>
+            <h3>ใส่ Actual Points</h3>
+            <div class="form-group">
+                <label>Actual Points *</label>
+                <input type="number" id="actualPointsInput" placeholder="จำนวน Point ที่ใช้จริง" min="0" step="0.5" />
+            </div>
+            <div class="confirm-buttons">
+                <button class="btn-secondary" onclick="closeActualPointsModal(false)">ยกเลิก</button>
+                <button class="btn-primary" onclick="confirmActualPoints()">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Detail Modal -->
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="taskDetailContent"></div>
+        </div>
+    </div>
+
+    <!-- Dependency/Subtask Modal -->
+    <div id="actionModal" class="modal">
+        <div class="modal-content">
+            <span class="close-action">&times;</span>
+            <h2 id="actionTitle"></h2>
+            <input type="text" id="actionTaskTitle" placeholder="ชื่อ Task" />
+            <textarea id="actionTaskDesc" placeholder="รายละเอียด (optional)"></textarea>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>ชนิด:</label>
+                    <select id="actionTaskType"></select>
+                </div>
+                <div class="form-group">
+                    <label>Priority:</label>
+                    <select id="actionTaskPriority"></select>
+                </div>
+            </div>
+            
+            <button id="actionCreateBtn" class="btn-primary">สร้าง</button>
+        </div>
+    </div>
+
+    <!-- Add Column Modal -->
+    <div id="addColumnModal" class="modal">
+        <div class="modal-content small">
+            <span class="close-add-column">&times;</span>
+            <h3>➕ เพิ่ม Column ใหม่</h3>
+            <div class="form-group">
+                <label>ชื่อ Column *</label>
+                <input type="text" id="newColumnName" placeholder="เช่น Review, Testing" />
+            </div>
+            <div class="confirm-buttons">
+                <button class="btn-secondary" onclick="closeAddColumnModal()">ยกเลิก</button>
+                <button class="btn-primary" onclick="confirmAddColumn()">เพิ่ม</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Column Reorder Modal -->
+    <div id="reorderModal" class="modal">
+        <div class="modal-content small">
+            <span class="close-reorder">&times;</span>
+            <h3>↕️ เรียงลำดับ Columns</h3>
+            <p style="color: #666; font-size: 12px; margin-bottom: 15px;">ลาก Column เพื่อเรียงลำดับ (To Do อยู่แรกเสมอ, Done อยู่ท้ายเสมอ)</p>
+            <div id="reorderList" class="reorder-list"></div>
+            <div class="confirm-buttons">
+                <button class="btn-secondary" onclick="closeReorderModal()">ยกเลิก</button>
+                <button class="btn-primary" onclick="confirmReorder()">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content large">
+            <span class="close-settings">&times;</span>
+            <h2>⚙️ การตั้งค่า</h2>
+            
+            <!-- Task Types Section -->
+            <div class="section">
+                <h3>📋 ชนิดของ Task</h3>
+                <div id="typesList" class="items-list"></div>
+                <div class="add-form">
+                    <input type="text" id="newType" placeholder="เพิ่มชนิด Task ใหม่..." />
+                    <button class="add-btn" onclick="addType()">+ เพิ่ม</button>
+                </div>
+            </div>
+
+            <!-- Priorities Section -->
+            <div class="section">
+                <h3>⚡ ระดับ Priority</h3>
+                <div id="prioritiesList" class="items-list"></div>
+                <div class="add-form">
+                    <input type="text" id="newPriority" placeholder="เพิ่ม Priority ใหม่..." />
+                    <button class="add-btn" onclick="addPriority()">+ เพิ่ม</button>
+                </div>
+            </div>
+
+            <!-- Priority Mapping Section -->
+            <div class="section">
+                <h3>🔗 Mapping ชนิด → Priority</h3>
+                <p class="section-desc">กำหนด Priority เริ่มต้นสำหรับแต่ละชนิด Task</p>
+                <div id="priorityMappingContainer" class="mapping-container"></div>
+            </div>
+
+            <!-- Checklist Templates Section -->
+            <div class="section">
+                <h3>📋 Readiness Checklist Templates</h3>
+                <p class="section-desc">กำหนด Checklist สำหรับแต่ละชนิดของ Task</p>
+                <div id="checklistTemplatesContainer"></div>
+            </div>
+
+            <button class="btn-primary" onclick="saveSettings()">💾 บันทึกการตั้งค่า</button>
+        </div>
+    </div>
+
+    <!-- Custom Alert Modal -->
+    <div id="customAlertModal" class="modal">
+        <div class="modal-content small">
+            <h3 id="alertTitle"></h3>
+            <p id="alertMessage"></p>
+            <button class="btn-primary" onclick="closeCustomAlert()">ตกลง</button>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="customConfirmModal" class="modal">
+        <div class="modal-content small">
+            <h3 id="confirmTitle"></h3>
+            <p id="confirmMessage"></p>
+            <div class="confirm-buttons">
+                <button class="btn-secondary" onclick="closeCustomConfirm(false)">ยกเลิก</button>
+                <button class="btn-primary" onclick="closeCustomConfirm(true)">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Burndown Chart Modal -->
+    <div id="dailyBurndownModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close" onclick="closeDailyBurndown()">&times;</span>
+            <h2>📊 Daily Burndown Chart</h2>
+            <div id="burndownChartContainer" style="padding: 20px;">
+                <canvas id="burndownChart" style="max-height: 400px;"></canvas>
+            </div>
+            <div style="margin-top: 20px; padding: 15px; background: #f8fafc; border-radius: 8px;">
+                <h4 style="margin: 0 0 10px 0; color: #4a5568;">📈 Summary</h4>
+                <div id="burndownSummary" style="font-size: 14px; color: #718096;"></div>
+            </div>
+            <div class="confirm-buttons" style="margin-top: 20px;">
+                <button class="btn-primary" onclick="closeDailyBurndown()">รับทราบ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bookmark Modal -->
+    <div id="bookmarkModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="close" onclick="closeBookmarkMenu()">&times;</span>
+            <h2>🔖 Bookmarks</h2>
+
+            <!-- Tabs for Add/Manage -->
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;">
+                <button id="addBookmarkTab" class="bookmark-tab active" onclick="switchBookmarkTab('add')">
+                    ➕ Add Bookmark
+                </button>
+                <button id="manageBookmarkTab" class="bookmark-tab" onclick="switchBookmarkTab('manage')">
+                    📋 Manage Bookmarks
+                </button>
+            </div>
+
+            <!-- Add Bookmark Section -->
+            <div id="addBookmarkSection" class="bookmark-section">
+                <p style="color: #6b7280; font-size: 14px; margin-bottom: 15px;">
+                    Select tabs to bookmark (currently open tabs):
+                </p>
+                <div id="tabsToBookmarkContainer" style="max-height: 300px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px;">
+                    <!-- Checkboxes will be rendered here -->
+                </div>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Bookmark Name:</label>
+                    <input type="text" id="bookmarkName" placeholder="e.g., My Daily Tasks" />
+                </div>
+                <div class="confirm-buttons" style="margin-top: 15px;">
+                    <button class="btn-secondary" onclick="closeBookmarkMenu()">Cancel</button>
+                    <button class="btn-primary" onclick="saveBookmark()">💾 Save Bookmark</button>
+                </div>
+            </div>
+
+            <!-- Manage Bookmarks Section -->
+            <div id="manageBookmarkSection" class="bookmark-section" style="display: none;">
+                <p style="color: #6b7280; font-size: 14px; margin-bottom: 15px;">
+                    Your saved bookmarks:
+                </p>
+                <div id="savedBookmarksContainer" style="max-height: 400px; overflow-y: auto;">
+                    <!-- Saved bookmarks will be rendered here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="assets/js/theme.js"></script>
+    <script src="assets/js/load-sidebar.js"></script>
+    <script src="assets/js/sidebar.js"></script>
+    <script src="assets/js/members.js"></script>
+    <script src="assets/js/api-service.js"></script>
+    <script src="assets/js/app.js"></script>
+
+    <!-- Load Theme Switcher -->
+    <script>
+        // Load theme switcher
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.getElementById('themeSwitcherContainer');
+            if (container && typeof createThemeSwitcher === 'function') {
+                container.innerHTML = createThemeSwitcher();
+            }
+        });
+    </script>
+
+    <!-- Dashboard Dropdown Script -->
+    <script>
+        // Dashboard Dropdown Toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropdownToggle = document.querySelector('.dashboard-dropdown .dropdown-toggle');
+            const dropdownMenu = document.querySelector('.dashboard-dropdown .dropdown-menu');
+
+            if (dropdownToggle && dropdownMenu) {
+                // Toggle dropdown on click
+                dropdownToggle.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    dropdownMenu.classList.toggle('show');
+                });
+
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (!e.target.closest('.dashboard-dropdown')) {
+                        dropdownMenu.classList.remove('show');
+                    }
+                });
+
+                // Close dropdown when clicking a menu item
+                const dropdownItems = dropdownMenu.querySelectorAll('.dropdown-item');
+                dropdownItems.forEach(item => {
+                    item.addEventListener('click', function() {
+                        dropdownMenu.classList.remove('show');
+                    });
+                });
+            }
+
+            // Profile Dropdown Toggle
+            const profileToggle = document.querySelector('.profile-dropdown .dropdown-toggle');
+            const profileMenu = document.querySelector('.profile-dropdown .dropdown-menu');
+
+            if (profileToggle && profileMenu) {
+                profileToggle.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    profileMenu.classList.toggle('show');
+                    // Close dashboard dropdown if open
+                    if (dropdownMenu) dropdownMenu.classList.remove('show');
+                });
+
+                document.addEventListener('click', function(e) {
+                    if (!e.target.closest('.profile-dropdown')) {
+                        profileMenu.classList.remove('show');
+                    }
+                });
+            }
+
+            // Load current user from localStorage
+            loadCurrentUser();
+        });
+
+        function loadCurrentUser() {
+            const currentUserData = localStorage.getItem('currentUser');
+
+            if (!currentUserData) {
+                // No user logged in, redirect to login
+                // window.location.href = 'login.html';
+                // For demo, use default user
+                const defaultUser = {
+                    name: 'Demo User',
+                    email: 'demo@example.com',
+                    role: 'member',
+                    avatar: 'D'
+                };
+                // Save default user to localStorage
+                localStorage.setItem('currentUser', JSON.stringify(defaultUser));
+                updateProfileUI(defaultUser);
+                return;
+            }
+
+            const user = JSON.parse(currentUserData);
+            updateProfileUI(user);
+        }
+
+        function updateProfileUI(user) {
+            // Update avatar
+            const avatar = user.name ? user.name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase();
+            document.getElementById('profileAvatar').textContent = avatar;
+            document.getElementById('profileAvatarLarge').textContent = avatar;
+
+            // Update name
+            document.getElementById('profileName').textContent = user.name || 'User';
+            document.getElementById('profileDisplayName').textContent = user.name || 'User';
+
+            // Update email
+            document.getElementById('profileEmail').textContent = user.email || '';
+
+            // Update role badge
+            const roleBadge = document.getElementById('profileRoleBadge');
+            const roleText = user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Member';
+            roleBadge.textContent = roleText;
+
+            // Show/hide admin-only features
+            if (user.role === 'admin') {
+                const userManagementLink = document.getElementById('userManagementLink');
+                if (userManagementLink) {
+                    userManagementLink.style.display = 'flex';
+                }
+            }
+        }
+
+        function viewProfile() {
+            alert('UI Demo: View Profile\n\nThis would open the user profile page.');
+        }
+
+        function openSettings() {
+            // Trigger existing settings button
+            const settingsBtn = document.getElementById('settingsBtn');
+            if (settingsBtn) {
+                settingsBtn.click();
+            }
+        }
+
+        function logout() {
+            if (confirm('คุณต้องการออกจากระบบหรือไม่?')) {
+                localStorage.removeItem('currentUser');
+                window.location.href = 'login.html';
+            }
+        }
+    </script>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
