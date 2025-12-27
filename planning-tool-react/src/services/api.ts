@@ -574,6 +574,93 @@ class DataManagerClass {
 
     return await ApiService.migrateLocalStorageToAPI();
   }
+
+  /**
+   * Get settings from API
+   */
+  async getSettings(): Promise<any> {
+    await this.init();
+
+    if (this.useAPI) {
+      try {
+        const response = await fetch('/api/settings');
+        if (!response.ok) throw new Error('Failed to fetch settings');
+        const settingsList = await response.json();
+
+        // Convert array of settings to object
+        const settings: any = {
+          taskTypes: [],
+          checklistTemplates: {}
+        };
+
+        settingsList.forEach((setting: any) => {
+          try {
+            const value = JSON.parse(setting.value);
+            if (setting.key === 'taskTypes') {
+              settings.taskTypes = value;
+            } else if (setting.key === 'checklistTemplates') {
+              settings.checklistTemplates = value;
+            }
+          } catch (e) {
+            // If parsing fails, use raw value
+            settings[setting.key] = setting.value;
+          }
+        });
+
+        return settings;
+      } catch (error) {
+        console.error('Error fetching settings from API:', error);
+        return null;
+      }
+    } else {
+      // localStorage fallback
+      const stored = localStorage.getItem('appSettings');
+      return stored ? JSON.parse(stored) : null;
+    }
+  }
+
+  /**
+   * Save settings to API
+   */
+  async saveSettings(settings: any): Promise<void> {
+    await this.init();
+
+    if (this.useAPI) {
+      try {
+        // Save checklistTemplates
+        if (settings.checklistTemplates !== undefined) {
+          await fetch('/api/settings/checklistTemplates', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              value: JSON.stringify(settings.checklistTemplates),
+              description: 'Readiness checklist templates for each task type'
+            })
+          });
+        }
+
+        // Save taskTypes
+        if (settings.taskTypes !== undefined) {
+          await fetch('/api/settings/taskTypes', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              value: JSON.stringify(settings.taskTypes),
+              description: 'Available task types'
+            })
+          });
+        }
+      } catch (error) {
+        console.error('Error saving settings to API:', error);
+      }
+    }
+
+    // Always save to localStorage as backup
+    const currentSettings = localStorage.getItem('appSettings');
+    const parsed = currentSettings ? JSON.parse(currentSettings) : {};
+    const updated = { ...parsed, ...settings };
+    localStorage.setItem('appSettings', JSON.stringify(updated));
+  }
 }
 
 // Export singleton instances
