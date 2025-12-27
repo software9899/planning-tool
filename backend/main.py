@@ -3,7 +3,9 @@ Planning Tool Backend API
 FastAPI + PostgreSQL
 """
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Column, Integer, String, Text, TIMESTAMP, ARRAY, DateTime, Numeric, Float, text, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -469,6 +471,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Exception handler for validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    print(f"❌ Validation Error for {request.method} {request.url.path}")
+    print(f"❌ Request body: {await request.body()}")
+    print(f"❌ Validation errors: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors()}
+    )
+
 # Dependency
 def get_db():
     db = SessionLocal()
@@ -531,14 +544,17 @@ def create_task(task: TaskCreate, db: Session = Depends(get_db)):
 @app.put("/api/tasks/{task_id}", response_model=TaskResponse)
 def update_task(task_id: int, task: TaskUpdate, db: Session = Depends(get_db)):
     """Update an existing task"""
+    print(f"🔄 Updating task {task_id}")
+    print(f"📝 Update data: {task.model_dump(exclude_unset=True)}")
+
     db_task = db.query(Task).filter(Task.id == task_id).first()
     if db_task is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    
-    update_data = task.dict(exclude_unset=True)
+
+    update_data = task.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_task, key, value)
-    
+
     db_task.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(db_task)
