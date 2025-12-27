@@ -1,0 +1,298 @@
+/* Timeline/Gantt Chart Styles */
+
+.timeline-view-container {
+    padding: 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.timeline-header h3 {
+    margin: 0;
+    color: #1f2937;
+    font-size: 20px;
+}
+
+.timeline-controls {
+    display: flex;
+    gap: 10px;
+}
+
+.timeline-content {
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 250px);
+}
+
+/* Timeline Grid */
+.timeline-grid {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    min-width: 100%;
+    position: relative;
+}
+
+/* Task List Column */
+.timeline-tasks-list {
+    border-right: 2px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.timeline-task-row {
+    height: 50px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.timeline-task-row:hover {
+    background: #f1f5f9;
+}
+
+.timeline-task-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.timeline-task-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1f2937;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.timeline-task-meta {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 2px;
+}
+
+/* Chart Area */
+.timeline-chart {
+    position: relative;
+    overflow: hidden;
+}
+
+.timeline-header-dates {
+    display: flex;
+    position: sticky;
+    top: 0;
+    background: white;
+    border-bottom: 2px solid #e2e8f0;
+    z-index: 10;
+    height: 50px;
+}
+
+.timeline-date-cell {
+    flex: 1;
+    min-width: 60px;
+    padding: 8px;
+    text-align: center;
+    border-right: 1px solid #e5e7eb;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4b5563;
+}
+
+.timeline-date-cell.today {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.timeline-date-cell.weekend {
+    background: #f3f4f6;
+}
+
+/* Timeline Bars Container */
+.timeline-bars-container {
+    position: relative;
+}
+
+.timeline-bar-row {
+    height: 50px;
+    border-bottom: 1px solid #e2e8f0;
+    position: relative;
+    display: flex;
+}
+
+.timeline-day-cell {
+    flex: 1;
+    min-width: 60px;
+    border-right: 1px solid #f3f4f6;
+    position: relative;
+}
+
+.timeline-day-cell.today {
+    background: #fef3c7;
+    border-right: 2px solid #fbbf24;
+}
+
+.timeline-day-cell.weekend {
+    background: #f9fafb;
+}
+
+/* Timeline Bar */
+.timeline-bar {
+    position: absolute;
+    height: 32px;
+    top: 9px;
+    border-radius: 6px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.timeline-bar:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    z-index: 5;
+}
+
+.timeline-bar.status-todo {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
+.timeline-bar.status-inProgress {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.timeline-bar.status-done {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.timeline-bar.blocked {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    border: 2px solid #991b1b;
+}
+
+/* Timeline Bar Text */
+.timeline-bar-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Empty State */
+.timeline-empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: #6b7280;
+}
+
+.timeline-empty-state h4 {
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: #374151;
+}
+
+.timeline-empty-state p {
+    font-size: 14px;
+}
+
+/* Resize Handles */
+.timeline-bar-handle {
+    position: absolute;
+    top: 0;
+    width: 8px;
+    height: 100%;
+    cursor: ew-resize;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.timeline-bar:hover .timeline-bar-handle {
+    opacity: 1;
+}
+
+.timeline-bar-handle.left {
+    left: 0;
+    background: linear-gradient(90deg, rgba(255,255,255,0.8) 0%, transparent 100%);
+}
+
+.timeline-bar-handle.right {
+    right: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.8) 100%);
+}
+
+/* Today Line */
+.timeline-today-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #ef4444;
+    z-index: 8;
+    pointer-events: none;
+}
+
+.timeline-today-line::before {
+    content: 'TODAY';
+    position: absolute;
+    top: -25px;
+    left: -20px;
+    background: #ef4444;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+/* Scrollbar Styling */
+.timeline-content::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.timeline-content::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 5px;
+}
+
+.timeline-content::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 5px;
+}
+
+.timeline-content::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .timeline-grid {
+        grid-template-columns: 200px 1fr;
+    }
+
+    .timeline-date-cell {
+        min-width: 40px;
+        font-size: 10px;
+    }
+
+    .timeline-day-cell {
+        min-width: 40px;
+    }
+}
