@@ -205,28 +205,19 @@ export default function TasksBoard() {
 
     const { task, newStatus } = pendingTaskMove;
 
-    // Get existing assignees as array
-    const existingAssignee = task.assignee || task.assignedTo || task.assigned_to;
-    let assigneesArray: string[] = [];
-
-    if (Array.isArray(existingAssignee)) {
-      // Already an array, add new assignee if not already included
-      assigneesArray = existingAssignee.includes(assignee) ? existingAssignee : [...existingAssignee, assignee];
-    } else if (existingAssignee && typeof existingAssignee === 'string') {
-      // Convert to array and add new assignee if different
-      assigneesArray = existingAssignee === assignee ? [existingAssignee] : [existingAssignee, assignee];
-    } else {
-      // No existing assignee, create new array
-      assigneesArray = [assignee];
+    // Convert assignee to number (it's now user ID from the select dropdown)
+    const assigneeId = parseInt(assignee);
+    if (isNaN(assigneeId)) {
+      console.error('Invalid assignee ID:', assignee);
+      alert('Invalid assignee selected');
+      return;
     }
 
     const updatedTask = {
       ...task,
       status: newStatus,
       column: newStatus,
-      assignee: assigneesArray,
-      assignedTo: assigneesArray[0],
-      assigned_to: assigneesArray[0],
+      assigned_to: assigneeId,  // Use user ID (integer) for database
       estimateHours: estimateHours,
       estimate_hours: estimateHours,
       updatedAt: new Date().toISOString(),

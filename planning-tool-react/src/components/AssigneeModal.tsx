@@ -82,7 +82,7 @@ export default function AssigneeModal({
               <option value={currentAssignee}>{currentAssignee} (You)</option>
             )}
             {members.map(member => (
-              <option key={member.name} value={member.name}>
+              <option key={member.id} value={member.id}>
                 {member.name}
               </option>
             ))}
