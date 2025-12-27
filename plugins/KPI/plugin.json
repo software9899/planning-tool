@@ -1,14 +1,14 @@
 {
-  "id": "kpi",
+  "id": "KPI",
   "name": "KPI Dashboard",
   "version": "1.0.0",
   "description": "Balanced Scorecard KPI tracking and visualization",
   "icon": "📊",
-  "route": "/plugin/kpi",
+  "route": "/plugin/KPI",
   "sidebarLabel": "KPI Dashboard",
   "author": "Planning Tool Team",
-  "enabled": false,
-  "hidden": true,
+  "enabled": true,
+  "hidden": false,
   "files": {
     "html": "index.html",
     "script": "script.js",
