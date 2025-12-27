@@ -247,10 +247,22 @@ export default function TasksBoard() {
       console.log('🔵 Reloading tasks...');
       const allTasks = await DataManager.getTasks();
       console.log('✅ Got tasks:', allTasks.length, 'tasks');
-      setTasks(allTasks);
 
+      // Find and log the updated task
+      const updatedTaskFromDB = allTasks.find(t => t.id === task.id);
+      console.log('🔍 Updated task from DB:', updatedTaskFromDB);
+      console.log('🔍 Expected status:', newStatus);
+      console.log('🔍 Actual status:', updatedTaskFromDB?.status);
+
+      console.log('🔵 Calling setTasks...');
+      setTasks(allTasks);
+      console.log('✅ setTasks called');
+
+      console.log('🔵 Closing modal...');
       setShowAssigneeModal(false);
       setPendingTaskMove(null);
+      console.log('✅ Modal closed');
+
       console.log('✅ Task update completed successfully');
     } catch (error) {
       console.error('❌ Failed to update task:', error);
