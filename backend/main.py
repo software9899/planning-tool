@@ -244,6 +244,7 @@ class TaskUpdate(BaseModel):
 
     class Config:
         populate_by_name = True
+        extra = "ignore"  # Ignore extra fields from frontend
 
 class TaskResponse(BaseModel):
     id: int
