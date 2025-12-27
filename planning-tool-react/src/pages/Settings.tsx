@@ -85,7 +85,7 @@ export default function Settings() {
 
     // Load unconfigured plugins
     try {
-      const response = await fetch('http://localhost:8002/api/plugins/unconfigured');
+      const response = await fetch('/api/plugins/unconfigured');
       if (response.ok) {
         const unconfigured = await response.json();
         console.log('Loaded unconfigured plugins:', unconfigured);
@@ -149,7 +149,7 @@ export default function Settings() {
     }
 
     try {
-      const response = await fetch('http://localhost:8002/api/plugins/configure', {
+      const response = await fetch('/api/plugins/configure', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

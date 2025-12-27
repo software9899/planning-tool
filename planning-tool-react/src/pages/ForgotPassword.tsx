@@ -22,7 +22,7 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
-      await axios.post('http://localhost:8002/api/auth/forgot-password', {
+      await axios.post('/api/auth/forgot-password', {
         email: email
       });
 

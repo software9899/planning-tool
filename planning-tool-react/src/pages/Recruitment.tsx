@@ -29,12 +29,12 @@ export default function Recruitment() {
   const loadVacantPositions = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8002/api/draft-headcount');
+      const response = await fetch('/api/draft-headcount');
       if (response.ok) {
         const data = await response.json();
 
         // Get line manager names
-        const usersResponse = await fetch('http://localhost:8002/api/users');
+        const usersResponse = await fetch('/api/users');
         const users = usersResponse.ok ? await usersResponse.json() : [];
 
         // Filter to show only truly vacant positions (status = 'open' AND not yet named)
@@ -83,7 +83,7 @@ export default function Recruitment() {
 
   const handleMarkAsRecruiting = async (position: VacantPosition) => {
     try {
-      const response = await fetch(`http://localhost:8002/api/draft-headcount/${position.id}`, {
+      const response = await fetch(`/api/draft-headcount/${position.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -108,7 +108,7 @@ export default function Recruitment() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8002/api/draft-headcount/${position.id}`, {
+      const response = await fetch(`/api/draft-headcount/${position.id}`, {
         method: 'DELETE'
       });
 

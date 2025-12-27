@@ -117,7 +117,7 @@ export default function OrgChart() {
       });
 
       // Load draft headcount entries
-      const draftResponse = await fetch('http://localhost:8002/api/draft-headcount');
+      const draftResponse = await fetch('/api/draft-headcount');
       let draftMembers = [];
       if (draftResponse.ok) {
         const drafts = await draftResponse.json();
@@ -146,7 +146,7 @@ export default function OrgChart() {
   const addVacancy = async (managerId: string) => {
     try {
       // Create vacancy in draft_headcount table
-      const response = await fetch('http://localhost:8002/api/draft-headcount', {
+      const response = await fetch('/api/draft-headcount', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -200,7 +200,7 @@ export default function OrgChart() {
 
       if (isDraft) {
         // Delete from draft_headcount
-        const response = await fetch(`http://localhost:8002/api/draft-headcount/${actualId}`, {
+        const response = await fetch(`/api/draft-headcount/${actualId}`, {
           method: 'DELETE',
         });
 
@@ -212,7 +212,7 @@ export default function OrgChart() {
         }
       } else {
         // Delete from users
-        const response = await fetch(`http://localhost:8002/api/users/${actualId}`, {
+        const response = await fetch(`/api/users/${actualId}`, {
           method: 'DELETE',
         });
 
@@ -256,7 +256,7 @@ export default function OrgChart() {
       const draftId = convertingVacancy.id.replace('draft-', '');
 
       // Create new user via registration API
-      const registerResponse = await fetch('http://localhost:8002/api/auth/register', {
+      const registerResponse = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -277,7 +277,7 @@ export default function OrgChart() {
       }
 
       // Delete the draft headcount entry
-      const deleteResponse = await fetch(`http://localhost:8002/api/draft-headcount/${draftId}`, {
+      const deleteResponse = await fetch(`/api/draft-headcount/${draftId}`, {
         method: 'DELETE'
       });
 
@@ -303,7 +303,7 @@ export default function OrgChart() {
 
   const loadTeams = async () => {
     try {
-      const response = await fetch('http://localhost:8002/api/teams');
+      const response = await fetch('/api/teams');
       if (response.ok) {
         const dbTeams = await response.json();
 
@@ -313,7 +313,7 @@ export default function OrgChart() {
             // Fetch team members
             let teamMembers: string[] = [];
             try {
-              const membersResponse = await fetch(`http://localhost:8002/api/teams/${t.id}/members`);
+              const membersResponse = await fetch(`/api/teams/${t.id}/members`);
               if (membersResponse.ok) {
                 const membersList = await membersResponse.json();
                 teamMembers = membersList.map((m: any) => String(m.id));
@@ -868,8 +868,8 @@ export default function OrgChart() {
                     const isDraft = member.id.startsWith('draft-');
                     const actualId = isDraft ? member.id.replace('draft-', '') : member.id;
                     const endpoint = isDraft
-                      ? `http://localhost:8002/api/draft-headcount/${actualId}`
-                      : `http://localhost:8002/api/users/${actualId}`;
+                      ? `/api/draft-headcount/${actualId}`
+                      : `/api/users/${actualId}`;
 
                     const payload = isDraft
                       ? {
@@ -1048,7 +1048,7 @@ export default function OrgChart() {
                     const newDate = prompt('Enter start date (YYYY-MM-DD):', member.start_date || '');
                     if (newDate !== null && newDate.trim()) {
                       try {
-                        const response = await fetch(`http://localhost:8002/api/users/${member.id}`, {
+                        const response = await fetch(`/api/users/${member.id}`, {
                           method: 'PUT',
                           headers: {
                             'Content-Type': 'application/json',

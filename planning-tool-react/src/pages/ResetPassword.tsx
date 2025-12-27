@@ -61,7 +61,7 @@ export default function ResetPassword() {
     setLoading(true);
 
     try {
-      await axios.post('http://localhost:8002/api/auth/reset-password', {
+      await axios.post('/api/auth/reset-password', {
         token: token,
         new_password: formData.password
       });

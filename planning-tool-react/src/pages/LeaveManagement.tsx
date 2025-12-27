@@ -121,7 +121,7 @@ export default function LeaveManagement() {
 
   const loadMembers = async () => {
     try {
-      const response = await fetch('http://localhost:8002/api/members');
+      const response = await fetch('/api/members');
       if (response.ok) {
         const data = await response.json();
         // Filter only active members
@@ -134,7 +134,7 @@ export default function LeaveManagement() {
 
   const loadLeaveRequests = async () => {
     try {
-      const response = await fetch('http://localhost:8002/api/leave-requests');
+      const response = await fetch('/api/leave-requests');
       if (response.ok) {
         const data = await response.json();
         setLeaveRequests(data);
@@ -146,7 +146,7 @@ export default function LeaveManagement() {
 
   const loadLeaveBalances = async () => {
     try {
-      const response = await fetch('http://localhost:8002/api/leave-balances');
+      const response = await fetch('/api/leave-balances');
       if (response.ok) {
         const data = await response.json();
         setLeaveBalances(data);
@@ -199,7 +199,7 @@ export default function LeaveManagement() {
       const startDateTime = new Date(startDate + 'T00:00:00').toISOString();
       const endDateTime = new Date(endDate + 'T23:59:59').toISOString();
 
-      const response = await fetch('http://localhost:8002/api/leave-requests', {
+      const response = await fetch('/api/leave-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -240,7 +240,7 @@ export default function LeaveManagement() {
 
   const handleApproveReject = async (requestId: string, status: 'approved' | 'rejected') => {
     try {
-      const response = await fetch(`http://localhost:8002/api/leave-requests/${requestId}`, {
+      const response = await fetch(`/api/leave-requests/${requestId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -406,7 +406,7 @@ export default function LeaveManagement() {
       const startDateTime = new Date(startDate + 'T00:00:00').toISOString();
       const endDateTime = new Date(endDate + 'T23:59:59').toISOString();
 
-      const response = await fetch('http://localhost:8002/api/leave-requests', {
+      const response = await fetch('/api/leave-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -456,7 +456,7 @@ export default function LeaveManagement() {
       const startDateTime = new Date(effectiveStartDate + 'T00:00:00').toISOString();
       const endDateTime = new Date(effectiveEndDate + 'T23:59:59').toISOString();
 
-      const response = await fetch('http://localhost:8002/api/leave-requests', {
+      const response = await fetch('/api/leave-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -509,7 +509,7 @@ export default function LeaveManagement() {
     try {
       // Case 1: Already half-day - just change the type (morning <-> afternoon)
       if (selectedLeave.half_day_type) {
-        await fetch(`http://localhost:8002/api/leave-requests/${selectedLeave.id}`, {
+        await fetch(`/api/leave-requests/${selectedLeave.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -528,7 +528,7 @@ export default function LeaveManagement() {
           const newDates = dates.filter(d => d !== selectedLeaveDate);
 
           // Update the original leave (remove the selected date)
-          await fetch(`http://localhost:8002/api/leave-requests/${selectedLeave.id}`, {
+          await fetch(`/api/leave-requests/${selectedLeave.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -541,7 +541,7 @@ export default function LeaveManagement() {
           // Use simple string concatenation to avoid timezone issues
           const selectedDatetime = selectedLeaveDate + 'T12:00:00.000Z';
 
-          const createResponse = await fetch('http://localhost:8002/api/leave-requests', {
+          const createResponse = await fetch('/api/leave-requests', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -569,7 +569,7 @@ export default function LeaveManagement() {
           alert(`✅ Converted ${new Date(selectedLeaveDate).toLocaleDateString('th-TH')} to half-day (${halfDayType === 'morning' ? 'ครึ่งเช้า' : 'ครึ่งบ่าย'})`);
         } else {
           // Single-day leave: just update the half_day_type
-          await fetch(`http://localhost:8002/api/leave-requests/${selectedLeave.id}`, {
+          await fetch(`/api/leave-requests/${selectedLeave.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -603,7 +603,7 @@ export default function LeaveManagement() {
         ? selectedLeave.dates
         : [selectedLeaveDate];
 
-      await fetch(`http://localhost:8002/api/leave-requests/${selectedLeave.id}`, {
+      await fetch(`/api/leave-requests/${selectedLeave.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -634,7 +634,7 @@ export default function LeaveManagement() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8002/api/leave-requests/${selectedLeave.id}`, {
+      const response = await fetch(`/api/leave-requests/${selectedLeave.id}`, {
         method: 'DELETE'
       });
 
@@ -676,7 +676,7 @@ export default function LeaveManagement() {
       }
 
       try {
-        const response = await fetch(`http://localhost:8002/api/leave-requests/${contextMenuLeave.id}`, {
+        const response = await fetch(`/api/leave-requests/${contextMenuLeave.id}`, {
           method: 'DELETE'
         });
 
@@ -716,7 +716,7 @@ export default function LeaveManagement() {
         days: newDays
       };
 
-      const response = await fetch(`http://localhost:8002/api/leave-requests/${contextMenuLeave.id}`, {
+      const response = await fetch(`/api/leave-requests/${contextMenuLeave.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatePayload)

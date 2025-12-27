@@ -38,7 +38,7 @@ export default function MultiAssigneeModal({
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:8002/api/users');
+      const response = await fetch('/api/users');
       if (response.ok) {
         const users = await response.json();
         setMembers(users);

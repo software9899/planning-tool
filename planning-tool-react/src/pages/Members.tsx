@@ -261,7 +261,7 @@ export default function Members() {
 
     // Load teams from database API
     try {
-      const response = await fetch('http://localhost:8002/api/teams');
+      const response = await fetch('/api/teams');
       if (response.ok) {
         const dbTeams = await response.json();
 
@@ -271,7 +271,7 @@ export default function Members() {
             // Fetch team members
             let teamMembers: string[] = [];
             try {
-              const membersResponse = await fetch(`http://localhost:8002/api/teams/${t.id}/members`);
+              const membersResponse = await fetch(`/api/teams/${t.id}/members`);
               if (membersResponse.ok) {
                 const membersList = await membersResponse.json();
                 teamMembers = membersList.map((m: any) => String(m.id));
@@ -341,7 +341,7 @@ export default function Members() {
 
     // Load draft headcount from database API
     try {
-      const response = await fetch('http://localhost:8002/api/draft-headcount');
+      const response = await fetch('/api/draft-headcount');
       if (response.ok) {
         const drafts = await response.json();
         setDraftHeadcount(drafts);
@@ -357,7 +357,7 @@ export default function Members() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8002/api/draft-headcount/${id}`, {
+      const response = await fetch(`/api/draft-headcount/${id}`, {
         method: 'DELETE',
       });
 
@@ -401,7 +401,7 @@ export default function Members() {
 
           if (dbTeam && localTeam.lead) {
             // Update team lead in database
-            const response = await fetch(`http://localhost:8002/api/teams/${dbTeam.id}`, {
+            const response = await fetch(`/api/teams/${dbTeam.id}`, {
               method: 'PUT',
               headers: {
                 'Content-Type': 'application/json',
@@ -596,7 +596,7 @@ export default function Members() {
 
     try {
       // Call API to register new user
-      const response = await fetch('http://localhost:8002/api/auth/register', {
+      const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -686,7 +686,7 @@ export default function Members() {
     }
 
     try {
-      const response = await fetch('http://localhost:8002/api/teams', {
+      const response = await fetch('/api/teams', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -871,7 +871,7 @@ export default function Members() {
         updateData.password = editMemberPassword.trim();
       }
 
-      const response = await fetch(`http://localhost:8002/api/users/${editingMember.id}`, {
+      const response = await fetch(`/api/users/${editingMember.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -928,7 +928,7 @@ export default function Members() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8002/api/users/${member.id}`, {
+      const response = await fetch(`/api/users/${member.id}`, {
         method: 'DELETE'
       });
 
@@ -983,7 +983,7 @@ export default function Members() {
         updateData.end_date = null; // Clear end_date when changing back to active
       }
 
-      const response = await fetch(`http://localhost:8002/api/users/${member.id}`, {
+      const response = await fetch(`/api/users/${member.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData)
@@ -1067,7 +1067,7 @@ export default function Members() {
     });
 
     try {
-      const response = await fetch(`http://localhost:8002/api/teams/${assigningTeam.id}`, {
+      const response = await fetch(`/api/teams/${assigningTeam.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1088,7 +1088,7 @@ export default function Members() {
       console.log('✅ Team updated in DB:', updatedTeam);
 
       // Reload teams from database to get fresh data
-      const teamsResponse = await fetch('http://localhost:8002/api/teams');
+      const teamsResponse = await fetch('/api/teams');
       if (teamsResponse.ok) {
         const dbTeams = await teamsResponse.json();
         console.log('📋 Reloaded teams from DB:', dbTeams);
@@ -1098,7 +1098,7 @@ export default function Members() {
           dbTeams.map(async (t: any) => {
             let teamMembers: string[] = [];
             try {
-              const membersResponse = await fetch(`http://localhost:8002/api/teams/${t.id}/members`);
+              const membersResponse = await fetch(`/api/teams/${t.id}/members`);
               if (membersResponse.ok) {
                 const membersList = await membersResponse.json();
                 teamMembers = membersList.map((m: any) => String(m.id));
@@ -1162,7 +1162,7 @@ export default function Members() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8002/api/teams/${editingTeam.id}`, {
+      const response = await fetch(`/api/teams/${editingTeam.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1183,7 +1183,7 @@ export default function Members() {
 
       // Update team members in database
       const memberIds = editTeamMembers.map(id => parseInt(id));
-      const membersResponse = await fetch(`http://localhost:8002/api/teams/${editingTeam.id}/members`, {
+      const membersResponse = await fetch(`/api/teams/${editingTeam.id}/members`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1224,7 +1224,7 @@ export default function Members() {
 
       // Update database
       const memberIds = newMembers.map(id => parseInt(id));
-      const response = await fetch(`http://localhost:8002/api/teams/${team.id}/members`, {
+      const response = await fetch(`/api/teams/${team.id}/members`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1257,7 +1257,7 @@ export default function Members() {
 
     try {
       // Clear all members in database
-      const response = await fetch(`http://localhost:8002/api/teams/${team.id}/members`, {
+      const response = await fetch(`/api/teams/${team.id}/members`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1294,7 +1294,7 @@ export default function Members() {
       // No members, can delete directly
       if (confirm(`Are you sure you want to delete team "${team.name}"?`)) {
         try {
-          const response = await fetch(`http://localhost:8002/api/teams/${team.id}`, {
+          const response = await fetch(`/api/teams/${team.id}`, {
             method: 'DELETE'
           });
 
@@ -1336,7 +1336,7 @@ export default function Members() {
       setShowDeleteTeamMembersModal(false);
       if (confirm(`All members removed. Delete team "${deletingTeam.name}" now?`)) {
         try {
-          const response = await fetch(`http://localhost:8002/api/teams/${deletingTeam.id}`, {
+          const response = await fetch(`/api/teams/${deletingTeam.id}`, {
             method: 'DELETE'
           });
 

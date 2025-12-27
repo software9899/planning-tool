@@ -87,7 +87,7 @@ export default function TasksBoard() {
 
   const loadUsers = async () => {
     try {
-      const response = await fetch('http://localhost:8002/api/users');
+      const response = await fetch('/api/users');
       if (response.ok) {
         const userData = await response.json();
         setUsers(userData);
