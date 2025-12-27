@@ -1143,7 +1143,12 @@ from pathlib import Path
 from fastapi.responses import FileResponse, JSONResponse
 
 # Get plugins directory - works both locally and in Docker
-PLUGINS_DIR = Path(__file__).parent.parent / "plugins"
+# In Docker: plugins are mounted at /plugins
+# Locally: plugins are at ../plugins relative to backend directory
+if Path("/plugins").exists():
+    PLUGINS_DIR = Path("/plugins")
+else:
+    PLUGINS_DIR = Path(__file__).parent.parent / "plugins"
 
 @app.get("/api/plugins")
 def get_plugins():
