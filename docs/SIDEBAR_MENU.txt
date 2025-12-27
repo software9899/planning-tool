@@ -1,0 +1,51 @@
+╔════════════════════════════════════════════════════════════════╗
+║                   📋 PLANNING TOOL - SIDEBAR                   ║
+╠════════════════════════════════════════════════════════════════╣
+║                                                                ║
+║  📋 Planning Tool                                              ║
+║  ════════════════                                              ║
+║                                                                ║
+║  MAIN                                                          ║
+║  ├─ 📋 Tasks Board              → index.html                   ║
+║  ├─ 📋 Tasks Board V2           → index_v2.html                ║
+║  └─ 📦 Backlog                  → backlog.html                 ║
+║                                                                ║
+║  DASHBOARDS                                                    ║
+║  ├─ 📊 Dashboard                → dashboard.html               ║
+║  ├─ 🔄 Auto Dashboard           → dashboard_automated.html     ║
+║  └─ 🧪 Test Cases               → dashboard_test_cases.html    ║
+║                                                                ║
+║  MANAGEMENT                                                    ║
+║  ├─ 👥 User Management          → user_management.html (Admin) ║
+║  └─ ⚙️ Settings                 → settings.html                ║
+║                                                                ║
+║  DEVELOPMENT                                                   ║
+║  └─ 📄 Page Template            → page-template.html           ║
+║                                                                ║
+║  APPEARANCE                                                    ║
+║  └─ 🎨 Change Theme             → Theme Switcher               ║
+║                                                                ║
+║  ────────────────────────────────────────────────────────      ║
+║                                                                ║
+║  👤 User Profile                                               ║
+║  ├─ Name: Demo User                                            ║
+║  └─ Role: Member/Admin                                         ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+
+LEGEND:
+✅ = Page with Sidebar + Theme System
+⚠️ = Page needs update
+❌ = Special page (no sidebar needed)
+
+STATUS:
+✅ index.html
+⚠️ index_v2.html (needs update)
+✅ backlog.html
+✅ dashboard.html
+✅ dashboard_automated.html
+✅ dashboard_test_cases.html
+✅ user_management.html
+✅ settings.html
+✅ page-template.html
+❌ login.html (no sidebar)

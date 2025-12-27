@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Planning Tool</title>
+    <link rel="stylesheet" href="assets/css/theme.css">
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <style>
+
+        .settings-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .back-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: auto;
+        }
+
+        .back-btn:hover {
+            background: #5568d3;
+        }
+
+        .section {
+            margin-bottom: 40px;
+            padding-bottom: 40px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .section:last-of-type {
+            border-bottom: none;
+        }
+
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .items-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .item-tag {
+            background: #f0f0f0;
+            padding: 8px 15px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .remove-btn {
+            background: #ff4444;
+            color: white;
+            border: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .remove-btn:hover {
+            background: #cc0000;
+        }
+
+        .add-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .add-form input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .add-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .add-btn:hover {
+            background: #5568d3;
+        }
+
+        .save-section {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .save-btn {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .save-btn:hover {
+            background: #45a049;
+        }
+
+        .message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            display: none;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+
+        .empty-state {
+            color: #999;
+            font-style: italic;
+            padding: 20px;
+            text-align: center;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+
+        .checklist-template {
+            background: #f8f9ff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .checklist-template h3 {
+            color: #667eea;
+            font-size: 16px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checklist-items-list {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .checklist-item-tag {
+            background: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <!-- Sidebar will be loaded here by load-sidebar.js -->
+
+        <div id="sidebar-container"></div>
+
+
+        <div class="main-content">
+            <header>
+                <h1>⚙️ การตั้งค่า</h1>
+                <div class="header-buttons">
+                    <div id="themeSwitcherContainer"></div>
+                    <a href="index.html" class="settings-btn">← กลับ</a>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <div class="settings-container">
+
+        <!-- Task Types Section -->
+        <div class="section">
+            <h2>📋 ชนิดของ Task</h2>
+            <div id="typesList" class="items-list"></div>
+            <div class="add-form">
+                <input type="text" id="newType" placeholder="เพิ่มชนิด Task ใหม่..." />
+                <button class="add-btn" onclick="addType()">+ เพิ่ม</button>
+            </div>
+        </div>
+
+        <!-- Priorities Section -->
+        <div class="section">
+            <h2>⚡ ระดับ Priority</h2>
+            <div id="prioritiesList" class="items-list"></div>
+            <div class="add-form">
+                <input type="text" id="newPriority" placeholder="เพิ่ม Priority ใหม่..." />
+                <button class="add-btn" onclick="addPriority()">+ เพิ่ม</button>
+            </div>
+        </div>
+
+        <!-- Checklist Templates Section -->
+        <div class="section">
+            <h2>📋 Readiness Checklist Templates</h2>
+            <p>
+                กำหนด Checklist สำหรับแต่ละชนิดของ Task - พนักงานจะต้องเช็ครายการเหล่านี้ก่อนสร้าง Task
+            </p>
+            <div id="checklistTemplatesContainer"></div>
+        </div>
+
+        <!-- Save Section -->
+        <div class="save-section">
+            <button class="save-btn" onclick="saveAndClose()">💾 บันทึกและปิด</button>
+            <div id="message" class="message"></div>
+        </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/js/theme.js"></script>
+    <script src="assets/js/load-sidebar.js"></script>
+    <script src="assets/js/sidebar.js"></script>
+
+    <!-- Load Theme Switcher -->
+    <script>
+        // Load theme switcher
+        document.addEventListener('DOMContentLoaded', function() {
+            const container = document.getElementById('themeSwitcherContainer');
+            if (container && typeof createThemeSwitcher === 'function') {
+                container.innerHTML = createThemeSwitcher();
+            }
+        });
+    </script>
+
+    <script>
+        let taskTypes = JSON.parse(localStorage.getItem('taskTypes')) || ['Feature', 'Bug', 'Research', 'Documentation'];
+        let priorities = JSON.parse(localStorage.getItem('priorities')) || ['High', 'Medium', 'Low'];
+        let checklistTemplates = JSON.parse(localStorage.getItem('checklistTemplates')) || {
+            'Feature': ['Design Ready', 'API Specification', 'Database Schema', 'Deadline Confirmed'],
+            'Bug': ['Bug Reproduced', 'Root Cause Identified', 'Fix Tested', 'Deadline Set'],
+            'Research': ['Scope Defined', 'Resources Available', 'Timeline Set', 'Stakeholders Informed'],
+            'Documentation': ['Content Outline', 'References Gathered', 'Review Process Set', 'Deadline Confirmed']
+        };
+
+        // Initialize
+        renderTypes();
+        renderPriorities();
+        renderChecklistTemplates();
+
+        function renderTypes() {
+            const container = document.getElementById('typesList');
+            container.innerHTML = '';
+
+            if (taskTypes.length === 0) {
+                container.innerHTML = '<div class="empty-state">ยังไม่มีชนิด Task</div>';
+                return;
+            }
+
+            taskTypes.forEach((type, index) => {
+                const tag = document.createElement('div');
+                tag.className = 'item-tag';
+                tag.innerHTML = `
+                    <span>${type}</span>
+                    <button class="remove-btn" onclick="removeType(${index})">×</button>
+                `;
+                container.appendChild(tag);
+            });
+        }
+
+        function renderPriorities() {
+            const container = document.getElementById('prioritiesList');
+            container.innerHTML = '';
+
+            if (priorities.length === 0) {
+                container.innerHTML = '<div class="empty-state">ยังไม่มี Priority</div>';
+                return;
+            }
+
+            priorities.forEach((priority, index) => {
+                const tag = document.createElement('div');
+                tag.className = 'item-tag';
+                tag.innerHTML = `
+                    <span>${priority}</span>
+                    <button class="remove-btn" onclick="removePriority(${index})">×</button>
+                `;
+                container.appendChild(tag);
+            });
+        }
+
+        function renderChecklistTemplates() {
+            const container = document.getElementById('checklistTemplatesContainer');
+            container.innerHTML = '';
+
+            taskTypes.forEach(type => {
+                const template = checklistTemplates[type] || [];
+                
+                const templateDiv = document.createElement('div');
+                templateDiv.className = 'checklist-template';
+                
+                let itemsHTML = '';
+                if (template.length === 0) {
+                    itemsHTML = '<div class="empty-state">ยังไม่มี Checklist</div>';
+                } else {
+                    itemsHTML = '<div class="checklist-items-list">';
+                    template.forEach((item, index) => {
+                        itemsHTML += `
+                            <div class="checklist-item-tag">
+                                <span>✓ ${item}</span>
+                                <button class="remove-btn" onclick="removeChecklistItem('${type}', ${index})">×</button>
+                            </div>
+                        `;
+                    });
+                    itemsHTML += '</div>';
+                }
+                
+                templateDiv.innerHTML = `
+                    <h3>📌 ${type}</h3>
+                    ${itemsHTML}
+                    <div class="add-form">
+                        <input type="text" id="newChecklistItem-${type}" placeholder="เพิ่มรายการ Checklist ใหม่..." />
+                        <button class="add-btn" onclick="addChecklistItem('${type}')">+ เพิ่ม</button>
+                    </div>
+                `;
+                
+                container.appendChild(templateDiv);
+            });
+        }
+
+        function addType() {
+            const input = document.getElementById('newType');
+            const value = input.value.trim();
+
+            if (!value) {
+                alert('กรุณาใส่ชื่อชนิด Task');
+                return;
+            }
+
+            if (taskTypes.includes(value)) {
+                alert('ชนิด Task นี้มีอยู่แล้ว');
+                return;
+            }
+
+            taskTypes.push(value);
+            if (!checklistTemplates[value]) {
+                checklistTemplates[value] = [];
+            }
+            input.value = '';
+            renderTypes();
+            renderChecklistTemplates();
+        }
+
+        function addPriority() {
+            const input = document.getElementById('newPriority');
+            const value = input.value.trim();
+
+            if (!value) {
+                alert('กรุณาใส่ชื่อ Priority');
+                return;
+            }
+
+            if (priorities.includes(value)) {
+                alert('Priority นี้มีอยู่แล้ว');
+                return;
+            }
+
+            priorities.push(value);
+            input.value = '';
+            renderPriorities();
+        }
+
+        function removeType(index) {
+            if (confirm('คุณแน่ใจหรือไม่ที่จะลบชนิด Task นี้?')) {
+                const type = taskTypes[index];
+                taskTypes.splice(index, 1);
+                delete checklistTemplates[type];
+                renderTypes();
+                renderChecklistTemplates();
+            }
+        }
+
+        function removePriority(index) {
+            if (confirm('คุณแน่ใจหรือไม่ที่จะลบ Priority นี้?')) {
+                priorities.splice(index, 1);
+                renderPriorities();
+            }
+        }
+
+        function addChecklistItem(type) {
+            const input = document.getElementById(`newChecklistItem-${type}`);
+            const value = input.value.trim();
+
+            if (!value) {
+                alert('กรุณาใส่รายการ Checklist');
+                return;
+            }
+
+            if (!checklistTemplates[type]) {
+                checklistTemplates[type] = [];
+            }
+
+            if (checklistTemplates[type].includes(value)) {
+                alert('รายการนี้มีอยู่แล้ว');
+                return;
+            }
+
+            checklistTemplates[type].push(value);
+            input.value = '';
+            renderChecklistTemplates();
+        }
+
+        function removeChecklistItem(type, index) {
+            if (confirm('คุณแน่ใจหรือไม่ที่จะลบรายการนี้?')) {
+                checklistTemplates[type].splice(index, 1);
+                renderChecklistTemplates();
+            }
+        }
+
+        function saveAndClose() {
+            localStorage.setItem('taskTypes', JSON.stringify(taskTypes));
+            localStorage.setItem('priorities', JSON.stringify(priorities));
+            localStorage.setItem('checklistTemplates', JSON.stringify(checklistTemplates));
+
+            const message = document.getElementById('message');
+            message.className = 'message success';
+            message.textContent = '✅ บันทึกสำเร็จ! กำลังปิดหน้าต่าง...';
+
+            setTimeout(() => {
+                window.close();
+            }, 1500);
+        }
+
+        // Allow Enter key to add items
+        document.getElementById('newType').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addType();
+        });
+
+        document.getElementById('newPriority').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addPriority();
+        });
+    </script>
+</body>
+</html>

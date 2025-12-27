@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migrate to API - Planning Tool</title>
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <style>
+        .migration-container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 30px;
+            background: var(--card-bg, #fff);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .migration-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .migration-header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .migration-header p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .status-card {
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 2px solid;
+        }
+
+        .status-card.info {
+            background: #e3f2fd;
+            border-color: #2196f3;
+            color: #1976d2;
+        }
+
+        .status-card.success {
+            background: #e8f5e9;
+            border-color: #4caf50;
+            color: #2e7d32;
+        }
+
+        .status-card.warning {
+            background: #fff3e0;
+            border-color: #ff9800;
+            color: #e65100;
+        }
+
+        .status-card.error {
+            background: #ffebee;
+            border-color: #f44336;
+            color: #c62828;
+        }
+
+        .status-card h3 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2196f3;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #2196f3;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1976d2;
+        }
+
+        .btn-primary:disabled {
+            background: #bdbdbd;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #fff;
+            color: #2196f3;
+            border: 2px solid #2196f3;
+        }
+
+        .btn-secondary:hover {
+            background: #e3f2fd;
+        }
+
+        .progress-container {
+            display: none;
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #f5f5f5;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #2196f3, #21cbf3);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .log-container {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            display: none;
+        }
+
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-entry.success { color: #4caf50; }
+        .log-entry.error { color: #f44336; }
+        .log-entry.info { color: #2196f3; }
+    </style>
+</head>
+<body>
+    <div class="migration-container">
+        <div class="migration-header">
+            <h1>🔄 Migrate to PostgreSQL</h1>
+            <p>Transfer your data from localStorage to the PostgreSQL database</p>
+        </div>
+
+        <div id="statusContainer"></div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value" id="localStorageTasks">-</div>
+                <div class="stat-label">Tasks in localStorage</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="apiTasks">-</div>
+                <div class="stat-label">Tasks in Database</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="migratedTasks">0</div>
+                <div class="stat-label">Migrated</div>
+            </div>
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%">0%</div>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn btn-secondary" onclick="checkStatus()">
+                🔍 Check Status
+            </button>
+            <button class="btn btn-primary" id="migrateBtn" onclick="startMigration()">
+                🚀 Start Migration
+            </button>
+            <button class="btn btn-secondary" onclick="window.location.href='index.html'">
+                ← Back to App
+            </button>
+        </div>
+
+        <div class="log-container" id="logContainer"></div>
+    </div>
+
+    <script src="assets/js/api-service.js"></script>
+    <script>
+        let localStorageTaskCount = 0;
+        let apiTaskCount = 0;
+
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            logContainer.style.display = 'block';
+
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function showStatus(message, type = 'info') {
+            const container = document.getElementById('statusContainer');
+            const icons = {
+                info: 'ℹ️',
+                success: '✅',
+                warning: '⚠️',
+                error: '❌'
+            };
+
+            container.innerHTML = `
+                <div class="status-card ${type}">
+                    <h3>${icons[type]} ${message}</h3>
+                </div>
+            `;
+        }
+
+        async function checkStatus() {
+            addLog('Checking status...', 'info');
+
+            // Check localStorage
+            const tasksFromStorage = JSON.parse(localStorage.getItem('tasks') || '[]');
+            localStorageTaskCount = tasksFromStorage.length;
+            document.getElementById('localStorageTasks').textContent = localStorageTaskCount;
+            addLog(`Found ${localStorageTaskCount} tasks in localStorage`, 'info');
+
+            // Check API
+            try {
+                const isHealthy = await ApiService.checkHealth();
+
+                if (!isHealthy) {
+                    showStatus('API is not available. Please start the backend services.', 'error');
+                    document.getElementById('migrateBtn').disabled = true;
+                    addLog('API health check failed', 'error');
+                    return;
+                }
+
+                const apiTasks = await ApiService.getTasks();
+                apiTaskCount = apiTasks.length;
+                document.getElementById('apiTasks').textContent = apiTaskCount;
+                addLog(`Found ${apiTaskCount} tasks in database`, 'success');
+
+                if (localStorageTaskCount === 0) {
+                    showStatus('No tasks found in localStorage to migrate.', 'info');
+                    document.getElementById('migrateBtn').disabled = true;
+                } else if (apiTaskCount > 0) {
+                    showStatus(`Database already contains ${apiTaskCount} tasks. Migration will add ${localStorageTaskCount} more tasks.`, 'warning');
+                    document.getElementById('migrateBtn').disabled = false;
+                } else {
+                    showStatus(`Ready to migrate ${localStorageTaskCount} tasks to the database.`, 'success');
+                    document.getElementById('migrateBtn').disabled = false;
+                }
+
+            } catch (error) {
+                showStatus('Failed to connect to API: ' + error.message, 'error');
+                document.getElementById('migrateBtn').disabled = true;
+                addLog('API connection error: ' + error.message, 'error');
+            }
+        }
+
+        async function startMigration() {
+            const btn = document.getElementById('migrateBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Migrating...';
+
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            progressContainer.style.display = 'block';
+
+            addLog('Starting migration...', 'info');
+
+            try {
+                const result = await DataManager.migrate();
+
+                progressFill.style.width = '100%';
+                progressFill.textContent = '100%';
+
+                document.getElementById('migratedTasks').textContent = result.migrated;
+
+                if (result.failed > 0) {
+                    showStatus(
+                        `Migration completed with errors. ${result.migrated} tasks migrated, ${result.failed} failed.`,
+                        'warning'
+                    );
+                    addLog(`Migration completed: ${result.migrated} succeeded, ${result.failed} failed`, 'warning');
+                } else {
+                    showStatus(
+                        `Migration successful! ${result.migrated} tasks have been migrated to PostgreSQL.`,
+                        'success'
+                    );
+                    addLog(`Migration completed successfully: ${result.migrated} tasks migrated`, 'success');
+                }
+
+                // Refresh counts
+                await checkStatus();
+
+            } catch (error) {
+                showStatus('Migration failed: ' + error.message, 'error');
+                addLog('Migration error: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🚀 Start Migration';
+            }
+        }
+
+        // Auto-check status on load
+        window.addEventListener('load', checkStatus);
+    </script>
+</body>
+</html>

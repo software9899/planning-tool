@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Migration - Planning Tool</title>
+    <link rel="stylesheet" href="assets/css/theme.css">
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <style>
+        .migration-container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .description {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .section h2 {
+            margin-top: 0;
+            color: #333;
+            font-size: 18px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="migration-container">
+        <h1>📦 Data Migration Tool</h1>
+        <p class="description">เครื่องมือสำหรับย้ายข้อมูลระหว่าง file:// และ http://localhost:3000</p>
+
+        <!-- Current Data Info -->
+        <div class="section">
+            <h2>📊 Current Data (localhost)</h2>
+            <div class="stats" id="currentStats">
+                <div class="stat-card">
+                    <div class="stat-value" id="taskCount">0</div>
+                    <div class="stat-label">Tasks</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="storageKeys">0</div>
+                    <div class="stat-label">Storage Keys</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Export Section -->
+        <div class="section">
+            <h2>📤 Export Data</h2>
+            <p>Export ข้อมูลจาก localStorage ปัจจุบัน</p>
+            <button onclick="exportData()">Export All Data</button>
+            <button onclick="downloadData()" class="secondary">Download as JSON</button>
+            <textarea id="exportOutput" placeholder="Exported data will appear here..."></textarea>
+        </div>
+
+        <!-- Import Section -->
+        <div class="section">
+            <h2>📥 Import Data</h2>
+            <p>วาง JSON ที่ export มาข้างบนแล้วกด Import</p>
+            <textarea id="importInput" placeholder="Paste exported JSON here..."></textarea>
+            <button onclick="importData()">Import Data</button>
+            <button onclick="clearImport()" class="secondary">Clear</button>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="statusMessage" class="status"></div>
+
+        <!-- Actions -->
+        <div class="section">
+            <h2>⚙️ Actions</h2>
+            <button onclick="window.location.href='index.html'">Go to Tasks Board</button>
+            <button onclick="location.reload()" class="secondary">Refresh</button>
+        </div>
+    </div>
+
+    <script>
+        // Update current stats
+        function updateStats() {
+            const tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+            document.getElementById('taskCount').textContent = tasks.length;
+            document.getElementById('storageKeys').textContent = Object.keys(localStorage).length;
+        }
+
+        // Export data
+        function exportData() {
+            const data = {};
+
+            // Export all localStorage
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                data[key] = localStorage.getItem(key);
+            }
+
+            const json = JSON.stringify(data, null, 2);
+            document.getElementById('exportOutput').value = json;
+
+            showStatus('success', `✅ Exported ${Object.keys(data).length} items from localStorage`);
+        }
+
+        // Download as file
+        function downloadData() {
+            exportData();
+            const json = document.getElementById('exportOutput').value;
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `planning-tool-data-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            showStatus('success', '✅ Downloaded data as JSON file');
+        }
+
+        // Import data
+        function importData() {
+            const json = document.getElementById('importInput').value.trim();
+
+            if (!json) {
+                showStatus('error', '❌ Please paste JSON data first');
+                return;
+            }
+
+            try {
+                const data = JSON.parse(json);
+                let count = 0;
+
+                // Clear existing data
+                if (confirm('This will replace all current data. Continue?')) {
+                    localStorage.clear();
+
+                    // Import all keys
+                    for (const [key, value] of Object.entries(data)) {
+                        localStorage.setItem(key, value);
+                        count++;
+                    }
+
+                    showStatus('success', `✅ Imported ${count} items successfully`);
+                    updateStats();
+
+                    setTimeout(() => {
+                        if (confirm('Import complete! Reload page to see changes?')) {
+                            location.reload();
+                        }
+                    }, 1000);
+                }
+            } catch (error) {
+                showStatus('error', `❌ Invalid JSON: ${error.message}`);
+            }
+        }
+
+        // Clear import textarea
+        function clearImport() {
+            document.getElementById('importInput').value = '';
+        }
+
+        // Show status message
+        function showStatus(type, message) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = message;
+
+            setTimeout(() => {
+                statusEl.className = 'status';
+            }, 5000);
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            updateStats();
+
+            // Show info about protocol
+            const protocol = window.location.protocol;
+            const info = protocol === 'file:'
+                ? '⚠️ You are using file:// protocol. Data here is separate from http://localhost:3000'
+                : '✅ You are using http://localhost:3000';
+
+            showStatus('info', info);
+        });
+    </script>
+</body>
+</html>

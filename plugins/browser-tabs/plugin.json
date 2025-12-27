@@ -1,0 +1,17 @@
+{
+  "id": "browser-tabs",
+  "name": "Browser Tabs",
+  "version": "1.0.0",
+  "description": "Manage and organize your browser bookmarks and tabs",
+  "icon": "🔖",
+  "route": "/bookmarks",
+  "sidebarLabel": "Browser Tabs",
+  "author": "Planning Tool Team",
+  "enabled": true,
+  "files": {
+    "html": "index.html",
+    "script": "script.js",
+    "style": "style.css"
+  },
+  "requirements": []
+}

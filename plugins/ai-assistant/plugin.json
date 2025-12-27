@@ -1,0 +1,17 @@
+{
+  "id": "ai-assistant",
+  "name": "AI Assistant",
+  "version": "1.0.0",
+  "description": "AI-powered workflow assistant and automation tool",
+  "icon": "🤖",
+  "route": "/ai-agent",
+  "sidebarLabel": "AI Assistant",
+  "author": "Planning Tool Team",
+  "enabled": true,
+  "files": {
+    "html": "index.html",
+    "script": "script.js",
+    "style": "style.css"
+  },
+  "requirements": []
+}

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Training Data Collector</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🤖 AI Training Collector</h1>
+      <p class="subtitle">Capture & train from web forms</p>
+    </header>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-value" id="totalRecords">0</div>
+        <div class="stat-label">Records Captured</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalFields">0</div>
+        <div class="stat-label">Total Fields</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-recording" id="toggleRecording">
+        <span id="recordingIcon">🔴</span>
+        <span id="recordingText">Start Recording</span>
+      </button>
+      <div id="recordingInfo" style="display: none; padding: 10px; background: #fee2e2; border-radius: 6px; margin-bottom: 10px; font-size: 12px; color: #991b1b; font-weight: 600;">
+        🔴 Recording... <span id="pageCount">0</span> pages captured
+      </div>
+      <button class="btn btn-primary" id="captureNow">
+        📸 Capture Current Page
+      </button>
+      <button class="btn btn-secondary" id="viewTraining">
+        📊 View Training Data
+      </button>
+      <button class="btn btn-danger" id="clearData">
+        🗑️ Clear All Data
+      </button>
+    </div>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "id": "test-automation-dashboard",
+  "name": "Test Automation Dashboard",
+  "version": "1.0.0",
+  "description": "Track manual, automatable, and automated test cases with visual progress charts",
+  "icon": "📊",
+  "route": "/plugin/test-automation-dashboard",
+  "sidebarLabel": "Test Automation",
+  "author": "Planning Tool Team",
+  "enabled": true,
+  "hidden": false,
+  "files": {
+    "html": "index.html",
+    "script": "dashboard.js",
+    "style": "style.css"
+  }
+}

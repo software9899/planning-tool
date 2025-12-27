@@ -1,0 +1,1626 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KT Automated Plan - Dashboard & Presentation</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            transition: all 0.3s ease;
+        }
+
+        body.presentation-mode {
+            background: #1a1a2e;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        /* Dashboard Mode Styles */
+        .dashboard-container {
+            max-width: 95%;
+            margin: 0 auto;
+            padding: 20px;
+            display: block;
+        }
+
+        body.presentation-mode .dashboard-container {
+            display: none;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 25px 30px;
+            margin-bottom: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-content h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header-content p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .mode-switch {
+            display: none;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .mode-switch.active {
+            display: flex;
+        }
+
+        .btn-filter-toggle {
+            background: white;
+            color: #667eea;
+            padding: 15px 30px;
+            border: 2px solid #667eea;
+            border-radius: 50px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .btn-filter-toggle:hover {
+            background: #f0f4ff;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-presentation {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-presentation:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+        }
+
+        .upload-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9ff;
+        }
+
+        .upload-area:hover {
+            background: #f0f4ff;
+            border-color: #764ba2;
+        }
+
+        .upload-area.dragover {
+            background: #e8ecff;
+            border-color: #764ba2;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            font-size: 1.2em;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .upload-subtext {
+            color: #999;
+            font-size: 0.9em;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .filter-section {
+            background: white;
+            border-radius: 15px;
+            padding: 0;
+            margin-bottom: 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: all 0.4s ease;
+        }
+
+        .filter-section.active {
+            padding: 25px;
+            margin-bottom: 15px;
+            max-height: 1000px;
+            opacity: 1;
+        }
+
+        .filter-section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .filter-group {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .filter-group h3 {
+            color: #667eea;
+            font-size: 1em;
+            margin-bottom: 10px;
+        }
+
+        .filter-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .filter-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: #e8ecff;
+            border: 2px solid #667eea;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            user-select: none;
+            font-size: 0.9em;
+        }
+
+        .filter-badge:hover {
+            background: #d0d8ff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .filter-badge.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+        }
+
+        .filter-badge .badge-label {
+            margin-right: 8px;
+        }
+
+        .filter-badge .badge-count {
+            background: rgba(255, 255, 255, 0.3);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 0.85em;
+        }
+
+        .filter-badge.active .badge-count {
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+        }
+
+        .filter-actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .stats-grid.active {
+            display: grid;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card .icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .label {
+            color: #666;
+            font-size: 1em;
+        }
+
+        .stat-card .sublabel {
+            color: #999;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .charts-grid {
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .charts-grid.active {
+            display: flex;
+        }
+
+        .charts-row-top {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .charts-row-bottom {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .chart-card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+
+        .charts-row-bottom .chart-card h2 {
+            font-size: 0.95em;
+            margin-bottom: 15px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-height: 24px;
+        }
+
+        .charts-row-bottom .chart-card {
+            padding: 20px 15px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .charts-row-bottom .chart-container {
+            height: 250px;
+        }
+
+        .alert-section {
+            display: none;
+        }
+
+        .recommendations {
+            display: none;
+        }
+
+        /* Modal for project details */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 1200px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .modal-title {
+            font-size: 1.8em;
+            color: #667eea;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 35px;
+            height: 35px;
+            font-size: 1.5em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .modal-close:hover {
+            background: #c0392b;
+            transform: rotate(90deg);
+        }
+
+        .modal-body {
+            color: #333;
+            overflow-y: auto;
+            max-height: calc(80vh - 120px);
+        }
+
+        .table-wrapper {
+            position: relative;
+            overflow-y: auto;
+            max-height: calc(80vh - 180px);
+        }
+
+        .project-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .project-table thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .project-table thead tr {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .project-table th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.95em;
+            color: white;
+            border-bottom: 2px solid #667eea;
+            border-right: none;
+            background: transparent;
+        }
+
+        .project-table tbody tr {
+            border-bottom: 1px solid #e8ecff;
+            transition: all 0.3s ease;
+        }
+
+        .project-table tbody tr:hover {
+            background: #f8f9ff;
+            transform: scale(1.01);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        }
+
+        .project-table td {
+            padding: 12px 15px;
+            font-size: 0.9em;
+        }
+
+        .project-table .project-name {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .project-table .priority-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+            background: #e8ecff;
+            color: #667eea;
+        }
+
+        .project-table .priority-P1 {
+            background: #ffe8e8;
+            color: #e74c3c;
+        }
+
+        .project-table .priority-P2 {
+            background: #fff4e8;
+            color: #f39c12;
+        }
+
+        .project-table .priority-P3 {
+            background: #e8f4ff;
+            color: #3498db;
+        }
+
+        .project-count {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .chart-card canvas {
+            cursor: pointer;
+        }
+
+        /* Summary Section - Gantt Chart */
+        .summary-section {
+            margin-top: 60px;
+            margin-bottom: 40px;
+            padding: 40px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .summary-section h2 {
+            font-size: 2em;
+            color: #667eea;
+            margin-bottom: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .gantt-subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .gantt-legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 30px;
+            height: 20px;
+            border-radius: 4px;
+        }
+
+        .gantt-container {
+            overflow-x: auto;
+        }
+
+        .gantt-chart {
+            min-width: 1200px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .gantt-header {
+            display: grid;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: bold;
+            padding: 15px;
+            grid-template-columns: 2fr 1fr 80px 50px 4fr;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .gantt-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 80px 50px 4fr;
+            border-bottom: 1px solid #e8ecff;
+            align-items: center;
+            padding: 12px 15px;
+            transition: background 0.3s ease;
+        }
+
+        .gantt-row:hover {
+            background: #f8f9ff;
+        }
+
+        .gantt-task-name {
+            font-weight: 600;
+            color: #333;
+            white-space: nowrap;
+        }
+
+        .gantt-owner {
+            font-size: 0.9em;
+            color: #666;
+            white-space: nowrap;
+        }
+
+        .gantt-missing {
+            font-size: 0.85em;
+            color: #666;
+            white-space: nowrap;
+        }
+
+        .gantt-header div {
+            user-select: none;
+        }
+
+        .gantt-header .filterable {
+            cursor: pointer;
+            position: relative;
+        }
+
+        .gantt-header .filterable:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
+        .filter-popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 999;
+            display: none;
+        }
+
+        .filter-popup-overlay.active {
+            display: block;
+        }
+
+        .filter-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+            z-index: 1000;
+            min-width: 280px;
+            max-width: 400px;
+            max-height: 70vh;
+            overflow: hidden;
+            display: none;
+        }
+
+        .filter-popup.active {
+            display: block;
+        }
+
+        .filter-popup-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            font-weight: bold;
+            font-size: 1.1em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .filter-popup-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5em;
+            cursor: pointer;
+            padding: 0 5px;
+            line-height: 1;
+        }
+
+        .filter-popup-close:hover {
+            opacity: 0.8;
+        }
+
+        .filter-popup-content {
+            padding: 10px 0;
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+
+        .filter-option {
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #333;
+            font-weight: normal;
+        }
+
+        .filter-option:hover {
+            background: #f8f9ff;
+        }
+
+        .filter-option input[type="checkbox"] {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+            accent-color: #667eea;
+        }
+
+        .filter-option span {
+            white-space: nowrap;
+        }
+
+        .filter-popup-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .filter-popup-content::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+
+        .gantt-timeline {
+            position: relative;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .gantt-bar {
+            position: absolute;
+            height: 100%;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.85em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .gantt-bar:hover {
+            opacity: 0.9;
+            transform: scaleY(1.1);
+        }
+
+        .priority-badge-gantt {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .priority-P1 {
+            background: #ffe8e8;
+            color: #e74c3c;
+        }
+
+        .priority-P2 {
+            background: #fff4e8;
+            color: #f39c12;
+        }
+
+        .priority-P3 {
+            background: #e8f4ff;
+            color: #3498db;
+        }
+
+        .progress-bar {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 20px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        /* Presentation Mode Styles */
+        .presentation-container {
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            display: none;
+            z-index: 9999;
+        }
+
+        body.presentation-mode .presentation-container {
+            display: block;
+        }
+
+        .slide {
+            width: 100%;
+            height: 100%;
+            display: none;
+            padding: 60px 80px 120px 80px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            animation: slideIn 0.5s ease-out;
+            overflow-y: auto;
+        }
+
+        .slide.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .slide-header {
+            margin-bottom: 30px;
+        }
+
+        .slide-title {
+            font-size: 3em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            color: white;
+        }
+
+        .slide-subtitle {
+            font-size: 1.3em;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .slide-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 30px;
+        }
+
+        .stats-grid-slide {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-box:hover {
+            transform: translateY(-10px);
+        }
+
+        .stat-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .stat-number {
+            font-size: 3.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: white;
+        }
+
+        .stat-label {
+            font-size: 1.2em;
+            opacity: 0.9;
+            color: white;
+        }
+
+        .chart-container-slide {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            height: 500px;
+        }
+
+        .chart-wrapper {
+            height: 420px;
+            position: relative;
+        }
+
+        .two-charts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .alert-box {
+            background: rgba(231, 76, 60, 0.2);
+            border-left: 5px solid #e74c3c;
+            padding: 25px 35px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .alert-title {
+            font-size: 1.6em;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: white;
+        }
+
+        .alert-text {
+            font-size: 1.2em;
+            opacity: 0.95;
+            color: white;
+            line-height: 1.6;
+        }
+
+        .alert-detail-list {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+
+        .alert-detail-item {
+            font-size: 1.1em;
+            margin-bottom: 5px;
+            color: white;
+        }
+
+        .recommendation-box {
+            background: rgba(46, 204, 113, 0.2);
+            border-left: 5px solid #2ecc71;
+            padding: 20px 30px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .recommendation-box::before {
+            content: "💡 ";
+            font-size: 1.5em;
+        }
+
+        .recommendation-text {
+            font-size: 1.2em;
+            display: inline;
+            color: white;
+        }
+
+        .key-insights {
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .insight-item {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            font-size: 1.2em;
+            color: white;
+        }
+
+        .insight-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #ffd700;
+            margin-right: 15px;
+        }
+
+        .navigation {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: none;
+            gap: 10px;
+            z-index: 10000;
+        }
+
+        body.presentation-mode .navigation {
+            display: flex;
+        }
+
+        .nav-btn {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .nav-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .exit-presentation {
+            background: rgba(231, 76, 60, 0.8);
+            border-color: rgba(231, 76, 60, 0.5);
+            padding: 10px 15px;
+        }
+
+        .exit-presentation:hover {
+            background: rgba(231, 76, 60, 1);
+        }
+
+        .progress-bar-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            z-index: 10000;
+            display: none;
+        }
+
+        body.presentation-mode .progress-bar-container {
+            display: block;
+        }
+
+        .progress-bar-fill-slide {
+            height: 100%;
+            background: linear-gradient(90deg, #ffd700, #ff6b6b);
+            transition: width 0.3s ease;
+        }
+
+        .slide-indicator {
+            position: fixed;
+            right: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 10000;
+        }
+
+        body.presentation-mode .slide-indicator {
+            display: flex;
+        }
+
+        .indicator-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .indicator-dot.active {
+            background: white;
+            transform: scale(1.5);
+        }
+
+        .indicator-dot:hover {
+            background: rgba(255, 255, 255, 0.6);
+        }
+
+        .thank-you {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+        }
+
+        .thank-you-icon {
+            font-size: 8em;
+            margin-bottom: 30px;
+        }
+
+        .thank-you-text {
+            font-size: 4em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        @media (max-width: 768px) {
+            .charts-row-top,
+            .charts-row-bottom {
+                grid-template-columns: 1fr;
+            }
+            .slide {
+                padding: 30px 20px 60px 20px;
+            }
+            .slide-title {
+                font-size: 2em;
+            }
+            .two-charts {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Dashboard Mode -->
+    <div class="dashboard-container">
+        <div class="header">
+            <div class="header-content">
+                <h1>📊 KT Automated Plan</h1>
+                <p>Dashboard & Insights - อัพโหลดไฟล์ Excel เพื่อเริ่มการวิเคราะห์</p>
+            </div>
+            <div class="mode-switch" id="modeSwitch">
+                <button class="btn-filter-toggle" onclick="toggleFilterSection()">
+                    🔍 Filter Options
+                </button>
+                <button class="btn-presentation" onclick="enterPresentationMode()">
+                    🎬 Presentation Mode
+                </button>
+                <button class="btn-presentation" onclick="downloadPowerPoint()">
+                    💾 Download PPT
+                </button>
+                <button class="btn-presentation" onclick="downloadPDF()">
+                    📄 Download PDF
+                </button>
+            </div>
+        </div>
+
+        <div class="upload-section" id="uploadSection">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">คลิกหรือลากไฟล์ Excel มาวางที่นี่</div>
+                <div class="upload-subtext">รองรับไฟล์ .xlsx และ .xls</div>
+            </div>
+            <input type="file" id="fileInput" accept=".xlsx,.xls">
+        </div>
+
+        <div class="filter-section" id="filterSection">
+            <h2>🔍 Filter Options</h2>
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <h3>Priority</h3>
+                    <div id="priorityFilters"></div>
+                </div>
+                <div class="filter-group">
+                    <h3>Owner</h3>
+                    <div id="ownerFilters"></div>
+                </div>
+                <div class="filter-group">
+                    <h3>Code Status</h3>
+                    <div id="codeFilters"></div>
+                </div>
+                <div class="filter-group">
+                    <h3>Pipeline</h3>
+                    <div id="pipelineFilters"></div>
+                </div>
+            </div>
+            <div class="filter-actions">
+                <button class="btn btn-secondary" onclick="resetFilters()">Reset Filters</button>
+                <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+            </div>
+        </div>
+
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card">
+                <div class="icon">📁</div>
+                <div class="number" id="totalProjects">0</div>
+                <div class="label">Total Projects</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">🎯</div>
+                <div class="number" id="totalP1">0</div>
+                <div class="label">P1 Projects</div>
+                <div class="sublabel">High Priority</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">💻</div>
+                <div class="number" id="p1WithCode">0</div>
+                <div class="label">P1 with Code</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="codeProgress" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">📈</div>
+                <div class="number" id="p1WithGrafana">0</div>
+                <div class="label">P1 with Grafana</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="grafanaProgress" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">⚠️</div>
+                <div class="number" id="unassigned">0</div>
+                <div class="label">Unassigned Projects</div>
+                <div class="sublabel">Need Owners</div>
+            </div>
+        </div>
+
+        <div class="charts-grid" id="chartsGrid">
+            <!-- Top Row: 3 Charts -->
+            <div class="charts-row-top">
+                <div class="chart-card">
+                    <h2>👥 Top Project Owners</h2>
+                    <div class="chart-container">
+                        <canvas id="ownerChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h2>📂 Top Sub-Project Categories</h2>
+                    <div class="chart-container">
+                        <canvas id="subprojectChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h2>📱 Application Types</h2>
+                    <div class="chart-container">
+                        <canvas id="appTypesChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Row: 5 Charts -->
+            <div class="charts-row-bottom">
+                <div class="chart-card">
+                    <h2>🎯 Priority Distribution</h2>
+                    <div class="chart-container">
+                        <canvas id="priorityChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h2>💻 Code Availability</h2>
+                    <div class="chart-container">
+                        <canvas id="pushcodeChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h2>📝 Documentation Status</h2>
+                    <div class="chart-container">
+                        <canvas id="readableChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h2>🔧 GitLab Pipeline Status</h2>
+                    <div class="chart-container">
+                        <canvas id="pipelineChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h2>📈 Grafana Monitoring</h2>
+                    <div class="chart-container">
+                        <canvas id="grafanaChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Section - Gantt Chart -->
+        <div class="summary-section" id="summarySection">
+            <h2>📋 KT Automated Plan Summary - Action Plan</h2>
+            <p class="gantt-subtitle">แผนการดำเนินงานเพื่อให้โปรเจกต์ครบตามเกณฑ์คุณภาพ</p>
+
+            <div class="gantt-container" id="ganttContainer">
+                <div class="gantt-chart" id="ganttChart">
+                    <!-- Gantt chart will be generated here by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Filter Popup for Gantt Chart -->
+    <div class="filter-popup-overlay" id="ganttFilterOverlay" onclick="closeGanttFilterPopup()"></div>
+    <div class="filter-popup" id="ganttFilterPopup">
+        <div class="filter-popup-header">
+            <span id="ganttFilterTitle">Filter</span>
+            <button class="filter-popup-close" onclick="closeGanttFilterPopup()">&times;</button>
+        </div>
+        <div class="filter-popup-content" id="ganttFilterContent">
+            <!-- Filter options will be generated here -->
+        </div>
+    </div>
+
+    <!-- Modal for project details -->
+    <div class="modal-overlay" id="projectModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle"></h2>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="project-count" id="projectCount"></div>
+                <div class="table-wrapper">
+                    <table class="project-table" id="projectTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Project Name</th>
+                                <th>Owner</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="projectTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Presentation Mode -->
+    <div class="progress-bar-container">
+        <div class="progress-bar-fill-slide" id="progressBarSlide"></div>
+    </div>
+
+    <div class="slide-indicator" id="slideIndicator"></div>
+
+    <div class="presentation-container" id="presentationContainer">
+        <!-- Slide 1: Title -->
+        <div class="slide active" data-slide="1">
+            <div class="slide-content">
+                <div style="text-align: center;">
+                    <div style="font-size: 6em; margin-bottom: 30px;">📊</div>
+                    <h1 style="font-size: 4em; margin-bottom: 20px; color: white;">KT Automated Plan</h1>
+                    <h2 style="font-size: 2em; opacity: 0.9; color: white;">Executive Dashboard & Insights</h2>
+                    <p style="font-size: 1.3em; margin-top: 40px; opacity: 0.8; color: white;">Knowledge Transfer Project Portfolio Analysis</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 2: Top Project Owners -->
+        <div class="slide" data-slide="2">
+            <div class="slide-header">
+                <h1 class="slide-title">Top Project Owners</h1>
+                <p class="slide-subtitle">การกระจายทีมงานและผู้รับผิดชอบ</p>
+            </div>
+            <div class="slide-content">
+                <div class="chart-container-slide" style="height: 600px;">
+                    <div class="chart-wrapper" style="height: 550px;">
+                        <canvas id="ownerChartSlide"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: Sub-Project Categories -->
+        <div class="slide" data-slide="3">
+            <div class="slide-header">
+                <h1 class="slide-title">Top Sub-Project Categories</h1>
+                <p class="slide-subtitle">หมวดหมู่และการจัดกลุ่มโครงการ</p>
+            </div>
+            <div class="slide-content">
+                <div class="chart-container-slide" style="height: 600px;">
+                    <div class="chart-wrapper" style="height: 550px;">
+                        <canvas id="subprojectChartSlide"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4: Overview -->
+        <div class="slide" data-slide="4">
+            <div class="slide-header">
+                <h1 class="slide-title">ภาพรวมโครงการ</h1>
+                <p class="slide-subtitle">สรุปสถานะโครงการทั้งหมด</p>
+            </div>
+            <div class="slide-content">
+                <div class="stats-grid-slide">
+                    <div class="stat-box">
+                        <div class="stat-icon">📁</div>
+                        <div class="stat-number" id="totalProjectsSlide">0</div>
+                        <div class="stat-label">Total Projects</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-icon">🎯</div>
+                        <div class="stat-number" id="totalP1Slide">0</div>
+                        <div class="stat-label">P1 Projects</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-icon">💻</div>
+                        <div class="stat-number" id="p1WithCodeSlide">0</div>
+                        <div class="stat-label">P1 with Code</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-icon">📈</div>
+                        <div class="stat-number" id="p1WithGrafanaSlide">0</div>
+                        <div class="stat-label">P1 with Monitoring</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-icon">⚠️</div>
+                        <div class="stat-number" id="unassignedSlide">0</div>
+                        <div class="stat-label">Unassigned</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-icon">🔧</div>
+                        <div class="stat-number" id="withPipelineSlide">0</div>
+                        <div class="stat-label">With Pipeline</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: Project Categories -->
+        <div class="slide" data-slide="5">
+            <div class="slide-header">
+                <h1 class="slide-title">Project Categories</h1>
+                <p class="slide-subtitle">ประเภทและหมวดหมู่โครงการ</p>
+            </div>
+            <div class="slide-content">
+                <div class="two-charts">
+                    <div class="chart-container-slide">
+                        <h3 style="margin-bottom: 15px; font-size: 1.3em; color: white;">📱 Application Types</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="appTypesChartSlide"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container-slide">
+                        <h3 style="margin-bottom: 15px; font-size: 1.3em; color: white;">📂 Sub-Project Categories</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="subprojectChartSlide2"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6: Technical Status -->
+        <div class="slide" data-slide="6">
+            <div class="slide-header">
+                <h1 class="slide-title">Technical Readiness</h1>
+                <p class="slide-subtitle">สถานะความพร้อมด้านเทคนิค</p>
+            </div>
+            <div class="slide-content">
+                <div class="two-charts">
+                    <div class="chart-container-slide">
+                        <h3 style="margin-bottom: 15px; font-size: 1.3em; color: white;">💻 Code Availability</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="pushcodeChartSlide"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container-slide">
+                        <h3 style="margin-bottom: 15px; font-size: 1.3em; color: white;">🔧 Pipeline Status</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="pipelineChartSlide"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7: Monitoring & Documentation -->
+        <div class="slide" data-slide="7">
+            <div class="slide-header">
+                <h1 class="slide-title">Monitoring & Documentation</h1>
+                <p class="slide-subtitle">การติดตามและเอกสารประกอบ</p>
+            </div>
+            <div class="slide-content">
+                <div class="two-charts">
+                    <div class="chart-container-slide">
+                        <h3 style="margin-bottom: 15px; font-size: 1.3em; color: white;">📈 Grafana Monitoring</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="grafanaChartSlide"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-container-slide">
+                        <h3 style="margin-bottom: 15px; font-size: 1.3em; color: white;">📝 Documentation Status</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="readableChartSlide"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: Key Insights -->
+        <div class="slide" data-slide="8">
+            <div class="slide-header">
+                <h1 class="slide-title">Key Insights</h1>
+                <p class="slide-subtitle">ข้อมูลเชิงลึกที่สำคัญ</p>
+            </div>
+            <div class="slide-content">
+                <div class="key-insights" id="keyInsightsSlide"></div>
+            </div>
+        </div>
+
+        <!-- Slide 9: Project Criteria -->
+        <div class="slide" data-slide="9">
+            <div class="slide-header">
+                <h1 class="slide-title">📋 Project Quality Criteria</h1>
+                <p class="slide-subtitle">มาตรฐานและข้อกำหนดสำหรับโครงการ</p>
+            </div>
+            <div class="slide-content">
+                <div class="key-insights">
+                    <div class="insight-item">
+                        <span class="insight-number">1</span>
+                        โปรเจกต์ที่ <strong>ไม่ใช่ Support Tools หรือ POC</strong> ควรจะมี <strong>Pipeline</strong> ที่ทำงานอยู่
+                    </div>
+                    <div class="insight-item">
+                        <span class="insight-number">2</span>
+                        โปรเจกต์ที่มี <strong>Pipeline</strong> แล้ว ควรจะมี <strong>Grafana Dashboard</strong> สำหรับ Monitoring
+                    </div>
+                    <div class="insight-item">
+                        <span class="insight-number">3</span>
+                        โปรเจกต์ <strong>P1 (High Priority)</strong> ทั้งหมดต้องมี:
+                        <ul style="margin-top: 10px; margin-left: 40px; line-height: 1.8;">
+                            <li>✓ Code ที่ Push แล้ว</li>
+                            <li>✓ GitLab Pipeline</li>
+                            <li>✓ Documentation ที่ชัดเจน</li>
+                        </ul>
+                    </div>
+                    <div class="insight-item">
+                        <span class="insight-number">4</span>
+                        ทุกโปรเจกต์ควรมี <strong>Owner</strong> ที่รับผิดชอบชัดเจน และมี <strong>Documentation</strong> สำหรับ Knowledge Transfer
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 10: Critical Issues -->
+        <div class="slide" data-slide="10">
+            <div class="slide-header">
+                <h1 class="slide-title">⚠️ Critical Issues</h1>
+                <p class="slide-subtitle">ประเด็นที่ต้องให้ความสำคัญเร่งด่วน</p>
+            </div>
+            <div class="slide-content">
+                <div id="alertListSlide"></div>
+            </div>
+        </div>
+
+        <!-- Slide 11: Thank You -->
+        <div class="slide" data-slide="11">
+            <div class="slide-content thank-you">
+                <div class="thank-you-icon">🙏</div>
+                <div class="thank-you-text">Thank You</div>
+                <p style="font-size: 1.5em; opacity: 0.8; color: white;">Questions & Discussion</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="navigation">
+        <button class="nav-btn exit-presentation" onclick="exitPresentationMode()">✕ Exit</button>
+        <button class="nav-btn" id="prevBtn" onclick="previousSlide()">← Previous</button>
+        <button class="nav-btn" id="nextBtn" onclick="nextSlide()">Next →</button>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
