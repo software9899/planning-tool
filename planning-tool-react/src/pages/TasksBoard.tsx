@@ -239,17 +239,22 @@ export default function TasksBoard() {
       // Mark as recently moved for highlight effect
       setRecentlyMovedTaskIds(prev => [...prev, task.id!]);
 
-      await DataManager.updateTask(updatedTask);
+      console.log('🔵 Calling DataManager.updateTask...');
+      const result = await DataManager.updateTask(updatedTask);
+      console.log('✅ DataManager.updateTask result:', result);
 
       // Reload all tasks to ensure consistency
+      console.log('🔵 Reloading tasks...');
       const allTasks = await DataManager.getTasks();
+      console.log('✅ Got tasks:', allTasks.length, 'tasks');
       setTasks(allTasks);
 
       setShowAssigneeModal(false);
       setPendingTaskMove(null);
+      console.log('✅ Task update completed successfully');
     } catch (error) {
-      console.error('Failed to update task:', error);
-      alert('Failed to update task');
+      console.error('❌ Failed to update task:', error);
+      alert('Failed to update task: ' + (error instanceof Error ? error.message : String(error)));
       setRecentlyMovedTaskIds(prev => prev.filter(id => id !== task.id));
     }
   };
