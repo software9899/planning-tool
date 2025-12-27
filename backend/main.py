@@ -544,10 +544,16 @@ def create_task(task: TaskCreate, db: Session = Depends(get_db)):
 @app.put("/api/tasks/{task_id}", response_model=TaskResponse)
 def update_task(task_id: int, task: TaskUpdate, db: Session = Depends(get_db)):
     """Update an existing task"""
+    import time
+    start_time = time.time()
+
     print(f"🔄 Updating task {task_id}")
     print(f"📝 Update data: {task.model_dump(exclude_unset=True)}")
 
+    query_start = time.time()
     db_task = db.query(Task).filter(Task.id == task_id).first()
+    print(f"⏱️  Query time: {time.time() - query_start:.3f}s")
+
     if db_task is None:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -556,8 +562,16 @@ def update_task(task_id: int, task: TaskUpdate, db: Session = Depends(get_db)):
         setattr(db_task, key, value)
 
     db_task.updated_at = datetime.utcnow()
+
+    commit_start = time.time()
     db.commit()
+    print(f"⏱️  Commit time: {time.time() - commit_start:.3f}s")
+
     db.refresh(db_task)
+
+    total_time = time.time() - start_time
+    print(f"✅ Total update time: {total_time:.3f}s")
+
     return db_task
 
 @app.delete("/api/tasks/{task_id}")
