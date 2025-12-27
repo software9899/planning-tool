@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planning Tool - Task Manager</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>📋 Planning Tool</h1>
+        <div class="header-buttons">
+            <a href="dashboard.html" style="text-decoration: none;">
+                <button class="settings-btn">📊 Dashboard</button>
+            </a>
+            <button id="createTaskFloatingBtn" class="create-task-btn">➕ สร้าง Task</button>
+            <button id="settingsBtn" class="settings-btn">⚙️ Settings</button>
+            <button id="reorderColumnsBtn" class="settings-btn">↕️ Reorder</button>
+        </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <div class="tab-navigation">
+        <button class="tab-btn" data-tab="backlog">📦 Backlog</button>
+        <button class="tab-btn active" data-tab="current">🚀 Current</button>
+    </div>
+
+    <!-- Backlog Tab Content -->
+    <div id="backlogTab" class="tab-content">
+        <div class="backlog-filters">
+            <button class="filter-btn active" data-size="all">All</button>
+            <button class="filter-btn" data-size="S">S</button>
+            <button class="filter-btn" data-size="M">M</button>
+            <button class="filter-btn" data-size="L">L</button>
+            <button class="filter-btn" data-size="XL">XL</button>
+            <button class="create-backlog-btn" onclick="openCreateTaskModal(true)">➕ สร้าง Task ใน Backlog</button>
+        </div>
+        <div class="backlog-two-columns">
+            <div class="backlog-column drop-zone" data-status="backlog">
+                <h2>⚠️ Need More Details</h2>
+                <p class="column-desc">Tasks ที่ยังขาดรายละเอียด</p>
+                <div class="tasks-list" id="backlogNeedDetails"></div>
+            </div>
+            <div class="backlog-column drop-zone" data-status="backlogReady">
+                <h2>✅ Ready to Implement</h2>
+                <p class="column-desc">Tasks ที่พร้อมดำเนินการ</p>
+                <div class="tasks-list" id="backlogReady"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Tab Content -->
+    <div id="currentTab" class="tab-content active">
+        <div class="current-controls">
+            <button id="addColumnBtn" class="add-column-btn">➕ Add Column</button>
+        </div>
+        <div class="container" id="currentColumns">
+            <!-- Columns will be rendered here dynamically -->
+        </div>
+    </div>
+
+    <!-- Create Task Modal (Multi-Step) -->
+    <div id="createTaskModal" class="modal">
+        <div class="modal-content">
+            <span class="close-create">&times;</span>
+            <h2>➕ สร้าง Task ใหม่</h2>
+            
+            <!-- Progress Indicator -->
+            <div class="progress-indicator">
+                <div class="progress-step active" id="progressStep1">
+                    <div class="step-number">1</div>
+                    <div class="step-label">ข้อมูลพื้นฐาน</div>
+                </div>
+                <div class="progress-line"></div>
+                <div class="progress-step" id="progressStep2">
+                    <div class="step-number">2</div>
+                    <div class="step-label">รายละเอียดเพิ่มเติม</div>
+                </div>
+            </div>
+            
+            <!-- Step 1: Basic Information -->
+            <div id="step1" class="form-step active">
+                <div class="form-group">
+                    <label>ชื่อ Task *</label>
+                    <input type="text" id="taskTitle" placeholder="ชื่อ Task" />
+                </div>
+                
+                <div class="form-group">
+                    <label>รายละเอียด</label>
+                    <textarea id="taskDesc" placeholder="รายละเอียด (optional)"></textarea>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>ชนิด *</label>
+                        <select id="taskType"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Priority *</label>
+                        <select id="taskPriority"></select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Backlog Size</label>
+                    <select id="taskSize">
+                        <option value="">-</option>
+                        <option value="S">S - Small</option>
+                        <option value="M">M - Medium</option>
+                        <option value="L">L - Large</option>
+                        <option value="XL">XL - Extra Large</option>
+                    </select>
+                </div>
+                
+                <div class="step-buttons">
+                    <button class="btn-secondary" onclick="closeCreateTaskModal()">ยกเลิก</button>
+                    <button class="btn-primary" onclick="goToStep2()">ถัดไป →</button>
+                </div>
+            </div>
+            
+            <!-- Step 2: Additional Details -->
+            <div id="step2" class="form-step">
+                <div id="readinessChecklistContainer" class="checklist-container">
+                    <h4>📋 Readiness Checklist</h4>
+                    <p class="checklist-note">⚠️ ต้องเช็คครบทุกข้อ ถึงจะไปอยู่ "Ready to Implement" ได้</p>
+                    <div id="readinessChecklist" class="checklist-items"></div>
+                    <div id="noChecklistMessage" style="display: none; color: #666; font-style: italic; padding: 20px; text-align: center;">
+                        ✅ ชนิด Task นี้ไม่มี Checklist<br>
+                        <span style="font-size: 12px;">Task จะถูกสร้างที่ Ready to Implement ทันที</span>
+                    </div>
+                </div>
+                
+                <div class="step-buttons">
+                    <button class="btn-secondary" onclick="goToStep1()">← ย้อนกลับ</button>
+                    <button id="createTaskBtn" class="btn-primary" onclick="createTask()">สร้าง Task</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Backlog Task Modal -->
+    <div id="editBacklogModal" class="modal">
+        <div class="modal-content small">
+            <span class="close" onclick="closeEditBacklogModal()">&times;</span>
+            <h3>✏️ แก้ไข Task Details</h3>
+            <input type="hidden" id="editBacklogTaskId">
+            <div class="form-group">
+                <label>Assignee</label>
+                <input type="text" id="editAssignee" placeholder="ชื่อผู้รับผิดชอบ" />
+            </div>
+            <div class="form-group">
+                <label>ETA (วันที่คาดว่าจะเสร็จ)</label>
+                <input type="date" id="editETA" />
+            </div>
+            <div class="confirm-buttons">
+                <button class="btn-secondary" onclick="closeEditBacklogModal()">ยกเลิก</button>
+                <button class="btn-primary" onclick="saveBacklogTaskDetails()">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assignee & Points Modal -->
+    <div id="assigneeModal" class="modal">
+        <div class="modal-content small">
+            <span class="close-assignee">&times;</span>
+            <h3 id="assigneeModalTitle">กรุณาใส่ข้อมูล</h3>
+            <div class="form-group">
+                <label>Assignee *</label>
+                <input type="text" id="assigneeInput" placeholder="ชื่อผู้รับผิดชอบ" />
+            </div>
+            <div class="form-group">
+                <label>Estimate Points *</label>
+                <input type="number" id="estimateInput" placeholder="จำนวน Point" min="0" step="0.5" />
+            </div>
+            <div class="confirm-buttons">
+                <button class="btn-secondary" onclick="closeAssigneeModal(false)">ยกเลิก</button>
+                <button class="btn-primary" onclick="confirmAssignee()">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actual Points Modal -->
+    <div id="actualPointsModal" class="modal">
+        <div class="modal-content small">
+            <span class="close-actual">&times;</span>
+            <h3>ใส่ Actual Points</h3>
+            <div class="form-group">
+                <label>Actual Points *</label>
+                <input type="number" id="actualPointsInput" placeholder="จำนวน Point ที่ใช้จริง" min="0" step="0.5" />
+            </div>
+            <div class="confirm-buttons">
+                <button class="btn-secondary" onclick="closeActualPointsModal(false)">ยกเลิก</button>
+                <button class="btn-primary" onclick="confirmActualPoints()">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Detail Modal -->
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <div id="taskDetailContent"></div>
+        </div>
+    </div>
+
+    <!-- Dependency/Subtask Modal -->
+    <div id="actionModal" class="modal">
+        <div class="modal-content">
+            <span class="close-action">&times;</span>
+            <h2 id="actionTitle"></h2>
+            <input type="text" id="actionTaskTitle" placeholder="ชื่อ Task" />
+            <textarea id="actionTaskDesc" placeholder="รายละเอียด (optional)"></textarea>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>ชนิด:</label>
+                    <select id="actionTaskType"></select>
+                </div>
+                <div class="form-group">
+                    <label>Priority:</label>
+                    <select id="actionTaskPriority"></select>
+                </div>
+            </div>
+            
+            <button id="actionCreateBtn" class="btn-primary">สร้าง</button>
+        </div>
+    </div>
+
+    <!-- Add Column Modal -->
+    <div id="addColumnModal" class="modal">
+        <div class="modal-content small">
+            <span class="close-add-column">&times;</span>
+            <h3>➕ เพิ่ม Column ใหม่</h3>
+            <div class="form-group">
+                <label>ชื่อ Column *</label>
+                <input type="text" id="newColumnName" placeholder="เช่น Review, Testing" />
+            </div>
+            <div class="confirm-buttons">
+                <button class="btn-secondary" onclick="closeAddColumnModal()">ยกเลิก</button>
+                <button class="btn-primary" onclick="confirmAddColumn()">เพิ่ม</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Column Reorder Modal -->
+    <div id="reorderModal" class="modal">
+        <div class="modal-content small">
+            <span class="close-reorder">&times;</span>
+            <h3>↕️ เรียงลำดับ Columns</h3>
+            <p style="color: #666; font-size: 12px; margin-bottom: 15px;">ลาก Column เพื่อเรียงลำดับ (To Do อยู่แรกเสมอ, Done อยู่ท้ายเสมอ)</p>
+            <div id="reorderList" class="reorder-list"></div>
+            <div class="confirm-buttons">
+                <button class="btn-secondary" onclick="closeReorderModal()">ยกเลิก</button>
+                <button class="btn-primary" onclick="confirmReorder()">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content large">
+            <span class="close-settings">&times;</span>
+            <h2>⚙️ การตั้งค่า</h2>
+            
+            <!-- Task Types Section -->
+            <div class="section">
+                <h3>📋 ชนิดของ Task</h3>
+                <div id="typesList" class="items-list"></div>
+                <div class="add-form">
+                    <input type="text" id="newType" placeholder="เพิ่มชนิด Task ใหม่..." />
+                    <button class="add-btn" onclick="addType()">+ เพิ่ม</button>
+                </div>
+            </div>
+
+            <!-- Priorities Section -->
+            <div class="section">
+                <h3>⚡ ระดับ Priority</h3>
+                <div id="prioritiesList" class="items-list"></div>
+                <div class="add-form">
+                    <input type="text" id="newPriority" placeholder="เพิ่ม Priority ใหม่..." />
+                    <button class="add-btn" onclick="addPriority()">+ เพิ่ม</button>
+                </div>
+            </div>
+
+            <!-- Priority Mapping Section -->
+            <div class="section">
+                <h3>🔗 Mapping ชนิด → Priority</h3>
+                <p class="section-desc">กำหนด Priority เริ่มต้นสำหรับแต่ละชนิด Task</p>
+                <div id="priorityMappingContainer" class="mapping-container"></div>
+            </div>
+
+            <!-- Checklist Templates Section -->
+            <div class="section">
+                <h3>📋 Readiness Checklist Templates</h3>
+                <p class="section-desc">กำหนด Checklist สำหรับแต่ละชนิดของ Task</p>
+                <div id="checklistTemplatesContainer"></div>
+            </div>
+
+            <button class="btn-primary" onclick="saveSettings()">💾 บันทึกการตั้งค่า</button>
+        </div>
+    </div>
+
+    <!-- Custom Alert Modal -->
+    <div id="customAlertModal" class="modal">
+        <div class="modal-content small">
+            <h3 id="alertTitle"></h3>
+            <p id="alertMessage"></p>
+            <button class="btn-primary" onclick="closeCustomAlert()">ตกลง</button>
+        </div>
+    </div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="customConfirmModal" class="modal">
+        <div class="modal-content small">
+            <h3 id="confirmTitle"></h3>
+            <p id="confirmMessage"></p>
+            <div class="confirm-buttons">
+                <button class="btn-secondary" onclick="closeCustomConfirm(false)">ยกเลิก</button>
+                <button class="btn-primary" onclick="closeCustomConfirm(true)">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app_v2.js"></script>
+</body>
+</html>

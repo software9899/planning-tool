@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Automation Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <h1>📊 Test Automation Dashboard</h1>
+            <p class="subtitle">Track your journey from manual to automated testing</p>
+        </header>
+
+        <!-- Project Tabs -->
+        <div class="project-tabs">
+            <button class="tab-btn active" data-team="all">📊 All Projects</button>
+            <div id="teamTabs"></div>
+            <button class="btn-add-team" id="addTeamBtn" title="Add New Project">+ Add Project</button>
+        </div>
+
+        <!-- Add Team Modal -->
+        <div id="addTeamModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add New Project</h3>
+                    <button id="closeTeamModal" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Project Name</label>
+                        <input type="text" id="teamName" placeholder="e.g., LDD, AA" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Project Icon (optional)</label>
+                        <input type="text" id="teamIcon" placeholder="e.g., 🚀, 📱, 💼" maxlength="2">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancelTeamBtn" class="btn btn-secondary">Cancel</button>
+                    <button id="saveTeamBtn" class="btn btn-primary">Save Project</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+            <div class="card card-manual">
+                <div class="card-icon">📝</div>
+                <div class="card-content">
+                    <div class="card-label">Manual Test Cases</div>
+                    <div class="card-value" id="manualCount">0</div>
+                </div>
+            </div>
+            <div class="card card-automatable">
+                <div class="card-icon">🔄</div>
+                <div class="card-content">
+                    <div class="card-label">Automatable Cases</div>
+                    <div class="card-value" id="automatableCount">0</div>
+                </div>
+            </div>
+            <div class="card card-automated">
+                <div class="card-icon">✅</div>
+                <div class="card-content">
+                    <div class="card-label">Automated Cases</div>
+                    <div class="card-value" id="automatedCount">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Chart -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>📈 Test Cases Over Time</h3>
+                <button id="addDataBtn" class="btn btn-add">+ Add Data Point</button>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="progressChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Add Data Modal -->
+        <div id="addDataModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add Data Point (Enter incremental values)</h3>
+                    <button id="closeModal" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Project/Team</label>
+                        <select id="dataTeam" required>
+                            <option value="">-- Select Project --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="dataDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Manual Cases (New this period) <span style="color: #9ca3af; font-size: 12px;">- Optional, leave empty for 0</span></label>
+                        <input type="number" id="manualCases" min="0" placeholder="e.g., 50">
+                    </div>
+                    <div class="form-group">
+                        <label>Automatable Cases (New this period) <span style="color: #9ca3af; font-size: 12px;">- Optional, leave empty for 0</span></label>
+                        <input type="number" id="automatableCases" min="0" placeholder="e.g., 30">
+                    </div>
+                    <div class="form-group">
+                        <label>Automated Cases (New this period) <span style="color: #9ca3af; font-size: 12px;">- Optional, leave empty for 0</span></label>
+                        <input type="number" id="automatedCases" min="0" placeholder="e.g., 20">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancelBtn" class="btn btn-secondary">Cancel</button>
+                    <button id="saveDataBtn" class="btn btn-primary">Save Data</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="data-table-card">
+            <div class="table-header">
+                <h3>📋 Historical Data</h3>
+                <div style="display: flex; gap: 10px;">
+                    <button id="fixDataBtn" class="btn btn-primary" title="Fix existing data to be cumulative">🔧 Fix Cumulative Data</button>
+                    <button id="clearDataBtn" class="btn btn-danger-outline">Clear All</button>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table id="dataTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Project</th>
+                            <th>Manual (+/-)</th>
+                            <th>Automatable (+/-)</th>
+                            <th>Automated (+/-)</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTableBody">
+                        <tr class="empty-state">
+                            <td colspan="6">No data yet. Click "+ Add Data Point" to get started!</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

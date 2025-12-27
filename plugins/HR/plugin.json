@@ -1,0 +1,38 @@
+{
+  "id": "hr",
+  "name": "HR Management",
+  "version": "1.0.0",
+  "description": "Human Resources & Performance Management System",
+  "icon": "👥",
+  "route": "/plugin/hr",
+  "sidebarLabel": "HR Management",
+  "author": "Planning Tool Team",
+  "enabled": true,
+  "files": {
+    "html": "index.html",
+    "script": "script.js",
+    "style": "style.css"
+  },
+  "requirements": [],
+  "addsSidebarSection": {
+    "title": "HR Management",
+    "requiresAdmin": true,
+    "items": [
+      {
+        "icon": "👥",
+        "label": "Members & Teams",
+        "route": "/members"
+      },
+      {
+        "icon": "🎯",
+        "label": "Skill Matrix",
+        "route": "/skill-matrix"
+      },
+      {
+        "icon": "📊",
+        "label": "KPI Dashboard",
+        "route": "/plugin/kpi"
+      }
+    ]
+  }
+}

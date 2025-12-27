@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Robot Framework Training - Interactive</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #f5f7fa;
+            overflow: hidden;
+        }
+
+        /* Top Navigation */
+        .top-nav {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .top-nav h1 {
+            color: white;
+            font-size: 1.5em;
+            margin: 0;
+        }
+
+        .top-nav select {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background: white;
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        /* Browser Preview Area - Top Section - Split into 2 columns */
+        .browser-preview-area {
+            flex: 1;
+            display: flex;
+            gap: 0;
+            overflow: hidden;
+        }
+
+        .browser-preview-column {
+            width: 60%;
+            background: #2d2d2d;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .actions-editor-column {
+            width: 40%;
+            background: #1e1e1e;
+            display: flex;
+            flex-direction: column;
+            border-left: 2px solid #007acc;
+        }
+
+        .editor-header {
+            background: #252526;
+            border-bottom: 2px solid #007acc;
+            padding: 10px 20px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            color: #cccccc;
+        }
+
+        .editor-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        .code-line {
+            padding: 6px 20px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 20px;
+            color: #d4d4d4;
+            cursor: pointer;
+            transition: background 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .code-line:hover {
+            background: #2a2d2e;
+        }
+
+        .code-line.current {
+            background: #094771;
+            border-left: 3px solid #007acc;
+        }
+
+        .code-line.executed {
+            background: #1e3a1e;
+            border-left: 3px solid #28a745;
+        }
+
+        .line-number {
+            color: #858585;
+            min-width: 30px;
+            text-align: right;
+            user-select: none;
+        }
+
+        .line-code {
+            flex: 1;
+        }
+
+        .browser-window {
+            width: 100%;
+            height: 100%;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .browser-header {
+            background: #f1f3f5;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .browser-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot-red { background: #ff5f56; }
+        .dot-yellow { background: #ffbd2e; }
+        .dot-green { background: #27c93f; }
+
+        .browser-url {
+            flex: 1;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .browser-content {
+            flex: 1;
+            overflow-y: auto;
+            background: white;
+        }
+
+        /* Action Control Bar - Bottom Section */
+        .action-control-bar {
+            background: white;
+            border-top: 3px solid #667eea;
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+
+        .current-action-display {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .action-number-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3em;
+            font-weight: bold;
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.4);
+        }
+
+        .action-code-display {
+            flex: 1;
+            font-family: 'Courier New', monospace;
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+
+        .action-keyword {
+            color: #007acc;
+            font-weight: bold;
+        }
+
+        .action-param {
+            color: #098658;
+        }
+
+        .action-value {
+            color: #a31515;
+        }
+
+        .action-variable {
+            color: #d73a49;
+        }
+
+        .next-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .next-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+        }
+
+        .next-btn:active {
+            transform: translateY(0);
+        }
+
+        .next-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .next-btn.completed {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .back-btn {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4);
+        }
+
+        .back-btn:active {
+            transform: translateY(0);
+        }
+
+        .back-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 5em;
+            margin-bottom: 20px;
+        }
+
+        /* Animations */
+        @keyframes bounceIn {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.3);
+            }
+            50% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.05);
+            }
+            70% {
+                transform: translate(-50%, -50%) scale(0.9);
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        /* Keyword Tooltip */
+        .keyword-tooltip {
+            position: fixed;
+            background: #2d2d2d;
+            border: 2px solid #007acc;
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #d4d4d4;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 0.9em;
+            z-index: 10000;
+            pointer-events: none;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            max-width: 350px;
+            display: none;
+        }
+
+        .keyword-tooltip .tooltip-library {
+            color: #4ec9b0;
+            font-weight: bold;
+            font-size: 0.85em;
+            margin-bottom: 6px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #3e3e42;
+        }
+
+        .keyword-tooltip .tooltip-keyword {
+            color: #569cd6;
+            font-weight: bold;
+            font-size: 1.05em;
+            margin-bottom: 6px;
+        }
+
+        .keyword-tooltip .tooltip-description {
+            color: #cccccc;
+            line-height: 1.4;
+            font-size: 0.9em;
+        }
+
+        .action-keyword {
+            cursor: help;
+            position: relative;
+        }
+
+        .action-keyword:hover {
+            text-decoration: underline;
+        }
+
+        /* Hamburger Menu */
+        .hamburger-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            font-size: 1.8em;
+            cursor: pointer;
+            padding: 8px 15px;
+            border-radius: 8px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 50px;
+            height: 50px;
+        }
+
+        .hamburger-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Sidebar Menu */
+        .sidebar-menu {
+            position: fixed;
+            left: -320px;
+            top: 0;
+            width: 320px;
+            height: 100vh;
+            background: #1e1e1e;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
+            transition: left 0.3s ease;
+            z-index: 10001;
+            overflow-y: auto;
+        }
+
+        .sidebar-menu.open {
+            left: 0;
+        }
+
+        .sidebar-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-header h2 {
+            font-size: 1.3em;
+            margin: 0;
+        }
+
+        .close-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            font-size: 1.5em;
+            cursor: pointer;
+            padding: 5px 12px;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .lesson-list {
+            padding: 0;
+            margin: 0;
+            list-style: none;
+        }
+
+        .lesson-item {
+            padding: 18px 20px;
+            border-bottom: 1px solid #3e3e42;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .lesson-item:hover {
+            background: #2d2d2d;
+        }
+
+        .lesson-item.active {
+            background: #094771;
+            border-left: 4px solid #007acc;
+        }
+
+        .lesson-icon {
+            font-size: 1.5em;
+            min-width: 30px;
+        }
+
+        .lesson-content {
+            flex: 1;
+        }
+
+        .lesson-title {
+            color: #d4d4d4;
+            font-weight: bold;
+            font-size: 1em;
+            margin-bottom: 4px;
+        }
+
+        .lesson-desc {
+            color: #888;
+            font-size: 0.85em;
+        }
+
+        .lesson-category {
+            padding: 15px 20px 10px;
+            color: #888;
+            font-size: 0.75em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-top: 1px solid #3e3e42;
+        }
+
+        .lesson-category:first-child {
+            border-top: none;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: none;
+        }
+
+        .sidebar-overlay.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+    <!-- Sidebar Menu -->
+    <div class="sidebar-menu" id="sidebarMenu">
+        <div class="sidebar-header">
+            <h2>📚 เนื้อหาการเรียน</h2>
+            <button class="close-btn" onclick="closeSidebar()">✕</button>
+        </div>
+        <ul class="lesson-list">
+            <!-- บทเรียนทฤษฎี -->
+            <li class="lesson-category">📖 บทเรียนทฤษฎี</li>
+            <li class="lesson-item active" onclick="selectLesson('prerequisites')">
+                <div class="lesson-icon">📋</div>
+                <div class="lesson-content">
+                    <div class="lesson-title">บทที่ 1: เตรียมความพร้อม</div>
+                    <div class="lesson-desc">Prerequisites & Installation</div>
+                </div>
+            </li>
+
+            <!-- แบบฝึกหัดเขียนโค้ด -->
+            <li class="lesson-category">💻 แบบฝึกหัดเขียนโค้ด</li>
+            <li class="lesson-item" onclick="selectLesson('complete-flow')">
+                <div class="lesson-icon">🛒</div>
+                <div class="lesson-content">
+                    <div class="lesson-title">ฝึกหัดที่ 1: ทดสอบซื้อสินค้า</div>
+                    <div class="lesson-desc">Complete Purchase Flow</div>
+                </div>
+            </li>
+            <li class="lesson-item" onclick="selectLesson('remove-item')">
+                <div class="lesson-icon">🗑️</div>
+                <div class="lesson-content">
+                    <div class="lesson-title">ฝึกหัดที่ 2: ทดสอบลบสินค้า</div>
+                    <div class="lesson-desc">Remove Item from Cart</div>
+                </div>
+            </li>
+            <li class="lesson-item" onclick="selectLesson('cart-update')">
+                <div class="lesson-icon">📊</div>
+                <div class="lesson-content">
+                    <div class="lesson-title">ฝึกหัดที่ 3: ตรวจสอบตะกร้า</div>
+                    <div class="lesson-desc">Cart Updates Count</div>
+                </div>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Top Navigation -->
+    <div class="top-nav">
+        <button class="hamburger-btn" onclick="openSidebar()">☰</button>
+        <h1>🤖 Robot Framework Training</h1>
+        <div style="width: 50px;"></div>
+    </div>
+
+    <!-- Browser Preview Area - Split into 2 columns -->
+    <div class="browser-preview-area">
+        <!-- Left Column (70%) - Browser Preview -->
+        <div class="browser-preview-column">
+            <div class="browser-window">
+                <div class="browser-header">
+                    <div class="browser-dot dot-red"></div>
+                    <div class="browser-dot dot-yellow"></div>
+                    <div class="browser-dot dot-green"></div>
+                    <div class="browser-url">http://localhost/shopping-cart.html</div>
+                </div>
+                <div class="browser-content" id="browserContent">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👆</div>
+                        <h2>เลือก Test Case ด้านบน</h2>
+                        <p>เพื่อเริ่มการทดสอบ</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column (30%) - Actions Editor -->
+        <div class="actions-editor-column">
+            <div class="editor-header">
+                <span style="color: #4ec9b0;">test_shopping_cart.robot</span>
+            </div>
+            <div class="editor-body" id="editorBody">
+                <div style="padding: 40px 20px; text-align: center; color: #858585;">
+                    <div style="font-size: 3em; margin-bottom: 15px;">📝</div>
+                    <div>เลือก Test Case เพื่อดู Actions</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Control Bar -->
+    <div class="action-control-bar">
+        <button class="back-btn" id="backBtn" onclick="goBack()" disabled>
+            ← Back
+        </button>
+        <div class="current-action-display" id="actionDisplay">
+            <div class="action-number-badge" id="actionNumber">-</div>
+            <div class="action-code-display" id="actionCode">
+                เลือก Test Case เพื่อเริ่มต้น
+            </div>
+        </div>
+        <button class="next-btn" id="nextBtn" onclick="executeNext()" disabled>
+            Next →
+        </button>
+    </div>
+
+    <!-- Keyword Tooltip -->
+    <div class="keyword-tooltip" id="keywordTooltip">
+        <div class="tooltip-library"></div>
+        <div class="tooltip-keyword"></div>
+        <div class="tooltip-description"></div>
+    </div>
+
+    <script>
+        let currentLesson = 'prerequisites';
+        let currentStep = null;
+        let currentActionIndex = 0;
+        let actions = [];
+        let simulatedCart = [];
+
+        // Sidebar functions
+        function openSidebar() {
+            document.getElementById('sidebarMenu').classList.add('open');
+            document.getElementById('sidebarOverlay').classList.add('show');
+        }
+
+        function closeSidebar() {
+            document.getElementById('sidebarMenu').classList.remove('open');
+            document.getElementById('sidebarOverlay').classList.remove('show');
+        }
+
+        function selectLesson(lessonId) {
+            currentLesson = lessonId;
+
+            // Update active state in menu - get all lesson items (not category headers)
+            const items = document.querySelectorAll('.lesson-item');
+            items.forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // Find and activate the clicked item
+            event.target.closest('.lesson-item')?.classList.add('active');
+
+            // Close sidebar
+            closeSidebar();
+
+            // Load lesson content
+            if (lessonId === 'prerequisites') {
+                // Show prerequisites screen
+                currentActionIndex = 0;
+                actions = [];
+                simulatedCart = [];
+                showDesktop();
+
+                // Hide editor and control bar
+                document.getElementById('editorBody').innerHTML = `
+                    <div style="padding: 40px 20px; text-align: center; color: #858585;">
+                        <div style="font-size: 3em; margin-bottom: 15px;">📝</div>
+                        <div>เลือกบทเรียนอื่นเพื่อเริ่มเขียนโค้ด</div>
+                    </div>
+                `;
+                document.getElementById('actionNumber').textContent = '-';
+                document.getElementById('actionCode').innerHTML = 'เลือกบทเรียนเพื่อเริ่มต้น';
+                document.getElementById('nextBtn').disabled = true;
+                document.getElementById('backBtn').disabled = true;
+            } else {
+                // Load test case
+                selectTest(lessonId);
+            }
+        }
+
+        function selectTest(testId) {
+            if (!testId) testId = currentLesson;
+            if (!testActions[testId]) return;
+
+            currentStep = testId;
+            actions = testActions[testId];
+            currentActionIndex = 0;
+            simulatedCart = [];
+
+            // Initialize browser content - show desktop before opening browser
+            showDesktop();
+
+            // Display first action
+            displayCurrentAction();
+            renderEditor();
+            document.getElementById('nextBtn').disabled = false;
+        }
+
+        // Keyword information database
+        const keywordInfo = {
+            'Open Browser': {
+                library: 'SeleniumLibrary',
+                description: 'เปิด browser ใหม่และนำทางไปยัง URL ที่กำหนด สามารถระบุประเภท browser เช่น Chrome, Firefox, Edge'
+            },
+            'Maximize Browser Window': {
+                library: 'SeleniumLibrary',
+                description: 'ขยาย browser window ให้เต็มหน้าจอ'
+            },
+            'Input Text': {
+                library: 'SeleniumLibrary',
+                description: 'กรอกข้อความลงใน text field หรือ text area โดยระบุ locator และข้อความที่ต้องการกรอก'
+            },
+            'Click Element': {
+                library: 'SeleniumLibrary',
+                description: 'คลิก element ที่กำหนดโดยใช้ locator เช่น id, xpath, css selector สามารถใช้กับ element ใดก็ได้'
+            },
+            'Wait Until Element Is Visible': {
+                library: 'SeleniumLibrary',
+                description: 'รอจนกว่า element จะปรากฏบนหน้าเว็บ สามารถกำหนด timeout ได้'
+            },
+            'Wait Until Page Contains': {
+                library: 'SeleniumLibrary',
+                description: 'รอจนกว่าหน้าเว็บจะมีข้อความที่กำหนด สามารถกำหนด timeout ได้'
+            },
+            'Scroll Element Into View': {
+                library: 'SeleniumLibrary',
+                description: 'เลื่อนหน้าเว็บให้ element ที่กำหนดแสดงอยู่ในมุมมอง'
+            },
+            'Page Should Contain': {
+                library: 'SeleniumLibrary',
+                description: 'ตรวจสอบว่าหน้าเว็บปัจจุบันมีข้อความที่กำหนดหรือไม่ ถ้าไม่มีจะ fail test'
+            },
+            'Element Text Should Be': {
+                library: 'SeleniumLibrary',
+                description: 'ตรวจสอบว่าข้อความใน element ตรงกับที่กำหนดหรือไม่ ถ้าไม่ตรงจะ fail test'
+            },
+            'Close Browser': {
+                library: 'SeleniumLibrary',
+                description: 'ปิด browser ที่เปิดอยู่ทั้งหมด'
+            }
+        };
+
+        const testActions = {
+            'complete-flow': [
+                { type: 'open-browser', code: '<span class="action-keyword">Open Browser</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">shopping-cart.html</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">Chrome</span>' },
+                { type: 'input-login-username', code: '<span class="action-keyword">Input Text</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=login-username</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">admin</span>' },
+                { type: 'input-login-password', code: '<span class="action-keyword">Input Text</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=login-password</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">1234</span>' },
+                { type: 'click-login', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=login-btn</span>' },
+                { type: 'wait-main-app', code: '<span class="action-keyword">Wait Until Element Is Visible</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=mainApp</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">5s</span>' },
+                { type: 'click-iphone', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">xpath=//h3[text()=\'iPhone 14 Pro\']/../button</span>' },
+                { type: 'click-macbook', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">xpath=//h3[text()=\'MacBook Pro\']/../button</span>' },
+                { type: 'click-airpods', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">xpath=//h3[text()=\'AirPods Pro\']/../button</span>' },
+                { type: 'scroll-to-form', code: '<span class="action-keyword">Scroll Element Into View</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=customer-name</span>' },
+                { type: 'input-name', code: '<span class="action-keyword">Input Text</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=customer-name</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">สมชาย ใจดี</span>' },
+                { type: 'input-email', code: '<span class="action-keyword">Input Text</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=customer-email</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">somchai@email.com</span>' },
+                { type: 'input-phone', code: '<span class="action-keyword">Input Text</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=customer-phone</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">0812345678</span>' },
+                { type: 'input-address', code: '<span class="action-keyword">Input Text</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=customer-address</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">123 ถนนสุขุมวิท บางนา กรุงเทพฯ 10260</span>' },
+                { type: 'click-checkout', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=checkout-btn</span>' },
+                { type: 'wait-success', code: '<span class="action-keyword">Wait Until Page Contains</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">สั่งซื้อสำเร็จ</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">5s</span>' },
+                { type: 'verify-success', code: '<span class="action-keyword">Page Should Contain</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">สั่งซื้อสำเร็จ</span>' }
+            ],
+            'remove-item': [
+                { type: 'open-browser', code: '<span class="action-keyword">Open Browser</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">shopping-cart.html</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">Chrome</span>' },
+                { type: 'input-login-username', code: '<span class="action-keyword">Input Text</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=login-username</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">admin</span>' },
+                { type: 'input-login-password', code: '<span class="action-keyword">Input Text</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=login-password</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">1234</span>' },
+                { type: 'click-login', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=login-btn</span>' },
+                { type: 'wait-main-app', code: '<span class="action-keyword">Wait Until Element Is Visible</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=mainApp</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">5s</span>' },
+                { type: 'click-iphone', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">xpath=//h3[text()=\'iPhone 14 Pro\']/../button</span>' },
+                { type: 'click-macbook', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">xpath=//h3[text()=\'MacBook Pro\']/../button</span>' },
+                { type: 'verify-count-2', code: '<span class="action-keyword">Element Text Should Be</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=cart-count</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">2</span>' },
+                { type: 'remove-iphone', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">xpath=//div[contains(text(),\'iPhone\')]/../button[contains(text(),\'ลบ\')]</span>' },
+                { type: 'verify-count-1', code: '<span class="action-keyword">Element Text Should Be</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=cart-count</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">1</span>' }
+            ],
+            'cart-update': [
+                { type: 'open-browser', code: '<span class="action-keyword">Open Browser</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">shopping-cart.html</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">Chrome</span>' },
+                { type: 'input-login-username', code: '<span class="action-keyword">Input Text</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=login-username</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">admin</span>' },
+                { type: 'input-login-password', code: '<span class="action-keyword">Input Text</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=login-password</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">1234</span>' },
+                { type: 'click-login', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=login-btn</span>' },
+                { type: 'wait-main-app', code: '<span class="action-keyword">Wait Until Element Is Visible</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=mainApp</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">5s</span>' },
+                { type: 'verify-count-0', code: '<span class="action-keyword">Element Text Should Be</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=cart-count</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">0</span>' },
+                { type: 'click-iphone', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">xpath=//h3[text()=\'iPhone 14 Pro\']/../button</span>' },
+                { type: 'verify-count-1', code: '<span class="action-keyword">Element Text Should Be</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=cart-count</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">1</span>' },
+                { type: 'click-macbook', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">xpath=//h3[text()=\'MacBook Pro\']/../button</span>' },
+                { type: 'verify-count-2', code: '<span class="action-keyword">Element Text Should Be</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=cart-count</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">2</span>' },
+                { type: 'click-ipad', code: '<span class="action-keyword">Click Element</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">xpath=//h3[text()=\'iPad Air\']/../button</span>' },
+                { type: 'verify-count-3', code: '<span class="action-keyword">Element Text Should Be</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-param">id=cart-count</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="action-value">3</span>' }
+            ]
+        };
+
+
+        function displayCurrentAction() {
+            if (currentActionIndex >= actions.length) {
+                document.getElementById('actionNumber').textContent = '✓';
+                document.getElementById('actionCode').innerHTML = '<span style="color: #28a745; font-weight: bold;">Test Completed!</span>';
+                document.getElementById('nextBtn').textContent = 'เสร็จสิ้น ✓';
+                document.getElementById('nextBtn').classList.add('completed');
+                document.getElementById('nextBtn').disabled = true;
+                document.getElementById('backBtn').disabled = false;
+                return;
+            }
+
+            const action = actions[currentActionIndex];
+            document.getElementById('actionNumber').textContent = currentActionIndex + 1;
+            document.getElementById('actionCode').innerHTML = action.code;
+
+            // Update button states
+            document.getElementById('backBtn').disabled = (currentActionIndex === 0);
+            document.getElementById('nextBtn').disabled = false;
+            document.getElementById('nextBtn').classList.remove('completed');
+            document.getElementById('nextBtn').textContent = 'Next →';
+
+            // Update editor highlighting
+            updateEditorHighlight();
+        }
+
+        function renderEditor() {
+            const editorBody = document.getElementById('editorBody');
+            if (!actions || actions.length === 0) {
+                editorBody.innerHTML = `
+                    <div style="padding: 40px 20px; text-align: center; color: #858585;">
+                        <div style="font-size: 3em; margin-bottom: 15px;">📝</div>
+                        <div>เลือก Test Case เพื่อดู Actions</div>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            actions.forEach((action, index) => {
+                const lineClass = index < currentActionIndex ? 'executed' : (index === currentActionIndex ? 'current' : '');
+                html += `
+                    <div class="code-line ${lineClass}" data-index="${index}">
+                        <span class="line-number">${index + 1}</span>
+                        <span class="line-code">${action.code}</span>
+                    </div>
+                `;
+            });
+
+            editorBody.innerHTML = html;
+
+            // Scroll current line into view
+            setTimeout(() => {
+                const currentLine = editorBody.querySelector('.code-line.current');
+                if (currentLine) {
+                    currentLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 100);
+        }
+
+        function updateEditorHighlight() {
+            const editorBody = document.getElementById('editorBody');
+            const lines = editorBody.querySelectorAll('.code-line');
+
+            lines.forEach((line, index) => {
+                line.classList.remove('current', 'executed');
+                if (index < currentActionIndex) {
+                    line.classList.add('executed');
+                } else if (index === currentActionIndex) {
+                    line.classList.add('current');
+                }
+            });
+
+            // Scroll current line into view
+            const currentLine = editorBody.querySelector('.code-line.current');
+            if (currentLine) {
+                currentLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        async function goBack() {
+            if (currentActionIndex <= 0) return;
+
+            currentActionIndex--;
+
+            // Reset everything to initial state
+            simulatedCart = [];
+            showDesktop();
+
+            // Re-execute all actions up to current index (instantly, no animation)
+            for (let i = 0; i < currentActionIndex; i++) {
+                await performActionInstant(actions[i].type);
+            }
+
+            displayCurrentAction();
+        }
+
+        async function executeNext() {
+            if (currentActionIndex >= actions.length) return;
+
+            const action = actions[currentActionIndex];
+            document.getElementById('nextBtn').disabled = true;
+
+            await performAction(action.type);
+
+            currentActionIndex++;
+            displayCurrentAction();
+            document.getElementById('nextBtn').disabled = false;
+        }
+
+        async function performAction(actionType) {
+            // Check if this is the last action
+            const isLastAction = currentActionIndex === actions.length - 1;
+
+            switch(actionType) {
+                case 'open-browser':
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    showLoginScreen();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    break;
+
+                case 'input-login-username':
+                    await inputField('#sim-username', 'admin');
+                    break;
+
+                case 'input-login-password':
+                    await inputField('#sim-password', '1234');
+                    break;
+
+                case 'click-login':
+                    highlightElement('#sim-login-btn');
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    showMainApp();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    break;
+
+                case 'wait-main-app':
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    break;
+
+                case 'click-iphone':
+                    await clickProduct('iPhone 14 Pro');
+                    break;
+
+                case 'click-macbook':
+                    await clickProduct('MacBook Pro');
+                    break;
+
+                case 'click-ipad':
+                    await clickProduct('iPad Air');
+                    break;
+
+                case 'click-airpods':
+                    await clickProduct('AirPods Pro');
+                    break;
+
+                case 'scroll-to-form':
+                    await scrollToElement('#sim-customer-name');
+                    break;
+
+                case 'input-name':
+                    await inputField('#sim-customer-name', 'สมชาย ใจดี');
+                    break;
+
+                case 'input-email':
+                    await inputField('#sim-customer-email', 'somchai@email.com');
+                    break;
+
+                case 'input-phone':
+                    await inputField('#sim-customer-phone', '0812345678');
+                    break;
+
+                case 'input-address':
+                    await inputField('#sim-customer-address', '123 ถนนสุขุมวิท บางนา กรุงเทพฯ 10260');
+                    break;
+
+                case 'click-checkout':
+                    highlightElement('#sim-checkout-btn');
+                    await new Promise(resolve => setTimeout(resolve, 1200));
+                    showSuccessScreen();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    break;
+
+                case 'wait-success':
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    break;
+
+                case 'verify-success':
+                    if (isLastAction) {
+                        showVerification('✅ ทดสอบสำเร็จ!', 'ผ่านทุก Test Case');
+                    }
+                    break;
+
+                case 'verify-count-0':
+                    if (isLastAction) {
+                        showVerification('✅ ตรวจสอบตะกร้า', 'จำนวน = 0 (ถูกต้อง)');
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                    break;
+
+                case 'verify-count-1':
+                    if (isLastAction) {
+                        showVerification('✅ ตรวจสอบตะกร้า', 'จำนวน = 1 (ถูกต้อง)');
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                    break;
+
+                case 'verify-count-2':
+                    if (isLastAction) {
+                        showVerification('✅ ตรวจสอบตะกร้า', 'จำนวน = 2 (ถูกต้อง)');
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                    break;
+
+                case 'verify-count-3':
+                    if (isLastAction) {
+                        showVerification('✅ ตรวจสอบตะกร้า', 'จำนวน = 3 (ถูกต้อง)');
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                    break;
+
+                case 'remove-iphone':
+                    // Simulate removing iPhone from cart
+                    const iphoneIndex = simulatedCart.indexOf('iPhone 14 Pro');
+                    if (iphoneIndex > -1) {
+                        simulatedCart.splice(iphoneIndex, 1);
+                        highlightElement('#sim-cart-count');
+                        await new Promise(resolve => setTimeout(resolve, 800));
+                        updateCartCount();
+
+                        // Show visual feedback
+                        const notification = document.createElement('div');
+                        notification.style.cssText = 'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #dc3545; color: white; padding: 15px 30px; border-radius: 50px; font-size: 1.1em; font-weight: bold; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 10000;';
+                        notification.textContent = '🗑️ ลบ iPhone 14 Pro ออกจากตะกร้า';
+                        document.body.appendChild(notification);
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                        document.body.removeChild(notification);
+                    }
+                    break;
+            }
+        }
+
+        // Instant version for back navigation - no delays or animations
+        async function performActionInstant(actionType) {
+            switch(actionType) {
+                case 'open-browser':
+                    showLoginScreen();
+                    break;
+
+                case 'wait-main-app':
+                case 'wait-success':
+                case 'verify-success':
+                case 'verify-count-0':
+                case 'verify-count-1':
+                case 'verify-count-2':
+                case 'verify-count-3':
+                    // These don't change state, skip
+                    break;
+
+                case 'input-login-username':
+                    const usernameEl = document.querySelector('#sim-username');
+                    if (usernameEl) usernameEl.value = 'admin';
+                    break;
+
+                case 'input-login-password':
+                    const passwordEl = document.querySelector('#sim-password');
+                    if (passwordEl) passwordEl.value = '1234';
+                    break;
+
+                case 'click-login':
+                    showMainApp();
+                    break;
+
+                case 'click-iphone':
+                    simulatedCart.push('iPhone 14 Pro');
+                    updateCartCount();
+                    break;
+
+                case 'click-macbook':
+                    simulatedCart.push('MacBook Pro');
+                    updateCartCount();
+                    break;
+
+                case 'click-ipad':
+                    simulatedCart.push('iPad Air');
+                    updateCartCount();
+                    break;
+
+                case 'click-airpods':
+                    simulatedCart.push('AirPods Pro');
+                    updateCartCount();
+                    break;
+
+                case 'scroll-to-form':
+                    // No state change
+                    break;
+
+                case 'input-name':
+                    const nameEl = document.querySelector('#sim-customer-name');
+                    if (nameEl) nameEl.value = 'สมชาย ใจดี';
+                    break;
+
+                case 'input-email':
+                    const emailEl = document.querySelector('#sim-customer-email');
+                    if (emailEl) emailEl.value = 'somchai@email.com';
+                    break;
+
+                case 'input-phone':
+                    const phoneEl = document.querySelector('#sim-customer-phone');
+                    if (phoneEl) phoneEl.value = '0812345678';
+                    break;
+
+                case 'input-address':
+                    const addressEl = document.querySelector('#sim-customer-address');
+                    if (addressEl) addressEl.value = '123 ถนนสุขุมวิท บางนา กรุงเทพฯ 10260';
+                    break;
+
+                case 'click-checkout':
+                    showSuccessScreen();
+                    break;
+
+                case 'remove-iphone':
+                    const iphoneIndex = simulatedCart.indexOf('iPhone 14 Pro');
+                    if (iphoneIndex > -1) {
+                        simulatedCart.splice(iphoneIndex, 1);
+                        updateCartCount();
+                    }
+                    break;
+            }
+        }
+
+        async function inputField(selector, value) {
+            highlightElement(selector);
+            await new Promise(resolve => setTimeout(resolve, 600));
+            const input = document.querySelector(selector);
+            if (input) {
+                input.value = '';
+                for (let char of value) {
+                    input.value += char;
+                    await new Promise(resolve => setTimeout(resolve, 80));
+                }
+            }
+            await new Promise(resolve => setTimeout(resolve, 400));
+        }
+
+        async function clickProduct(productName) {
+            const card = Array.from(document.querySelectorAll('.sim-product-card')).find(el => el.dataset.name === productName);
+            if (card) {
+                card.style.border = '4px solid #ffc107';
+                card.style.boxShadow = '0 0 30px rgba(255, 193, 7, 0.6)';
+                scrollToElementInContainer(card);
+                await new Promise(resolve => setTimeout(resolve, 800));
+                card.style.border = '4px solid #28a745';
+                card.style.background = '#f0fff4';
+                simulatedCart.push(productName);
+                updateCartCount();
+                await new Promise(resolve => setTimeout(resolve, 600));
+                card.style.border = '2px solid #e0e0e0';
+            }
+        }
+
+        async function scrollToElement(selector) {
+            const element = document.querySelector(selector);
+            if (element) {
+                const container = document.getElementById('browserContent');
+                const mainContent = document.getElementById('sim-main-content');
+                if (container && mainContent) {
+                    const scrollTarget = element.offsetTop - 200;
+                    mainContent.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+                }
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                highlightElement(selector);
+                await new Promise(resolve => setTimeout(resolve, 600));
+            }
+        }
+
+        function scrollToElementInContainer(element) {
+            if (!element) return;
+            const mainContent = document.getElementById('sim-main-content');
+            if (!mainContent) return;
+            const scrollTarget = element.offsetTop - 200;
+            mainContent.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+        }
+
+        function highlightElement(selector) {
+            const element = document.querySelector(selector);
+            if (!element) return;
+
+            element.style.outline = '4px solid #ffc107';
+            element.style.outlineOffset = '4px';
+            element.style.boxShadow = '0 0 30px rgba(255, 193, 7, 0.6)';
+            element.style.transition = 'all 0.3s';
+
+            setTimeout(() => {
+                element.style.outline = '';
+                element.style.outlineOffset = '';
+                element.style.boxShadow = '';
+            }, 2000);
+        }
+
+        function showVerification(title, message) {
+            const verifyDisplay = document.createElement('div');
+            verifyDisplay.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #28a745; color: white; padding: 30px 50px; border-radius: 15px; font-size: 1.5em; font-weight: bold; box-shadow: 0 4px 20px rgba(0,0,0,0.3); z-index: 10000; text-align: center; animation: bounceIn 0.5s;';
+            verifyDisplay.innerHTML = `${title}<br><small style="font-size:0.7em;">${message}</small>`;
+            document.body.appendChild(verifyDisplay);
+
+            setTimeout(() => {
+                document.body.removeChild(verifyDisplay);
+            }, 2000);
+        }
+
+        function updateCartCount() {
+            const countElement = document.getElementById('sim-cart-count');
+            if (countElement) {
+                countElement.textContent = simulatedCart.length;
+            }
+        }
+
+        function showDesktop() {
+            // Hide browser window chrome
+            const browserWindow = document.querySelector('.browser-window');
+            if (browserWindow) {
+                browserWindow.style.display = 'none';
+            }
+
+            const browserPreview = document.querySelector('.browser-preview-column');
+            if (browserPreview) {
+                // Add desktop directly to the preview column
+                let desktopDiv = document.getElementById('desktop-screen');
+                if (!desktopDiv) {
+                    desktopDiv = document.createElement('div');
+                    desktopDiv.id = 'desktop-screen';
+                    browserPreview.appendChild(desktopDiv);
+                }
+                desktopDiv.style.cssText = 'width: 100%; height: 100%; background: #1e1e1e; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 20px;';
+                desktopDiv.innerHTML = `
+                    <div style="width: 100%; max-width: 900px;">
+                        <div style="text-align: center; margin-bottom: 20px;">
+                            <div style="font-size: 2em; margin-bottom: 8px;">🤖</div>
+                            <h2 style="color: #fff; font-size: 1.4em; margin-bottom: 5px;">Robot Framework Prerequisites</h2>
+                            <p style="color: #888; font-size: 0.85em;">ติดตั้งและเตรียมความพร้อมก่อนรันทดสอบ</p>
+                        </div>
+
+                        <!-- Prerequisites Grid -->
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px;">
+                            <!-- Card 1 -->
+                            <div style="background: #252526; border-radius: 10px; padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.3); border: 1px solid #3e3e42;">
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                    <div style="width: 28px; height: 28px; background: #28a745; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.9em;">1</div>
+                                    <h3 style="color: #4ec9b0; font-size: 0.95em; margin: 0;">📦 Python</h3>
+                                </div>
+                                <p style="color: #d4d4d4; font-size: 0.8em; margin-bottom: 8px; line-height: 1.4;">Python 3.7+</p>
+                                <code style="background: #1e1e1e; color: #ce9178; padding: 6px 8px; border-radius: 4px; display: block; font-family: 'Consolas', monospace; font-size: 0.75em;">python --version</code>
+                            </div>
+
+                            <!-- Card 2 -->
+                            <div style="background: #252526; border-radius: 10px; padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.3); border: 1px solid #3e3e42;">
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                    <div style="width: 28px; height: 28px; background: #28a745; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.9em;">2</div>
+                                    <h3 style="color: #4ec9b0; font-size: 0.95em; margin: 0;">🤖 Robot Framework</h3>
+                                </div>
+                                <p style="color: #d4d4d4; font-size: 0.8em; margin-bottom: 8px; line-height: 1.4;">Framework หลัก</p>
+                                <code style="background: #1e1e1e; color: #ce9178; padding: 6px 8px; border-radius: 4px; display: block; font-family: 'Consolas', monospace; font-size: 0.75em;">pip install robotframework</code>
+                            </div>
+
+                            <!-- Card 3 -->
+                            <div style="background: #252526; border-radius: 10px; padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.3); border: 1px solid #3e3e42;">
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                    <div style="width: 28px; height: 28px; background: #28a745; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.9em;">3</div>
+                                    <h3 style="color: #4ec9b0; font-size: 0.95em; margin: 0;">🌐 SeleniumLibrary</h3>
+                                </div>
+                                <p style="color: #d4d4d4; font-size: 0.8em; margin-bottom: 8px; line-height: 1.4;">ควบคุม Browser</p>
+                                <code style="background: #1e1e1e; color: #ce9178; padding: 6px 8px; border-radius: 4px; display: block; font-family: 'Consolas', monospace; font-size: 0.75em;">pip install robotframework-seleniumlibrary</code>
+                            </div>
+
+                            <!-- Card 4 -->
+                            <div style="background: #252526; border-radius: 10px; padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.3); border: 1px solid #3e3e42;">
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                    <div style="width: 28px; height: 28px; background: #28a745; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.9em;">4</div>
+                                    <h3 style="color: #4ec9b0; font-size: 0.95em; margin: 0;">🚗 WebDriver</h3>
+                                </div>
+                                <p style="color: #d4d4d4; font-size: 0.8em; margin-bottom: 8px; line-height: 1.4;">Driver Manager</p>
+                                <code style="background: #1e1e1e; color: #ce9178; padding: 6px 8px; border-radius: 4px; display: block; font-family: 'Consolas', monospace; font-size: 0.75em;">pip install webdrivermanager</code>
+                            </div>
+
+                            <!-- Card 5 -->
+                            <div style="background: #252526; border-radius: 10px; padding: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.3); border: 1px solid #3e3e42;">
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                    <div style="width: 28px; height: 28px; background: #28a745; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.9em;">5</div>
+                                    <h3 style="color: #4ec9b0; font-size: 0.95em; margin: 0;">🌐 Chrome Browser</h3>
+                                </div>
+                                <p style="color: #d4d4d4; font-size: 0.8em; margin-bottom: 8px; line-height: 1.4;">Browser เวอร์ชันล่าสุด</p>
+                                <p style="color: #569cd6; font-size: 0.75em;">หรือ Firefox, Edge</p>
+                            </div>
+
+                            <!-- Card 6 - Ready -->
+                            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 15px; box-shadow: 0 2px 10px rgba(102, 126, 234, 0.4); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                                <div style="font-size: 2em; margin-bottom: 8px;">✅</div>
+                                <p style="color: white; font-size: 0.9em; font-weight: bold; margin-bottom: 5px;">พร้อมแล้ว?</p>
+                                <p style="color: rgba(255,255,255,0.9); font-size: 0.75em; line-height: 1.3;">กด Next เพื่อเริ่ม<br>Open Browser</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function showLoginScreen() {
+            // Hide desktop and show browser window
+            const desktopDiv = document.getElementById('desktop-screen');
+            if (desktopDiv) {
+                desktopDiv.style.display = 'none';
+            }
+            const browserWindow = document.querySelector('.browser-window');
+            if (browserWindow) {
+                browserWindow.style.display = 'flex';
+            }
+
+            const browserContent = document.getElementById('browserContent');
+            browserContent.innerHTML = `
+                <div style="padding: 30px; background: white; height: 100%; overflow-y: auto;">
+                    <div style="text-align: center; padding: 20px 30px; background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%); border-radius: 15px; margin-bottom: 30px;">
+                        <h1 style="color: #667eea; font-size: 1.8em; margin-bottom: 8px;">🔐 เข้าสู่ระบบ</h1>
+                        <p style="color: #666; font-size: 0.95em;">กรุณาเข้าสู่ระบบเพื่อเข้าใช้งาน</p>
+                    </div>
+                    <div style="max-width: 450px; margin: 0 auto; padding: 30px; border: 2px solid #e0e0e0; border-radius: 15px; background: white; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 8px; color: #333; font-weight: bold; font-size: 1em;">Username</label>
+                            <input type="text" id="sim-username" style="width: 100%; padding: 15px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 1em; background: white;" placeholder="กรอก username">
+                        </div>
+                        <div style="margin-bottom: 25px;">
+                            <label style="display: block; margin-bottom: 8px; color: #333; font-weight: bold; font-size: 1em;">Password</label>
+                            <input type="password" id="sim-password" style="width: 100%; padding: 15px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 1em; background: white;" placeholder="กรอก password">
+                        </div>
+                        <button id="sim-login-btn" style="width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 18px; border-radius: 10px; font-size: 1.2em; font-weight: bold; cursor: pointer;">เข้าสู่ระบบ</button>
+                        <p style="text-align: center; color: #999; font-size: 0.9em; margin-top: 20px; font-style: italic;">💡 Username: admin / Password: 1234</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showMainApp() {
+            // Hide desktop and show browser window
+            const desktopDiv = document.getElementById('desktop-screen');
+            if (desktopDiv) {
+                desktopDiv.style.display = 'none';
+            }
+            const browserWindow = document.querySelector('.browser-window');
+            if (browserWindow) {
+                browserWindow.style.display = 'flex';
+            }
+
+            const browserContent = document.getElementById('browserContent');
+            browserContent.innerHTML = `
+                <div style="padding: 15px; background: #f5f7fa; height: 100%; overflow-y: auto;" id="sim-main-content">
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 20px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
+                        <h1 style="margin: 0; font-size: 1.5em; margin-bottom: 8px;">🛒 Shopping Cart</h1>
+                        <div style="padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 25px; display: inline-flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.1em;">🛒</span>
+                            <span style="font-weight: bold; font-size: 0.95em;">ตะกร้า: <span id="sim-cart-count">0</span> รายการ</span>
+                        </div>
+                    </div>
+
+                    <h2 style="color: #333; margin-bottom: 12px; font-size: 1.2em; border-bottom: 2px solid #667eea; padding-bottom: 8px;">📱 สินค้าทั้งหมด</h2>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
+                        ${createProductCard('iPhone 14 Pro', '📱', '฿42,900', 'สมาร์ทโฟน')}
+                        ${createProductCard('MacBook Pro', '💻', '฿89,900', 'แล็ปท็อป')}
+                        ${createProductCard('iPad Air', '📱', '฿24,900', 'แท็บเล็ต')}
+                        ${createProductCard('Apple Watch', '⌚', '฿14,900', 'สมาร์ทวอทช์')}
+                        ${createProductCard('AirPods Pro', '🎧', '฿8,900', 'หูฟังไร้สาย')}
+                        ${createProductCard('Magic Mouse', '🖱️', '฿3,900', 'เมาส์ไร้สาย')}
+                    </div>
+
+                    <div style="background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <h2 style="color: #333; margin-bottom: 12px; font-size: 1.2em; border-bottom: 2px solid #667eea; padding-bottom: 8px;">📝 ข้อมูลการจัดส่ง</h2>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; color: #555; font-weight: 500; font-size: 0.85em;">ชื่อ-นามสกุล *</label>
+                                <input type="text" id="sim-customer-name" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 0.9em;">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; color: #555; font-weight: 500; font-size: 0.85em;">อีเมล *</label>
+                                <input type="email" id="sim-customer-email" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 0.9em;">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; color: #555; font-weight: 500; font-size: 0.85em;">เบอร์โทรศัพท์ *</label>
+                                <input type="tel" id="sim-customer-phone" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 0.9em;">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 5px; color: #555; font-weight: 500; font-size: 0.85em;">ที่อยู่จัดส่ง *</label>
+                                <textarea id="sim-customer-address" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 0.9em; min-height: 60px; resize: vertical;"></textarea>
+                            </div>
+                        </div>
+                        <button id="sim-checkout-btn" style="width: 100%; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 1em; font-weight: bold; cursor: pointer; margin-top: 12px;">✅ ยืนยันการสั่งซื้อ</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showSuccessScreen() {
+            // Hide desktop and show browser window
+            const desktopDiv = document.getElementById('desktop-screen');
+            if (desktopDiv) {
+                desktopDiv.style.display = 'none';
+            }
+            const browserWindow = document.querySelector('.browser-window');
+            if (browserWindow) {
+                browserWindow.style.display = 'flex';
+            }
+
+            const browserContent = document.getElementById('browserContent');
+            browserContent.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div style="text-align: center; color: white; animation: bounceIn 0.8s;">
+                        <div style="font-size: 8em; margin-bottom: 30px;">✅</div>
+                        <h1 style="font-size: 3em; margin-bottom: 20px;">สั่งซื้อสำเร็จ!</h1>
+                        <p style="font-size: 1.5em; opacity: 0.95;">ขอบคุณที่ใช้บริการ</p>
+                        <div style="margin-top: 40px; padding: 30px; background: rgba(255,255,255,0.2); border-radius: 20px; text-align: left; display: inline-block;">
+                            <h3 style="margin-bottom: 15px; font-size: 1.5em;">รายละเอียดคำสั่งซื้อ</h3>
+                            <p style="margin: 10px 0;"><strong>ชื่อ:</strong> สมชาย ใจดี</p>
+                            <p style="margin: 10px 0;"><strong>อีเมล:</strong> somchai@email.com</p>
+                            <p style="margin: 10px 0;"><strong>เบอร์โทร:</strong> 0812345678</p>
+                            <p style="margin: 10px 0;"><strong>สินค้า:</strong> ${simulatedCart.length} รายการ</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function createProductCard(name, icon, price, desc) {
+            return `
+                <div class="sim-product-card" data-name="${name}" style="border: 2px solid #e0e0e0; border-radius: 15px; padding: 25px; text-align: center; transition: all 0.3s; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                    <div style="font-size: 4em; margin-bottom: 15px;">${icon}</div>
+                    <h3 style="color: #333; margin-bottom: 10px; font-size: 1.3em;">${name}</h3>
+                    <p style="color: #666; font-size: 0.9em; margin-bottom: 15px; min-height: 40px;">${desc}</p>
+                    <div style="color: #667eea; font-size: 1.5em; font-weight: bold; margin: 15px 0;">${price}</div>
+                    <button style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-size: 1em; font-weight: bold; width: 100%;">เพิ่มลงตะกร้า</button>
+                </div>
+            `;
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            // Check if user is typing in an input field
+            const activeElement = document.activeElement;
+            if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT')) {
+                return; // Don't trigger shortcuts when typing
+            }
+
+            const nextBtn = document.getElementById('nextBtn');
+            const backBtn = document.getElementById('backBtn');
+
+            switch(event.key) {
+                case 'ArrowRight':
+                case 'ArrowDown':
+                    // Next action
+                    if (nextBtn && !nextBtn.disabled) {
+                        event.preventDefault();
+                        executeNext();
+                    }
+                    break;
+
+                case 'ArrowLeft':
+                case 'ArrowUp':
+                    // Back action
+                    if (backBtn && !backBtn.disabled) {
+                        event.preventDefault();
+                        goBack();
+                    }
+                    break;
+            }
+        });
+
+        // Keyword tooltip functionality
+        const tooltip = document.getElementById('keywordTooltip');
+
+        function showKeywordTooltip(event, keywordElement) {
+            const keywordText = keywordElement.textContent.trim();
+            const info = keywordInfo[keywordText];
+
+            if (!info) return;
+
+            // Update tooltip content
+            tooltip.querySelector('.tooltip-library').textContent = `📚 ${info.library}`;
+            tooltip.querySelector('.tooltip-keyword').textContent = keywordText;
+            tooltip.querySelector('.tooltip-description').textContent = info.description;
+
+            // Position tooltip near mouse
+            const x = event.clientX + 15;
+            const y = event.clientY + 15;
+
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
+            tooltip.style.display = 'block';
+        }
+
+        function hideKeywordTooltip() {
+            tooltip.style.display = 'none';
+        }
+
+        function updateTooltipPosition(event) {
+            if (tooltip.style.display === 'block') {
+                const x = event.clientX + 15;
+                const y = event.clientY + 15;
+                tooltip.style.left = x + 'px';
+                tooltip.style.top = y + 'px';
+            }
+        }
+
+        // Add event listeners to keyword elements (using event delegation)
+        document.addEventListener('mouseover', function(event) {
+            if (event.target.classList.contains('action-keyword')) {
+                showKeywordTooltip(event, event.target);
+            }
+        });
+
+        document.addEventListener('mouseout', function(event) {
+            if (event.target.classList.contains('action-keyword')) {
+                hideKeywordTooltip();
+            }
+        });
+
+        document.addEventListener('mousemove', function(event) {
+            if (event.target.classList.contains('action-keyword')) {
+                updateTooltipPosition(event);
+            }
+        });
+
+        // Initialize page - show prerequisites by default
+        window.addEventListener('DOMContentLoaded', function() {
+            showDesktop();
+            document.getElementById('editorBody').innerHTML = `
+                <div style="padding: 40px 20px; text-align: center; color: #858585;">
+                    <div style="font-size: 3em; margin-bottom: 15px;">📝</div>
+                    <div>คลิกที่เมนู ☰ เพื่อเลือกบทเรียน</div>
+                </div>
+            `;
+            document.getElementById('actionNumber').textContent = '-';
+            document.getElementById('actionCode').innerHTML = 'เปิดเมนูด้านซ้ายเพื่อเลือกบทเรียน';
+            document.getElementById('nextBtn').disabled = true;
+            document.getElementById('backBtn').disabled = true;
+        });
+    </script>
+</body>
+</html>
