@@ -23,17 +23,38 @@ export default function AssigneeModal({
 
   useEffect(() => {
     if (isOpen) {
-      // Load members from localStorage
-      const membersData = localStorage.getItem('members');
-      let loadedMembers: any[] = [];
-      if (membersData) {
-        loadedMembers = JSON.parse(membersData);
-        setMembers(loadedMembers);
-      }
+      // Load members from API first, fallback to localStorage
+      const loadMembers = async () => {
+        try {
+          const response = await fetch('/api/users');
+          if (response.ok) {
+            const users = await response.json();
+            console.log('Loaded members from API:', users);
+            setMembers(users);
+            // Also save to localStorage for offline use
+            localStorage.setItem('members', JSON.stringify(users));
+            return;
+          }
+        } catch (error) {
+          console.log('Failed to load members from API, trying localStorage');
+        }
 
-      // Set assignee (currentAssignee is already draggedBy from parent)
+        // Fallback to localStorage
+        const membersData = localStorage.getItem('members');
+        if (membersData) {
+          const loadedMembers = JSON.parse(membersData);
+          console.log('Loaded members from localStorage:', loadedMembers);
+          setMembers(loadedMembers);
+        } else {
+          console.warn('No members found in API or localStorage');
+          setMembers([]);
+        }
+      };
+
+      loadMembers();
+
+      // Set assignee
       console.log('Setting assignee to:', currentAssignee);
-      console.log('Available members:', loadedMembers.map((m: any) => m.name));
       setAssignee(currentAssignee || '');
       setEstimateHours(currentEstimate ? String(currentEstimate) : '');
     }
