@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: planning-tool-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: planningtool
+      POSTGRES_PASSWORD: planningtool123
+      POSTGRES_DB: planning_tool_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planningtool"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Python Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: planning-tool-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://planningtool:planningtool123@db:5432/planning_tool_db
+      PORT: 8002
+    ports:
+      - "8002:8002"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+
+  # Frontend Web Server (Nginx)
+  frontend:
+    image: nginx:alpine
+    container_name: planning-tool-frontend
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    volumes:
+      - ./:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+    driver: local
