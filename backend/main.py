@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Text, TIMESTAMP, 
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime, timedelta
 import os
@@ -230,6 +230,8 @@ class TaskCreate(BaseModel):
         populate_by_name = True
 
 class TaskUpdate(BaseModel):
+    model_config = ConfigDict(extra='ignore', populate_by_name=True)
+
     title: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
@@ -241,10 +243,6 @@ class TaskUpdate(BaseModel):
     estimate_hours: Optional[float] = None
     readiness_checklist: Optional[List[dict]] = Field(None, alias='readinessChecklist')
     size: Optional[str] = None
-
-    class Config:
-        populate_by_name = True
-        extra = "ignore"  # Ignore extra fields from frontend
 
 class TaskResponse(BaseModel):
     id: int
