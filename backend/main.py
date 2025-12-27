@@ -1150,28 +1150,42 @@ if Path("/plugins").exists():
 else:
     PLUGINS_DIR = Path(__file__).parent.parent / "plugins"
 
+print(f"🔍 PLUGINS_DIR configured as: {PLUGINS_DIR}")
+print(f"🔍 PLUGINS_DIR exists: {PLUGINS_DIR.exists()}")
+if PLUGINS_DIR.exists():
+    print(f"🔍 PLUGINS_DIR contents: {list(PLUGINS_DIR.iterdir())}")
+
 @app.get("/api/plugins")
 def get_plugins():
     """Get all available plugins"""
+    print(f"📦 GET /api/plugins called")
+    print(f"📦 PLUGINS_DIR: {PLUGINS_DIR}")
+    print(f"📦 PLUGINS_DIR exists: {PLUGINS_DIR.exists()}")
+
     plugins = []
 
     if not PLUGINS_DIR.exists():
+        print(f"⚠️  PLUGINS_DIR does not exist!")
         return JSONResponse(content=[], status_code=200)
 
     for plugin_dir in PLUGINS_DIR.iterdir():
+        print(f"📂 Checking: {plugin_dir.name}")
         if not plugin_dir.is_dir():
+            print(f"  ⏭️  Skipping (not a directory)")
             continue
 
         plugin_json = plugin_dir / "plugin.json"
         if not plugin_json.exists():
+            print(f"  ⚠️  No plugin.json found")
             continue
 
         try:
             with open(plugin_json, 'r') as f:
                 plugin_data = json.load(f)
                 plugins.append(plugin_data)
+                print(f"  ✅ Loaded: {plugin_data.get('name', 'Unknown')}")
         except Exception as e:
-            print(f"Error loading plugin {plugin_dir.name}: {e}")
+            print(f"  ❌ Error loading plugin {plugin_dir.name}: {e}")
             continue
 
     return JSONResponse(content=plugins, status_code=200)
