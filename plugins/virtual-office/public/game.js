@@ -1848,86 +1848,90 @@ function gameLoop() {
   // Clear canvas
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Draw floor tiles
-  drawFloor();
+  // Check if in room selection mode (zoomed out)
+  const inRoomSelectionMode = zoomLevel <= 0.7;
 
-  // Draw furniture
-  drawFurniture();
-
-  // Draw collectibles (cars, etc.)
-  drawCollectibles();
-
-  // Update and draw current player
-  if (currentPlayer) {
-    currentPlayer.update();
-    const showCurrentPlayerName = hoveredPlayer && hoveredPlayer.id === currentPlayer.id;
-    currentPlayer.draw(true, showCurrentPlayerName);
-
-    // Debug log every 60 frames (once per second at 60fps)
-    if (frameCount % 60 === 0) {
-      console.log('🎨 Drawing player at:', currentPlayer.x, currentPlayer.y, 'Direction:', currentPlayer.direction);
-    }
-  } else {
-    if (frameCount % 60 === 0) {
-      console.warn('⚠️ No current player to draw!');
-    }
-  }
-
-  // Draw other players
-  otherPlayers.forEach(player => {
-    const showName = hoveredPlayer && hoveredPlayer.id === player.id;
-    player.draw(false, showName);
-
-    // Draw proximity indicator if in proximity chat mode
-    if (currentChatMode === 'proximity' && currentPlayer) {
-      const distance = Math.sqrt(
-        Math.pow(currentPlayer.x - player.x, 2) +
-        Math.pow(currentPlayer.y - player.y, 2)
-      );
-
-      if (distance <= 200) {
-        const screen = worldToScreen(player.x, player.y);
-        const scale = screen.scale;
-        ctx.strokeStyle = 'rgba(255, 165, 0, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(screen.x, screen.y, 200 * scale, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-    }
-  });
-
-  // Draw target position indicator
-  if (targetPosition) {
-    const screen = worldToScreen(targetPosition.x, targetPosition.y);
-    const scale = screen.scale;
-
-    // Draw pulsing circle
-    const pulseSize = 15 + Math.sin(frameCount * 0.1) * 5;
-    ctx.strokeStyle = '#4CAF50';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(screen.x, screen.y, pulseSize * scale, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Draw crosshair
-    ctx.strokeStyle = '#4CAF50';
-    ctx.lineWidth = 2;
-    const size = 10 * scale;
-    ctx.beginPath();
-    ctx.moveTo(screen.x - size, screen.y);
-    ctx.lineTo(screen.x + size, screen.y);
-    ctx.moveTo(screen.x, screen.y - size);
-    ctx.lineTo(screen.x, screen.y + size);
-    ctx.stroke();
-  }
-
-  // Draw room selection overlay when zoomed out
-  if (zoomLevel <= 0.7) {
+  if (inRoomSelectionMode) {
+    // ROOM SELECTION MODE - Only draw room selection table
     drawRoomSelectionOverlay();
   } else {
-    // Clear room bounds when not zoomed out
+    // GAME MAP MODE - Draw normal game world
+    // Clear room bounds when not in selection mode
     canvas.roomBounds = [];
+
+    // Draw floor tiles
+    drawFloor();
+
+    // Draw furniture
+    drawFurniture();
+
+    // Draw collectibles (cars, etc.)
+    drawCollectibles();
+
+    // Update and draw current player
+    if (currentPlayer) {
+      currentPlayer.update();
+      const showCurrentPlayerName = hoveredPlayer && hoveredPlayer.id === currentPlayer.id;
+      currentPlayer.draw(true, showCurrentPlayerName);
+
+      // Debug log every 60 frames (once per second at 60fps)
+      if (frameCount % 60 === 0) {
+        console.log('🎨 Drawing player at:', currentPlayer.x, currentPlayer.y, 'Direction:', currentPlayer.direction);
+      }
+    } else {
+      if (frameCount % 60 === 0) {
+        console.warn('⚠️ No current player to draw!');
+      }
+    }
+
+    // Draw other players
+    otherPlayers.forEach(player => {
+      const showName = hoveredPlayer && hoveredPlayer.id === player.id;
+      player.draw(false, showName);
+
+      // Draw proximity indicator if in proximity chat mode
+      if (currentChatMode === 'proximity' && currentPlayer) {
+        const distance = Math.sqrt(
+          Math.pow(currentPlayer.x - player.x, 2) +
+          Math.pow(currentPlayer.y - player.y, 2)
+        );
+
+        if (distance <= 200) {
+          const screen = worldToScreen(player.x, player.y);
+          const scale = screen.scale;
+          ctx.strokeStyle = 'rgba(255, 165, 0, 0.5)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(screen.x, screen.y, 200 * scale, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+    });
+
+    // Draw target position indicator
+    if (targetPosition) {
+      const screen = worldToScreen(targetPosition.x, targetPosition.y);
+      const scale = screen.scale;
+
+      // Draw pulsing circle
+      const pulseSize = 15 + Math.sin(frameCount * 0.1) * 5;
+      ctx.strokeStyle = '#4CAF50';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(screen.x, screen.y, pulseSize * scale, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Draw crosshair
+      ctx.strokeStyle = '#4CAF50';
+      ctx.lineWidth = 2;
+      const size = 10 * scale;
+      ctx.beginPath();
+      ctx.moveTo(screen.x - size, screen.y);
+      ctx.lineTo(screen.x + size, screen.y);
+      ctx.moveTo(screen.x, screen.y - size);
+      ctx.lineTo(screen.x, screen.y + size);
+      ctx.stroke();
+    }
   }
 
   // Draw UI overlay on top
@@ -1937,74 +1941,128 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 
-// Draw room selection overlay (when zoomed out)
+// Draw room selection table (standalone 3x3 grid, not overlaid on map)
 function drawRoomSelectionOverlay() {
   // Clear previous room bounds
   canvas.roomBounds = [];
 
-  // Define 3x3 room grid with names and positions
+  // Define 3x3 room grid with names and world positions for teleport
   const rooms = [
     // Row 1
-    { name: 'Meeting Room 2', emoji: '📊', worldX: 0, worldY: 0, width: 1600, height: 1200, color: '#e6f3e6' },
-    { name: 'Meeting Room 1', emoji: '🎯', worldX: 1600, worldY: 0, width: 1600, height: 1200, color: '#e6f3e6' },
-    { name: 'Huddle Room', emoji: '🤝', worldX: 3200, worldY: 0, width: 1600, height: 1200, color: '#fff0e6' },
+    { name: 'Meeting Room 2', emoji: '📊', worldX: 800, worldY: 600, color: '#e6f3e6' },
+    { name: 'Meeting Room 1', emoji: '🎯', worldX: 2400, worldY: 600, color: '#e6f3e6' },
+    { name: 'Huddle Room', emoji: '🤝', worldX: 4000, worldY: 600, color: '#fff0e6' },
     // Row 2
-    { name: 'Workspace 1', emoji: '💼', worldX: 0, worldY: 1200, width: 1600, height: 1200, color: '#f5e6d3' },
-    { name: 'Lobby', emoji: '🏠', worldX: 1600, worldY: 1200, width: 1600, height: 1200, color: '#e8f4f8' },
-    { name: 'Workspace 2', emoji: '💼', worldX: 3200, worldY: 1200, width: 1600, height: 1200, color: '#f5e6d3' },
+    { name: 'Workspace 1', emoji: '💼', worldX: 800, worldY: 1800, color: '#f5e6d3' },
+    { name: 'Lobby', emoji: '🏠', worldX: 2400, worldY: 1800, color: '#e8f4f8' },
+    { name: 'Workspace 2', emoji: '💼', worldX: 4000, worldY: 1800, color: '#f5e6d3' },
     // Row 3
-    { name: 'Lounge', emoji: '☕', worldX: 0, worldY: 2400, width: 1600, height: 1200, color: '#f0e6f5' },
-    { name: 'Kitchen', emoji: '🍕', worldX: 1600, worldY: 2400, width: 1600, height: 1200, color: '#fff5e6' },
-    { name: 'Game Room', emoji: '🎮', worldX: 3200, worldY: 2400, width: 1600, height: 1200, color: '#ffe6e6' }
+    { name: 'Lounge', emoji: '☕', worldX: 800, worldY: 3000, color: '#f0e6f5' },
+    { name: 'Kitchen', emoji: '🍕', worldX: 2400, worldY: 3000, color: '#fff5e6' },
+    { name: 'Game Room', emoji: '🎮', worldX: 4000, worldY: 3000, color: '#ffe6e6' }
   ];
 
   ctx.save();
 
-  rooms.forEach(room => {
-    // Convert room world boundaries to screen coordinates
-    const topLeft = worldToScreen(room.worldX, room.worldY);
-    const bottomRight = worldToScreen(room.worldX + room.width, room.worldY + room.height);
-    const center = worldToScreen(room.worldX + room.width / 2, room.worldY + room.height / 2);
+  // Fill background
+  ctx.fillStyle = '#f5f5f5';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const screenWidth = bottomRight.x - topLeft.x;
-    const screenHeight = bottomRight.y - topLeft.y;
+  // Calculate grid layout (3x3)
+  const padding = 40;
+  const gridWidth = canvas.width - padding * 2;
+  const gridHeight = canvas.height - padding * 2;
+  const cellWidth = gridWidth / 3;
+  const cellHeight = gridHeight / 3;
 
-    // Draw room frame/border
-    ctx.strokeStyle = '#667eea';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(topLeft.x, topLeft.y, screenWidth, screenHeight);
+  // Detect which room mouse is hovering over
+  let hoveredRoomIndex = -1;
+  const tempBounds = [];
 
-    // Draw semi-transparent background
-    ctx.fillStyle = room.color + '40'; // Add transparency
-    ctx.fillRect(topLeft.x, topLeft.y, screenWidth, screenHeight);
+  // Calculate bounds for all rooms
+  for (let i = 0; i < 9; i++) {
+    const row = Math.floor(i / 3);
+    const col = i % 3;
+    const x = padding + col * cellWidth;
+    const y = padding + row * cellHeight;
 
-    // Draw room name and emoji in center
-    const fontSize = Math.max(16, Math.min(32, screenWidth / 10));
-    ctx.fillStyle = '#333';
-    ctx.font = `bold ${fontSize}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    const bound = {
+      x: x,
+      y: y,
+      width: cellWidth,
+      height: cellHeight,
+      centerWorldX: rooms[i].worldX,
+      centerWorldY: rooms[i].worldY,
+      room: rooms[i]
+    };
+    tempBounds.push(bound);
+
+    // Check hover
+    if (mouseX >= x && mouseX <= x + cellWidth &&
+        mouseY >= y && mouseY <= y + cellHeight) {
+      hoveredRoomIndex = i;
+    }
+  }
+
+  // Draw all rooms
+  for (let i = 0; i < 9; i++) {
+    const bound = tempBounds[i];
+    const room = rooms[i];
+    const isHovered = i === hoveredRoomIndex;
+
+    const centerX = bound.x + bound.width / 2;
+    const centerY = bound.y + bound.height / 2;
+
+    // Draw hover highlight
+    if (isHovered) {
+      ctx.fillStyle = room.color + 'DD';
+      ctx.fillRect(bound.x + 5, bound.y + 5, bound.width - 10, bound.height - 10);
+    }
+
+    // Draw cell border
+    if (isHovered) {
+      ctx.strokeStyle = '#FFD700';
+      ctx.lineWidth = 5;
+      ctx.shadowColor = '#FFD700';
+      ctx.shadowBlur = 20;
+    } else {
+      ctx.strokeStyle = '#667eea';
+      ctx.lineWidth = 3;
+      ctx.shadowBlur = 0;
+    }
+    ctx.strokeRect(bound.x + 5, bound.y + 5, bound.width - 10, bound.height - 10);
+    ctx.shadowBlur = 0;
 
     // Draw emoji
-    ctx.font = `${fontSize * 2}px Arial`;
-    ctx.fillText(room.emoji, center.x, center.y - fontSize);
+    const fontSize = Math.min(40, bound.width / 6);
+    const emojiSize = isHovered ? fontSize * 2.5 : fontSize * 2;
+    ctx.font = `${emojiSize}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = isHovered ? '#000' : '#555';
+    ctx.fillText(room.emoji, centerX, centerY - fontSize * 0.8);
 
     // Draw room name
     ctx.font = `bold ${fontSize}px Arial`;
-    ctx.fillText(room.name, center.x, center.y + fontSize);
+    if (isHovered) {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+      ctx.shadowBlur = 5;
+      ctx.fillStyle = '#000';
+    } else {
+      ctx.fillStyle = '#555';
+    }
+    ctx.fillText(room.name, centerX, centerY + fontSize * 1.2);
+    ctx.shadowBlur = 0;
+  }
 
-    // Store clickable bounds for room selection
-    if (!canvas.roomBounds) canvas.roomBounds = [];
-    canvas.roomBounds.push({
-      x: topLeft.x,
-      y: topLeft.y,
-      width: screenWidth,
-      height: screenHeight,
-      room: room,
-      centerWorldX: room.worldX + room.width / 2,
-      centerWorldY: room.worldY + room.height / 2
-    });
-  });
+  // Draw title at top
+  ctx.fillStyle = '#333';
+  ctx.font = 'bold 32px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('🗺️ Select Room', canvas.width / 2, 25);
+
+  // Store bounds for click handling
+  canvas.roomBounds = tempBounds;
 
   ctx.restore();
 }
