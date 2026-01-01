@@ -12,12 +12,18 @@ let keys = {};
 let currentChatMode = 'global';
 let currentRoom = 'lobby';
 let furniture = [];
+let collectibles = []; // Cars and other collectible items
 let animationFrame = 0;
-let sidebarCollapsed = false;
+let chatPanelOpen = false; // Track if chat panel is open
+let chatPanelHeight = 400; // Chat panel height: 400, 600, 800, or 0 (hidden)
+let bottomMenuExpanded = false; // Track if bottom gesture menu is expanded
 let mouseX = 0;
 let mouseY = 0;
 let hoveredPlayer = null;
 let targetPosition = null; // For click-to-move
+let zoomLevel = 1.0; // Zoom level (1.0 = normal, > 1.0 = zoomed in, < 1.0 = zoomed out)
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 3.0;
 
 // Canvas setup
 const canvas = document.getElementById('game-canvas');
@@ -25,35 +31,47 @@ const ctx = canvas.getContext('2d');
 
 // Coordinate conversion functions
 function worldToScreen(worldX, worldY) {
-  const sidebarWidth = sidebarCollapsed ? 60 : 250;
-  const gameWidth = canvas.width - sidebarWidth;
+  const gameWidth = canvas.width;
   const gameHeight = canvas.height;
 
   const scaleX = gameWidth / WORLD_WIDTH;
   const scaleY = gameHeight / WORLD_HEIGHT;
 
-  // Use uniform scaling to maintain aspect ratio
-  const scale = Math.min(scaleX, scaleY);
+  // Use uniform scaling to maintain aspect ratio, apply zoom
+  const baseScale = Math.min(scaleX, scaleY);
+  const scale = baseScale * zoomLevel;
+
+  // Calculate offset to center the world
+  const scaledWorldWidth = WORLD_WIDTH * scale;
+  const scaledWorldHeight = WORLD_HEIGHT * scale;
+  const offsetX = (gameWidth - scaledWorldWidth) / 2;
+  const offsetY = (gameHeight - scaledWorldHeight) / 2;
 
   return {
-    x: worldX * scale,
-    y: worldY * scale,
+    x: worldX * scale + offsetX,
+    y: worldY * scale + offsetY,
     scale: scale
   };
 }
 
 function screenToWorld(screenX, screenY) {
-  const sidebarWidth = sidebarCollapsed ? 60 : 250;
-  const gameWidth = canvas.width - sidebarWidth;
+  const gameWidth = canvas.width;
   const gameHeight = canvas.height;
 
   const scaleX = gameWidth / WORLD_WIDTH;
   const scaleY = gameHeight / WORLD_HEIGHT;
-  const scale = Math.min(scaleX, scaleY);
+  const baseScale = Math.min(scaleX, scaleY);
+  const scale = baseScale * zoomLevel;
+
+  // Calculate offset to center the world
+  const scaledWorldWidth = WORLD_WIDTH * scale;
+  const scaledWorldHeight = WORLD_HEIGHT * scale;
+  const offsetX = (gameWidth - scaledWorldWidth) / 2;
+  const offsetY = (gameHeight - scaledWorldHeight) / 2;
 
   return {
-    x: screenX / scale,
-    y: screenY / scale
+    x: (screenX - offsetX) / scale,
+    y: (screenY - offsetY) / scale
   };
 }
 
@@ -98,6 +116,55 @@ const bubbleWidthValue = document.getElementById('bubble-width-value');
 const displayTimeSlider = document.getElementById('display-time-slider');
 const displayTimeValue = document.getElementById('display-time-value');
 
+// Create chat overlay button and insert it after mic button
+const chatOverlayBtn = document.createElement('button');
+chatOverlayBtn.id = 'chat-overlay-btn';
+chatOverlayBtn.title = 'เปิด/ปิดแชท';
+chatOverlayBtn.textContent = '💬';
+chatOverlayBtn.style.cssText = `
+  width: 50px;
+  height: 50px;
+  font-size: 24px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  background: #9C27B0;
+  color: white;
+  transition: all 0.3s;
+  margin: 0 5px;
+`;
+const chatContainer = document.getElementById('chat-container');
+if (chatContainer && micBtn) {
+  chatContainer.insertBefore(chatOverlayBtn, micBtn.nextSibling);
+}
+
+// Chat overlay button click handler
+chatOverlayBtn.addEventListener('click', () => {
+  // Cycle through heights: 400 → 600 → 800 → 0 (hidden) → 400
+  if (chatPanelHeight === 0) {
+    chatPanelHeight = 400;
+    chatPanelOpen = true;
+  } else if (chatPanelHeight === 400) {
+    chatPanelHeight = 600;
+  } else if (chatPanelHeight === 600) {
+    chatPanelHeight = 800;
+  } else if (chatPanelHeight === 800) {
+    chatPanelHeight = 0;
+    chatPanelOpen = false;
+  }
+
+  // Update button style
+  if (chatPanelOpen && chatPanelHeight > 0) {
+    chatOverlayBtn.style.background = '#667eea';
+    chatOverlayBtn.style.boxShadow = '0 0 10px #FFD700';
+  } else {
+    chatOverlayBtn.style.background = '#9C27B0';
+    chatOverlayBtn.style.boxShadow = 'none';
+  }
+
+  console.log('💬 Chat panel height:', chatPanelHeight);
+});
+
 // Chat history storage
 let chatHistory = JSON.parse(localStorage.getItem('virtualOfficeChatHistory') || '[]');
 
@@ -107,6 +174,9 @@ let chatSettings = JSON.parse(localStorage.getItem('virtualOfficeChatSettings') 
   bubbleWidth: 250,
   displayTime: 5
 }));
+
+// Chat messages for sidebar (LINE-style)
+let sidebarChatMessages = [];
 
 // Voice chat state
 let isRecording = false;
@@ -125,7 +195,9 @@ class Player {
     this.direction = data.direction || 'down';
     this.width = 32;
     this.height = 48;
-    this.speed = 2.5;
+    this.baseSpeed = 5.0;
+    this.speed = 5.0;
+    this.hasSpeedBoost = false;
     this.isMoving = false;
     this.walkFrame = 0;
     this.chatMessage = null;
@@ -254,6 +326,16 @@ class Player {
       ctx.beginPath();
       ctx.arc(screenX, screenY, 25 * scale, 0, Math.PI * 2);
       ctx.stroke();
+    }
+
+    // Draw speed boost indicator
+    if (this.hasSpeedBoost) {
+      ctx.fillStyle = '#FF4444';
+      ctx.font = `${18 * scale}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      const sparkleY = screenY - 60 * scale + Math.sin(Date.now() * 0.005) * 3 * scale;
+      ctx.fillText('🚗💨', screenX, sparkleY);
     }
 
     // Draw username only when hovered
@@ -452,6 +534,9 @@ class Player {
     this.x = Math.max(30, Math.min(WORLD_WIDTH - 30, this.x));
     this.y = Math.max(30, Math.min(WORLD_HEIGHT - 30, this.y));
 
+    // Check for collectibles collision
+    this.checkCollectibles();
+
     // Update animation
     this.isMoving = moved;
     if (this.isMoving) {
@@ -468,6 +553,31 @@ class Player {
         direction: this.direction,
         isMoving: this.isMoving
       });
+    }
+  }
+
+  checkCollectibles() {
+    const playerRadius = 20;
+
+    for (let i = collectibles.length - 1; i >= 0; i--) {
+      const item = collectibles[i];
+
+      // Check distance to collectible
+      const dx = this.x - (item.x + item.width / 2);
+      const dy = this.y - (item.y + item.height / 2);
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance < playerRadius + item.width / 2) {
+        // Collect the item
+        if (item.type === 'car' && !this.hasSpeedBoost) {
+          this.hasSpeedBoost = true;
+          this.speed = this.baseSpeed * 1.5;
+          console.log('🚗 Collected car! Speed boost activated:', this.speed);
+
+          // Remove the car from collectibles
+          collectibles.splice(i, 1);
+        }
+      }
     }
   }
 }
@@ -599,6 +709,21 @@ socket.on('playerLeft', (playerId) => {
 });
 
 socket.on('globalChat', (message) => {
+  // Only add to sidebar if it's NOT from current player (to avoid duplicate)
+  if (currentPlayer && message.username !== currentPlayer.username) {
+    sidebarChatMessages.push({
+      username: message.username,
+      message: message.message,
+      timestamp: message.timestamp,
+      isOwn: false
+    });
+
+    // Keep only last 50 messages
+    if (sidebarChatMessages.length > 50) {
+      sidebarChatMessages.shift();
+    }
+  }
+
   // Find the player who sent the message and show bubble
   otherPlayers.forEach(player => {
     if (player.username === message.username) {
@@ -772,6 +897,19 @@ function sendMessage() {
 
   // Save to history
   saveChatHistory(message);
+
+  // Add to sidebar chat (own message)
+  sidebarChatMessages.push({
+    username: currentPlayer ? currentPlayer.username : 'You',
+    message: message,
+    timestamp: new Date(),
+    isOwn: true
+  });
+
+  // Keep only last 50 messages
+  if (sidebarChatMessages.length > 50) {
+    sidebarChatMessages.shift();
+  }
 
   // Always send as global chat (visible to everyone in room)
   socket.emit('globalChat', message);
@@ -999,19 +1137,31 @@ canvas.addEventListener('click', (e) => {
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
 
-  // Check if clicked on hamburger button
-  if (canvas.hamburgerBounds) {
-    const btn = canvas.hamburgerBounds;
+  // Check if clicked on bottom gesture
+  if (canvas.gestureBounds) {
+    const btn = canvas.gestureBounds;
     if (x >= btn.x && x <= btn.x + btn.width &&
         y >= btn.y && y <= btn.y + btn.height) {
-      sidebarCollapsed = !sidebarCollapsed;
-      console.log('🍔 Sidebar', sidebarCollapsed ? 'collapsed' : 'expanded');
+      bottomMenuExpanded = !bottomMenuExpanded;
+      console.log('🎯 Bottom menu', bottomMenuExpanded ? 'expanded' : 'collapsed');
       return;
     }
   }
 
-  // Check if clicked on room button (only when expanded)
-  if (!sidebarCollapsed && canvas.roomButtonBounds) {
+
+  // Check if clicked on settings icon button (when bottom menu is expanded)
+  if (canvas.settingsIconBounds) {
+    const btn = canvas.settingsIconBounds;
+    if (x >= btn.x && x <= btn.x + btn.width &&
+        y >= btn.y && y <= btn.y + btn.height) {
+      settingsModal.classList.add('active');
+      console.log('⚙️ Settings opened');
+      return;
+    }
+  }
+
+  // Check if clicked on room button (when bottom menu is expanded)
+  if (canvas.roomButtonBounds) {
     const btn = canvas.roomButtonBounds;
     if (x >= btn.x && x <= btn.x + btn.width &&
         y >= btn.y && y <= btn.y + btn.height) {
@@ -1021,41 +1171,8 @@ canvas.addEventListener('click', (e) => {
     }
   }
 
-  // Check if clicked on logout button (only when expanded)
-  if (!sidebarCollapsed && canvas.logoutButtonBounds) {
-    const btn = canvas.logoutButtonBounds;
-    if (x >= btn.x && x <= btn.x + btn.width &&
-        y >= btn.y && y <= btn.y + btn.height) {
-      // Logout
-      if (confirm('ต้องการออกจากระบบหรือไม่?')) {
-        // Emit logout event to server
-        socket.emit('logout');
-
-        // Clear all saved data
-        localStorage.removeItem('virtualOfficeUsername');
-        localStorage.removeItem('virtualOfficeRoom');
-        localStorage.removeItem('virtualOfficeUserId');
-
-        // Return to login screen
-        gameScreen.classList.remove('active');
-        loginScreen.classList.add('active');
-
-        // Reset game state
-        currentPlayer = null;
-        otherPlayers.clear();
-        keys = {};
-
-        console.log('👋 Logged out successfully');
-      }
-      return;
-    }
-  }
-
   // Click-to-move: convert screen coordinates to world coordinates
-  const sidebarWidth = sidebarCollapsed ? 60 : 250;
-
-  // Check if click is in game area (not on sidebar)
-  if (x < canvas.width - sidebarWidth && currentPlayer) {
+  if (currentPlayer) {
     const worldPos = screenToWorld(x, y);
     targetPosition = {
       x: Math.max(30, Math.min(WORLD_WIDTH - 30, worldPos.x)),
@@ -1099,6 +1216,23 @@ canvas.addEventListener('mousemove', (e) => {
     });
   }
 });
+
+// Mouse wheel for zoom (with Ctrl/Command key)
+canvas.addEventListener('wheel', (e) => {
+  // Only zoom if Ctrl (Windows/Linux) or Command (Mac) key is pressed
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+
+    const zoomSpeed = 0.1;
+    const delta = -Math.sign(e.deltaY);
+
+    // Update zoom level
+    const newZoom = zoomLevel + delta * zoomSpeed;
+    zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+
+    console.log('🔍 Zoom level:', zoomLevel.toFixed(2));
+  }
+}, { passive: false });
 
 // Room management (keeping for compatibility but not used)
 if (roomListBtn) {
@@ -1153,6 +1287,7 @@ function getRoomEmoji(roomName) {
 // Initialize furniture based on room (using world coordinates 1600x1200)
 function initializeFurniture(room) {
   furniture = [];
+  collectibles = [];
 
   if (room === 'lobby') {
     // Lobby furniture in world coordinates
@@ -1165,6 +1300,10 @@ function initializeFurniture(room) {
       { x: 100, y: 600, width: 60, height: 60, type: 'plant', color: '#228B22' },
       { x: 700, y: 500, width: 150, height: 80, type: 'table', color: '#A0522D' }
     );
+    // Add car collectible
+    collectibles.push(
+      { x: 1200, y: 400, width: 80, height: 50, type: 'car', collected: false }
+    );
   } else if (room === 'meeting-room') {
     // Meeting room furniture in world coordinates
     furniture.push(
@@ -1176,6 +1315,10 @@ function initializeFurniture(room) {
       { x: 150, y: 200, width: 60, height: 60, type: 'plant', color: '#228B22' },
       { x: 900, y: 200, width: 60, height: 60, type: 'plant', color: '#228B22' }
     );
+    // Add car collectible
+    collectibles.push(
+      { x: 1100, y: 700, width: 80, height: 50, type: 'car', collected: false }
+    );
   } else if (room === 'lounge') {
     // Lounge furniture in world coordinates
     furniture.push(
@@ -1184,6 +1327,10 @@ function initializeFurniture(room) {
       { x: 450, y: 500, width: 120, height: 120, type: 'coffee-table', color: '#8B4513' },
       { x: 100, y: 200, width: 60, height: 60, type: 'plant', color: '#228B22' },
       { x: 900, y: 600, width: 80, height: 80, type: 'vending-machine', color: '#C41E3A' }
+    );
+    // Add car collectible
+    collectibles.push(
+      { x: 1300, y: 900, width: 80, height: 50, type: 'car', collected: false }
     );
   }
 }
@@ -1260,158 +1407,267 @@ function drawFurniture() {
   });
 }
 
-// Draw UI overlay - Right sidebar
+// Draw collectibles (cars, etc.)
+function drawCollectibles() {
+  collectibles.forEach(item => {
+    ctx.save();
+
+    // Convert world coordinates to screen coordinates
+    const screen = worldToScreen(item.x, item.y);
+    const screenX = screen.x;
+    const screenY = screen.y;
+    const scale = Math.max(0.01, screen.scale);
+    const screenWidth = Math.max(1, item.width * scale);
+    const screenHeight = Math.max(1, item.height * scale);
+
+    if (item.type === 'car') {
+      // Draw car body
+      ctx.fillStyle = '#FF4444';
+      ctx.fillRect(screenX, screenY + 10 * scale, screenWidth, screenHeight - 10 * scale);
+
+      // Draw car top (cabin)
+      ctx.fillStyle = '#CC0000';
+      ctx.fillRect(screenX + 15 * scale, screenY, screenWidth - 30 * scale, screenHeight - 15 * scale);
+
+      // Draw windows
+      ctx.fillStyle = '#87CEEB';
+      ctx.fillRect(screenX + 20 * scale, screenY + 5 * scale, 15 * scale, 10 * scale);
+      ctx.fillRect(screenX + screenWidth - 35 * scale, screenY + 5 * scale, 15 * scale, 10 * scale);
+
+      // Draw wheels
+      ctx.fillStyle = '#333';
+      ctx.beginPath();
+      ctx.arc(screenX + 15 * scale, screenY + screenHeight - 5 * scale, 8 * scale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(screenX + screenWidth - 15 * scale, screenY + screenHeight - 5 * scale, 8 * scale, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw outline
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2 * scale;
+      ctx.strokeRect(screenX, screenY + 10 * scale, screenWidth, screenHeight - 10 * scale);
+
+      // Draw sparkle effect (bouncing animation)
+      const sparkleOffset = Math.sin(frameCount * 0.1) * 5 * scale;
+      ctx.fillStyle = '#FFD700';
+      ctx.font = `${20 * scale}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⭐', screenX + screenWidth / 2, screenY - 20 * scale + sparkleOffset);
+    }
+
+    ctx.restore();
+  });
+}
+
+// Draw UI overlay - Floating bottom menu
 function drawUI() {
-  const sidebarWidth = sidebarCollapsed ? 60 : 250;
-  const sidebarX = canvas.width - sidebarWidth;
+  // Top-left floating info panel
+  const infoPadding = 15;
+  const infoX = 10;
+  const infoY = 10;
+  const infoWidth = 200;
 
-  // Draw sidebar background
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-  ctx.fillRect(sidebarX, 0, sidebarWidth, canvas.height);
-  ctx.strokeStyle = '#e0e0e0';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(sidebarX, 0, sidebarWidth, canvas.height);
-
-  // Draw hamburger menu button
-  const hamburgerSize = 40;
-  const hamburgerX = sidebarX + 10;
-  const hamburgerY = 10;
-
-  // Button background
-  ctx.fillStyle = '#667eea';
-  ctx.fillRect(hamburgerX, hamburgerY, hamburgerSize, hamburgerSize);
-  ctx.strokeStyle = '#5568d3';
+  // Semi-transparent background
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(infoX, infoY, infoWidth, 110);
+  ctx.strokeStyle = '#667eea';
   ctx.lineWidth = 2;
-  ctx.strokeRect(hamburgerX, hamburgerY, hamburgerSize, hamburgerSize);
+  ctx.strokeRect(infoX, infoY, infoWidth, 110);
 
-  // Hamburger icon (3 lines)
-  ctx.strokeStyle = 'white';
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-  const lineWidth = 24;
-  const centerX = hamburgerX + hamburgerSize / 2;
-  const centerY = hamburgerY + hamburgerSize / 2;
-
-  ctx.beginPath();
-  ctx.moveTo(centerX - lineWidth / 2, centerY - 8);
-  ctx.lineTo(centerX + lineWidth / 2, centerY - 8);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(centerX - lineWidth / 2, centerY);
-  ctx.lineTo(centerX + lineWidth / 2, centerY);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(centerX - lineWidth / 2, centerY + 8);
-  ctx.lineTo(centerX + lineWidth / 2, centerY + 8);
-  ctx.stroke();
-
-  // Store hamburger button bounds
-  canvas.hamburgerBounds = { x: hamburgerX, y: hamburgerY, width: hamburgerSize, height: hamburgerSize };
-
-  // If collapsed, only show hamburger
-  if (sidebarCollapsed) {
-    canvas.sidebarBounds = { x: sidebarX, width: sidebarWidth };
-    return;
-  }
-
-  let yOffset = 30;
-
-  // Room name section
-  ctx.fillStyle = '#667eea';
-  ctx.font = 'bold 18px Arial';
+  // Room name
+  const roomEmoji = getRoomEmoji(currentRoom);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 16px Arial';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('ห้อง', sidebarX + 20, yOffset);
+  ctx.fillText(`${roomEmoji} ${currentRoom}`, infoX + infoPadding, infoY + infoPadding);
 
-  yOffset += 30;
-  const roomEmoji = getRoomEmoji(currentRoom);
-  ctx.fillStyle = '#333';
-  ctx.font = 'bold 16px Arial';
-  ctx.fillText(`${roomEmoji} ${currentRoom}`, sidebarX + 20, yOffset);
-
-  yOffset += 40;
-
-  // Player count section
-  ctx.fillStyle = '#667eea';
-  ctx.font = 'bold 18px Arial';
-  ctx.fillText('ผู้เล่น', sidebarX + 20, yOffset);
-
-  yOffset += 30;
+  // Player count
   const playerCount = otherPlayers.size + 1;
-  ctx.fillStyle = '#333';
-  ctx.font = 'bold 16px Arial';
-  ctx.fillText(`👥 ${playerCount} คน`, sidebarX + 20, yOffset);
+  ctx.fillStyle = '#cccccc';
+  ctx.font = '14px Arial';
+  ctx.fillText(`👥 ${playerCount} คน`, infoX + infoPadding, infoY + infoPadding + 25);
 
-  yOffset += 50;
+  // Zoom level
+  ctx.fillStyle = '#aaaaaa';
+  ctx.font = '12px Arial';
+  ctx.fillText(`🔍 Zoom: ${(zoomLevel * 100).toFixed(0)}%`, infoX + infoPadding, infoY + infoPadding + 48);
 
-  // Controls section
-  ctx.fillStyle = '#667eea';
-  ctx.font = 'bold 18px Arial';
-  ctx.fillText('ควบคุม', sidebarX + 20, yOffset);
+  // Controls
+  ctx.fillStyle = '#aaaaaa';
+  ctx.font = '11px Arial';
+  ctx.fillText('🎮 WASD  💬 Enter', infoX + infoPadding, infoY + infoPadding + 68);
 
-  yOffset += 30;
-  ctx.fillStyle = '#555';
-  ctx.font = '13px Arial';
-  ctx.fillText('🎮 WASD - เดิน', sidebarX + 20, yOffset);
-  yOffset += 25;
-  ctx.fillText('💬 Enter - แชท', sidebarX + 20, yOffset);
-  yOffset += 25;
-  ctx.fillText('🎤 ไมค์ - พูด', sidebarX + 20, yOffset);
-  yOffset += 25;
-  ctx.fillText('🚪 R - เปลี่ยนห้อง', sidebarX + 20, yOffset);
+  // Detect Mac for showing Cmd instead of Ctrl
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const zoomKey = isMac ? 'Cmd' : 'Ctrl';
+  ctx.fillText(`🔍 ${zoomKey}+Scroll  🚪 R`, infoX + infoPadding, infoY + infoPadding + 85);
 
-  yOffset += 50;
+  // Top-right floating button (Settings only)
+  const buttonSize = 50;
+  const settingsBtnX = canvas.width - buttonSize - 15;
+  const settingsBtnY = 15;
+  ctx.fillStyle = 'rgba(255, 152, 0, 0.95)';
+  ctx.fillRect(settingsBtnX, settingsBtnY, buttonSize, buttonSize);
+  ctx.strokeStyle = '#F57C00';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(settingsBtnX, settingsBtnY, buttonSize, buttonSize);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 24px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('⚙️', settingsBtnX + buttonSize / 2, settingsBtnY + buttonSize / 2);
+  canvas.settingsIconBounds = { x: settingsBtnX, y: settingsBtnY, width: buttonSize, height: buttonSize };
 
-  // Change room button
-  const btnWidth = 200;
-  const btnHeight = 45;
-  const btnX = sidebarX + 25;
-  const btnY = yOffset;
+  // Bottom center floating menu (only for room change now)
+  const menuWidth = 200;
+  const menuX = (canvas.width - menuWidth) / 2;
+  const gestureHeight = 55;
+  const gestureY = canvas.height - gestureHeight - 15;
 
-  // Button background
-  ctx.fillStyle = '#667eea';
-  ctx.fillRect(btnX, btnY, btnWidth, btnHeight);
-
-  // Button border
+  // Draw gesture bar
+  ctx.fillStyle = 'rgba(102, 126, 234, 0.95)';
+  ctx.fillRect(menuX, gestureY, menuWidth, gestureHeight);
   ctx.strokeStyle = '#5568d3';
   ctx.lineWidth = 3;
-  ctx.strokeRect(btnX, btnY, btnWidth, btnHeight);
+  ctx.strokeRect(menuX, gestureY, menuWidth, gestureHeight);
 
-  // Button text
-  ctx.fillStyle = 'white';
+  // Draw gesture indicator with icons
+  ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 16px Arial';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('🚪 เปลี่ยนห้อง', btnX + btnWidth / 2, btnY + btnHeight / 2);
 
-  // Store button position
-  canvas.roomButtonBounds = { x: btnX, y: btnY, width: btnWidth, height: btnHeight };
+  if (bottomMenuExpanded) {
+    ctx.fillText('▼ ปิดเมนู', menuX + menuWidth / 2, gestureY + gestureHeight / 2);
+  } else {
+    ctx.fillText('▲ คลิกเพื่อเปิดเมนู', menuX + menuWidth / 2, gestureY + gestureHeight / 2 - 8);
+    ctx.font = '11px Arial';
+    ctx.fillStyle = '#dddddd';
+    ctx.fillText('(🚪 เปลี่ยนห้อง)', menuX + menuWidth / 2, gestureY + gestureHeight / 2 + 10);
+  }
 
-  yOffset += 70;
+  // Store gesture bounds
+  canvas.gestureBounds = { x: menuX, y: gestureY, width: menuWidth, height: gestureHeight };
 
-  // Logout button
-  const logoutBtnY = yOffset;
+  // Draw expanded menu icons
+  if (bottomMenuExpanded) {
+    const iconWidth = menuWidth - 20;
+    const iconHeight = 50;
+    const iconSpacing = 10;
+    let iconY = gestureY - iconHeight - iconSpacing;
 
-  ctx.fillStyle = '#e74c3c';
-  ctx.fillRect(btnX, logoutBtnY, btnWidth, btnHeight);
+    // Room change button
+    const roomBtnX = menuX + 10;
+    ctx.fillStyle = 'rgba(102, 126, 234, 0.95)';
+    ctx.fillRect(roomBtnX, iconY, iconWidth, iconHeight);
+    ctx.strokeStyle = '#5568d3';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(roomBtnX, iconY, iconWidth, iconHeight);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🚪 เปลี่ยนห้อง', roomBtnX + iconWidth / 2, iconY + iconHeight / 2);
+    canvas.roomButtonBounds = { x: roomBtnX, y: iconY, width: iconWidth, height: iconHeight };
+  } else {
+    canvas.roomButtonBounds = null;
+  }
 
-  ctx.strokeStyle = '#c0392b';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(btnX, logoutBtnY, btnWidth, btnHeight);
+  // Floating chat panel (above bottom bar)
+  if (chatPanelOpen && chatPanelHeight > 0) {
+    // Match the width of the bottom chat bar
+    const chatWidth = Math.min(800, canvas.width - 40); // Max 800px or full width minus padding
+    const chatHeight = chatPanelHeight;
+    const chatX = (canvas.width - chatWidth) / 2; // Center horizontally
+    const chatY = canvas.height - chatHeight - 80; // 80px for bottom chat bar
 
-  ctx.fillStyle = 'white';
-  ctx.font = 'bold 16px Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('🚪 ออกจากระบบ', btnX + btnWidth / 2, logoutBtnY + btnHeight / 2);
+    // Chat panel background
+    ctx.fillStyle = 'rgba(245, 245, 245, 0.98)';
+    ctx.fillRect(chatX, chatY, chatWidth, chatHeight);
+    ctx.strokeStyle = '#667eea';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(chatX, chatY, chatWidth, chatHeight);
 
-  // Store logout button position
-  canvas.logoutButtonBounds = { x: btnX, y: logoutBtnY, width: btnWidth, height: btnHeight };
+    // Chat header
+    ctx.fillStyle = '#667eea';
+    ctx.fillRect(chatX, chatY, chatWidth, 40);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`💬 แชท (${chatHeight}px)`, chatX + chatWidth / 2, chatY + 20);
 
-  // Store sidebar position
-  canvas.sidebarBounds = { x: sidebarX, width: sidebarWidth };
+    // Chat messages area
+    const chatAreaY = chatY + 45;
+    const chatAreaHeight = chatHeight - 50;
+    const chatAreaX = chatX + 20;
+    const chatAreaWidth = chatWidth - 40;
+
+    // Draw chat messages (new format: own on left, others on right with "username: message")
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(chatAreaX, chatAreaY, chatAreaWidth, chatAreaHeight);
+    ctx.clip();
+
+    let messageY = chatAreaY + 10;
+    const messagesToShow = sidebarChatMessages.slice(-20); // Show last 20 messages
+
+    for (let i = 0; i < messagesToShow.length; i++) {
+      const msg = messagesToShow[i];
+      const isOwn = msg.isOwn;
+
+      const fontSize = 14;
+      const lineHeight = 22;
+      ctx.font = `${fontSize}px Arial`;
+
+      // Format message
+      let displayText = isOwn ? msg.message : `${msg.username}: ${msg.message}`;
+
+      // Word wrap
+      const maxWidth = chatAreaWidth - 20;
+      const words = displayText.split(' ');
+      const lines = [];
+      let currentLine = words[0] || '';
+
+      for (let j = 1; j < words.length; j++) {
+        const testLine = currentLine + ' ' + words[j];
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth) {
+          lines.push(currentLine);
+          currentLine = words[j];
+        } else {
+          currentLine = testLine;
+        }
+      }
+      lines.push(currentLine);
+
+      // Draw message lines
+      ctx.textAlign = isOwn ? 'right' : 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = isOwn ? '#0066cc' : '#333333';
+
+      const textX = isOwn ? chatAreaX + chatAreaWidth - 10 : chatAreaX + 10;
+
+      lines.forEach((line, idx) => {
+        if (messageY + idx * lineHeight < chatAreaY + chatAreaHeight) {
+          ctx.fillText(line, textX, messageY + idx * lineHeight);
+        }
+      });
+
+      messageY += lines.length * lineHeight + 8;
+
+      // Stop if we've filled the area
+      if (messageY >= chatAreaY + chatAreaHeight) break;
+    }
+
+    ctx.restore();
+  }
+
+  // Logout button remains null (can add back if needed)
+  canvas.logoutButtonBounds = null;
 }
 
 // Game loop
@@ -1425,6 +1681,9 @@ function gameLoop() {
 
   // Draw furniture
   drawFurniture();
+
+  // Draw collectibles (cars, etc.)
+  drawCollectibles();
 
   // Update and draw current player
   if (currentPlayer) {
@@ -1500,18 +1759,24 @@ function gameLoop() {
 
 function drawFloor() {
   const worldTileSize = 50;
-  const sidebarWidth = sidebarCollapsed ? 60 : 250;
-  const gameWidth = canvas.width - sidebarWidth;
+  const gameWidth = canvas.width;
   const gameHeight = canvas.height;
 
   const scaleX = gameWidth / WORLD_WIDTH;
   const scaleY = gameHeight / WORLD_HEIGHT;
-  const scale = Math.min(scaleX, scaleY);
+  const baseScale = Math.min(scaleX, scaleY);
+  const scale = baseScale * zoomLevel;
+
+  // Calculate offset to center the world
+  const scaledWorldWidth = WORLD_WIDTH * scale;
+  const scaledWorldHeight = WORLD_HEIGHT * scale;
+  const offsetX = (gameWidth - scaledWorldWidth) / 2;
+  const offsetY = (gameHeight - scaledWorldHeight) / 2;
 
   for (let x = 0; x < WORLD_WIDTH; x += worldTileSize) {
     for (let y = 0; y < WORLD_HEIGHT; y += worldTileSize) {
-      const screenX = x * scale;
-      const screenY = y * scale;
+      const screenX = x * scale + offsetX;
+      const screenY = y * scale + offsetY;
       const screenTileSize = worldTileSize * scale;
 
       // Alternate tile colors for checkerboard pattern
