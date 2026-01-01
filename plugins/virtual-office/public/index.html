@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual Office - Multiplayer Space</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="login-screen" class="screen active">
+    <div class="login-box">
+      <h1>🏢 Virtual Office</h1>
+      <p>เข้าร่วมพื้นที่ทำงานเสมือนจริง</p>
+      <input
+        type="text"
+        id="username-input"
+        placeholder="ใส่ชื่อของคุณ"
+        maxlength="20"
+        autocomplete="off"
+      />
+      <select id="room-select">
+        <option value="lobby">🏠 Lobby</option>
+        <option value="meeting-room">🎯 Meeting Room</option>
+        <option value="lounge">☕ Lounge</option>
+      </select>
+      <button id="join-btn">เข้าร่วม</button>
+    </div>
+  </div>
+
+  <div id="game-screen" class="screen">
+    <div id="game-container">
+      <div id="game-header">
+        <div id="room-info">
+          <span id="current-room">Lobby</span>
+          <span id="player-count">0 คน</span>
+        </div>
+        <div id="controls-info">
+          <span>🎮 WASD/Arrow Keys เพื่อเดิน</span>
+          <button id="room-list-btn">เปลี่ยนห้อง</button>
+        </div>
+      </div>
+
+      <canvas id="game-canvas"></canvas>
+
+      <div id="chat-container">
+        <button id="mic-btn" title="กดค้างเพื่อพูด">🎤</button>
+        <button id="translate-btn" title="แปล/แก้ไขภาษา">🌐</button>
+        <button id="history-btn" title="ดูประวัติแชท">📜</button>
+        <button id="settings-btn" title="ตั้งค่า">⚙️</button>
+        <div class="chat-input-container">
+          <input
+            type="text"
+            id="chat-input"
+            placeholder="💬 พิมพ์ข้อความหรือกดไมค์เพื่อพูด..."
+            maxlength="200"
+            autocomplete="off"
+          />
+        </div>
+      </div>
+
+      <div id="history-modal" class="modal">
+        <div class="modal-content">
+          <h2>📜 ประวัติแชท</h2>
+          <div id="history-list"></div>
+          <button id="close-history-btn">ปิด</button>
+        </div>
+      </div>
+
+      <div id="settings-modal" class="modal">
+        <div class="modal-content">
+          <h2>⚙️ ตั้งค่าแชท</h2>
+          <div class="settings-group">
+            <label>ขนาดตัวอักษร: <span id="font-size-value">18</span>px</label>
+            <input type="range" id="font-size-slider" min="14" max="28" value="18" step="2">
+          </div>
+          <div class="settings-group">
+            <label>ความกว้างกรอบ: <span id="bubble-width-value">250</span>px</label>
+            <input type="range" id="bubble-width-slider" min="150" max="400" value="250" step="10">
+          </div>
+          <div class="settings-group">
+            <label>เวลาแสดง: <span id="display-time-value">5</span> วินาที</label>
+            <input type="range" id="display-time-slider" min="2" max="10" value="5" step="1">
+          </div>
+          <button id="close-settings-btn">ปิด</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="room-modal" class="modal">
+    <div class="modal-content">
+      <h2>เลือกห้อง</h2>
+      <div id="rooms-list"></div>
+      <button id="close-modal-btn">ปิด</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

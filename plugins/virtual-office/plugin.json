@@ -1,0 +1,14 @@
+{
+  "id": "virtual-office",
+  "name": "Virtual Office",
+  "version": "1.0.0",
+  "description": "Multiplayer virtual office with voice chat and collaboration",
+  "icon": "🏢",
+  "route": "/plugin/virtual-office",
+  "sidebarLabel": "Virtual Office",
+  "author": "Planning Tool Team",
+  "enabled": true,
+  "files": {
+    "html": "index.html"
+  }
+}
