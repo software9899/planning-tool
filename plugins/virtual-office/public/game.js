@@ -5,6 +5,8 @@ const socket = io();
 const WORLD_WIDTH = 4800;  // 3 rooms wide (1600 * 3)
 const WORLD_HEIGHT = 3600; // 3 rooms tall (1200 * 3)
 
+// Removed grid system - using smooth movement instead
+
 // Game state
 let currentPlayer = null;
 let otherPlayers = new Map();
@@ -198,7 +200,7 @@ class Player {
     this.width = 32;
     this.height = 48;
     this.baseSpeed = 5.0;
-    this.speed = 5.0;
+    this.speed = 5.0; // Smooth movement
     this.hasSpeedBoost = false;
     this.isMoving = false;
     this.walkFrame = 0;
@@ -468,7 +470,7 @@ class Player {
       const distance = Math.sqrt(dx * dx + dy * dy);
 
       if (distance > 5) {
-        // Move towards target
+        // Move towards target smoothly
         const moveX = (dx / distance) * this.speed;
         const moveY = (dy / distance) * this.speed;
 
@@ -1234,11 +1236,10 @@ canvas.addEventListener('wheel', (e) => {
     // Get world position under mouse BEFORE zoom
     const worldPosBefore = screenToWorld(mouseScreenX, mouseScreenY);
 
+    // Update zoom level
     const zoomSpeed = 0.1;
     const delta = -Math.sign(e.deltaY);
     const oldZoom = zoomLevel;
-
-    // Update zoom level
     const newZoom = zoomLevel + delta * zoomSpeed;
     zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
 
@@ -1247,35 +1248,24 @@ canvas.addEventListener('wheel', (e) => {
       return;
     }
 
-    // Calculate scale change
+    // Get world position under mouse AFTER zoom (same screen position)
+    const worldPosAfter = screenToWorld(mouseScreenX, mouseScreenY);
+
+    // Calculate how much the world position shifted
+    const worldDeltaX = worldPosAfter.x - worldPosBefore.x;
+    const worldDeltaY = worldPosAfter.y - worldPosBefore.y;
+
+    // Adjust camera offset to compensate for the shift
+    // We need to move the camera in screen space
     const gameWidth = canvas.width;
     const gameHeight = canvas.height;
     const scaleX = gameWidth / WORLD_WIDTH;
     const scaleY = gameHeight / WORLD_HEIGHT;
     const baseScale = Math.min(scaleX, scaleY);
+    const currentScale = baseScale * zoomLevel;
 
-    const oldScale = baseScale * oldZoom;
-    const newScale = baseScale * zoomLevel;
-    const scaleDiff = newScale - oldScale;
-
-    // Adjust camera offset to keep world position under cursor
-    // The world point under cursor should remain at the same screen position
-    const scaledWorldWidth = WORLD_WIDTH * oldScale;
-    const scaledWorldHeight = WORLD_HEIGHT * oldScale;
-    const oldOffsetX = (gameWidth - scaledWorldWidth) / 2 + cameraOffsetX;
-    const oldOffsetY = (gameHeight - scaledWorldHeight) / 2 + cameraOffsetY;
-
-    // Current world position in old scale
-    const worldX = (mouseScreenX - oldOffsetX) / oldScale;
-    const worldY = (mouseScreenY - oldOffsetY) / oldScale;
-
-    // Calculate how much to adjust camera offset
-    // to keep the same world point at the same screen position
-    const dx = -worldX * scaleDiff;
-    const dy = -worldY * scaleDiff;
-
-    cameraOffsetX += dx;
-    cameraOffsetY += dy;
+    cameraOffsetX -= worldDeltaX * currentScale;
+    cameraOffsetY -= worldDeltaY * currentScale;
 
     console.log('🔍 Zoom level:', zoomLevel.toFixed(2), 'at cursor position');
   }
@@ -1892,7 +1882,6 @@ function gameLoop() {
 }
 
 function drawFloor() {
-  const worldTileSize = 50;
   const gameWidth = canvas.width;
   const gameHeight = canvas.height;
 
@@ -1904,58 +1893,42 @@ function drawFloor() {
   // Calculate offset to center the world
   const scaledWorldWidth = WORLD_WIDTH * scale;
   const scaledWorldHeight = WORLD_HEIGHT * scale;
-  const offsetX = (gameWidth - scaledWorldWidth) / 2;
-  const offsetY = (gameHeight - scaledWorldHeight) / 2;
+  const offsetX = (gameWidth - scaledWorldWidth) / 2 + cameraOffsetX;
+  const offsetY = (gameHeight - scaledWorldHeight) / 2 + cameraOffsetY;
 
-  // Function to get zone colors based on world coordinates
-  function getZoneColors(worldX, worldY) {
-    // Determine which zone (room) based on 3x3 grid
-    // Each zone is 1600x1200
-    const zoneX = Math.floor(worldX / 1600); // 0, 1, or 2
-    const zoneY = Math.floor(worldY / 1200); // 0, 1, or 2
-
+  // Define zones: 3x3 grid, each zone is 1600x1200
+  const zones = [
     // Row 1 (y=0): Meeting-2, Meeting-1, Huddle
-    // Row 2 (y=1): Workspace-1, Lobby, Workspace-2
-    // Row 3 (y=2): Lounge, Kitchen, Game Room
+    { x: 0, y: 0, w: 1600, h: 1200, color: '#e8f4e8' },      // Meeting Room 2 (light green)
+    { x: 1600, y: 0, w: 1600, h: 1200, color: '#e8f4e8' },   // Meeting Room 1 (light green)
+    { x: 3200, y: 0, w: 1600, h: 1200, color: '#fff5e8' },   // Huddle (peach)
 
-    if (zoneY === 0) { // Top row
-      if (zoneX === 0) return { light: '#e6f3e6', dark: '#d0e8d0' }; // Meeting Room 2 (green)
-      if (zoneX === 1) return { light: '#e6f3e6', dark: '#d0e8d0' }; // Meeting Room 1 (green)
-      if (zoneX === 2) return { light: '#fff0e6', dark: '#ffe0cc' }; // Huddle (peach)
-    } else if (zoneY === 1) { // Middle row
-      if (zoneX === 0) return { light: '#f5e6d3', dark: '#e8d4ba' }; // Workspace 1 (beige)
-      if (zoneX === 1) return { light: '#e8f4f8', dark: '#d0e8f0' }; // Lobby (blue)
-      if (zoneX === 2) return { light: '#f5e6d3', dark: '#e8d4ba' }; // Workspace 2 (beige)
-    } else if (zoneY === 2) { // Bottom row
-      if (zoneX === 0) return { light: '#f0e6f5', dark: '#e0d0e8' }; // Lounge (lavender)
-      if (zoneX === 1) return { light: '#fff5e6', dark: '#ffe8cc' }; // Kitchen (yellow)
-      if (zoneX === 2) return { light: '#ffe6e6', dark: '#ffcccc' }; // Game Room (pink)
-    }
+    // Row 2 (y=1200): Workspace-1, Lobby, Workspace-2
+    { x: 0, y: 1200, w: 1600, h: 1200, color: '#f5eedb' },   // Workspace 1 (beige)
+    { x: 1600, y: 1200, w: 1600, h: 1200, color: '#e8f4f8' }, // Lobby (light blue)
+    { x: 3200, y: 1200, w: 1600, h: 1200, color: '#f5eedb' }, // Workspace 2 (beige)
 
-    // Default (shouldn't happen)
-    return { light: '#d4d4d4', dark: '#c4c4c4' };
-  }
+    // Row 3 (y=2400): Lounge, Kitchen, Game Room
+    { x: 0, y: 2400, w: 1600, h: 1200, color: '#f0e8f5' },   // Lounge (lavender)
+    { x: 1600, y: 2400, w: 1600, h: 1200, color: '#fffbe8' }, // Kitchen (light yellow)
+    { x: 3200, y: 2400, w: 1600, h: 1200, color: '#ffe8e8' }  // Game Room (light pink)
+  ];
 
-  for (let x = 0; x < WORLD_WIDTH; x += worldTileSize) {
-    for (let y = 0; y < WORLD_HEIGHT; y += worldTileSize) {
-      const screenX = x * scale + offsetX;
-      const screenY = y * scale + offsetY;
-      const screenTileSize = worldTileSize * scale;
+  // Draw each zone as a solid color
+  zones.forEach(zone => {
+    const screenX = zone.x * scale + offsetX;
+    const screenY = zone.y * scale + offsetY;
+    const screenW = zone.w * scale;
+    const screenH = zone.h * scale;
 
-      // Get colors based on this tile's zone
-      const colors = getZoneColors(x, y);
+    ctx.fillStyle = zone.color;
+    ctx.fillRect(screenX, screenY, screenW, screenH);
 
-      // Alternate tile colors for checkerboard pattern with zone-specific colors
-      const isLight = (Math.floor(x / worldTileSize) + Math.floor(y / worldTileSize)) % 2 === 0;
-      ctx.fillStyle = isLight ? colors.light : colors.dark;
-      ctx.fillRect(screenX, screenY, screenTileSize, screenTileSize);
-
-      // Tile border
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(screenX, screenY, screenTileSize, screenTileSize);
-    }
-  }
+    // Optional: Add subtle border between zones
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(screenX, screenY, screenW, screenH);
+  });
 }
 
 // Handle disconnection
