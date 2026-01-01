@@ -29,6 +29,17 @@ const MAX_ZOOM = 3.0;
 let cameraOffsetX = 0; // Camera offset for panning/zoom
 let cameraOffsetY = 0;
 
+// Pan/drag variables (pan is now default, auto-detected)
+let isPanning = false;
+let mouseDownX = 0;
+let mouseDownY = 0;
+let panStartX = 0;
+let panStartY = 0;
+let panStartOffsetX = 0;
+let panStartOffsetY = 0;
+let hasDragged = false;
+const DRAG_THRESHOLD = 5; // pixels to distinguish drag from click
+
 // Canvas setup
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
@@ -103,16 +114,12 @@ const roomSelect = document.getElementById('room-select');
 const joinBtn = document.getElementById('join-btn');
 const chatInput = document.getElementById('chat-input');
 const micBtn = document.getElementById('mic-btn');
-const translateBtn = document.getElementById('translate-btn');
 const historyBtn = document.getElementById('history-btn');
 const roomListBtn = document.getElementById('room-list-btn');
 const roomModal = document.getElementById('room-modal');
 const closeModalBtn = document.getElementById('close-modal-btn');
 const historyModal = document.getElementById('history-modal');
 const closeHistoryBtn = document.getElementById('close-history-btn');
-const settingsBtn = document.getElementById('settings-btn');
-const settingsModal = document.getElementById('settings-modal');
-const closeSettingsBtn = document.getElementById('close-settings-btn');
 const fontSizeSlider = document.getElementById('font-size-slider');
 const fontSizeValue = document.getElementById('font-size-value');
 const bubbleWidthSlider = document.getElementById('bubble-width-slider');
@@ -937,50 +944,6 @@ chatInput.addEventListener('keypress', (e) => {
 });
 
 // Translate button
-translateBtn.addEventListener('click', async () => {
-  const text = chatInput.value.trim();
-  if (!text) {
-    alert('กรุณาพิมพ์ข้อความก่อน');
-    return;
-  }
-
-  translateBtn.classList.add('active');
-  translateBtn.textContent = '⏳';
-
-  const result = await translateOrCorrect(text);
-
-  translateBtn.classList.remove('active');
-  translateBtn.textContent = '🌐';
-
-  if (result.error) {
-    alert('เกิดข้อผิดพลาด: ' + result.error);
-    return;
-  }
-
-  // Show result
-  const lang = result.lang === 'th' ? 'ไทย' : 'อังกฤษ';
-  const action = result.action === 'translated' ? 'แปลเป็น' : 'ตรวจสอบ';
-
-  if (result.lang === 'th') {
-    const use = confirm(
-      `ต้นฉบับ (${lang}): ${result.original}\n\n` +
-      `${action}อังกฤษ: ${result.result}\n\n` +
-      `ต้องการใช้ข้อความที่แปลแล้วหรือไม่?`
-    );
-
-    if (use) {
-      chatInput.value = result.result;
-      // Save with translation
-      saveChatHistory(result.original, result.result);
-    }
-  } else {
-    alert(
-      `ต้นฉบับ: ${result.original}\n\n` +
-      `หมายเหตุ: ${result.suggestion || 'ข้อความถูกต้องแล้ว'}`
-    );
-  }
-});
-
 // History button
 historyBtn.addEventListener('click', () => {
   displayChatHistory();
@@ -991,24 +954,7 @@ closeHistoryBtn.addEventListener('click', () => {
   historyModal.classList.remove('active');
 });
 
-// Settings button
-settingsBtn.addEventListener('click', () => {
-  // Load current settings into sliders
-  fontSizeSlider.value = chatSettings.fontSize;
-  fontSizeValue.textContent = chatSettings.fontSize;
-  bubbleWidthSlider.value = chatSettings.bubbleWidth;
-  bubbleWidthValue.textContent = chatSettings.bubbleWidth;
-  displayTimeSlider.value = chatSettings.displayTime;
-  displayTimeValue.textContent = chatSettings.displayTime;
-
-  settingsModal.classList.add('active');
-});
-
-closeSettingsBtn.addEventListener('click', () => {
-  settingsModal.classList.remove('active');
-});
-
-// Settings sliders
+// Settings sliders (still functional but hidden from UI)
 fontSizeSlider.addEventListener('input', (e) => {
   const value = e.target.value;
   fontSizeValue.textContent = value;
@@ -1028,6 +974,65 @@ displayTimeSlider.addEventListener('input', (e) => {
   displayTimeValue.textContent = value;
   chatSettings.displayTime = parseInt(value);
   localStorage.setItem('virtualOfficeChatSettings', JSON.stringify(chatSettings));
+});
+
+// Mouse down - prepare for either pan or click-to-move
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button === 0) { // Left mouse button
+    mouseDownX = e.clientX;
+    mouseDownY = e.clientY;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panStartOffsetX = cameraOffsetX;
+    panStartOffsetY = cameraOffsetY;
+    hasDragged = false;
+  } else if (e.button === 1) { // Middle mouse button - always pan
+    e.preventDefault();
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    panStartOffsetX = cameraOffsetX;
+    panStartOffsetY = cameraOffsetY;
+    canvas.style.cursor = 'grabbing';
+  }
+});
+
+// Mouse move - detect drag for panning
+canvas.addEventListener('mousemove', (e) => {
+  if (e.buttons === 1 && !isPanning) { // Left button held
+    const deltaX = Math.abs(e.clientX - mouseDownX);
+    const deltaY = Math.abs(e.clientY - mouseDownY);
+
+    // If moved more than threshold, start panning
+    if (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD) {
+      isPanning = true;
+      hasDragged = true;
+      canvas.style.cursor = 'grabbing';
+    }
+  }
+
+  if (isPanning) {
+    const deltaX = e.clientX - panStartX;
+    const deltaY = e.clientY - panStartY;
+    cameraOffsetX = panStartOffsetX + deltaX;
+    cameraOffsetY = panStartOffsetY + deltaY;
+  }
+});
+
+// Mouse up - end panning
+canvas.addEventListener('mouseup', (e) => {
+  if (isPanning) {
+    isPanning = false;
+    canvas.style.cursor = 'default';
+  }
+});
+
+// Mouse leave - stop panning
+canvas.addEventListener('mouseleave', () => {
+  if (isPanning) {
+    isPanning = false;
+    canvas.style.cursor = 'default';
+  }
 });
 
 // Display chat history
@@ -1154,17 +1159,6 @@ canvas.addEventListener('click', (e) => {
   }
 
 
-  // Check if clicked on settings icon button (when bottom menu is expanded)
-  if (canvas.settingsIconBounds) {
-    const btn = canvas.settingsIconBounds;
-    if (x >= btn.x && x <= btn.x + btn.width &&
-        y >= btn.y && y <= btn.y + btn.height) {
-      settingsModal.classList.add('active');
-      console.log('⚙️ Settings opened');
-      return;
-    }
-  }
-
   // Check if clicked on room button (when bottom menu is expanded)
   if (canvas.roomButtonBounds) {
     const btn = canvas.roomButtonBounds;
@@ -1176,8 +1170,8 @@ canvas.addEventListener('click', (e) => {
     }
   }
 
-  // Click-to-move: convert screen coordinates to world coordinates
-  if (currentPlayer) {
+  // Click-to-move: only if didn't drag (drag = pan, click = move)
+  if (currentPlayer && !hasDragged) {
     const worldPos = screenToWorld(x, y);
     targetPosition = {
       x: Math.max(30, Math.min(WORLD_WIDTH - 30, worldPos.x)),
@@ -1222,7 +1216,7 @@ canvas.addEventListener('mousemove', (e) => {
   }
 });
 
-// Mouse wheel for zoom (with Ctrl/Command key) - Zoom to cursor
+// Mouse wheel for zoom (with Ctrl/Command key only, like diagram editor)
 canvas.addEventListener('wheel', (e) => {
   // Only zoom if Ctrl (Windows/Linux) or Command (Mac) key is pressed
   if (e.ctrlKey || e.metaKey) {
@@ -1230,45 +1224,46 @@ canvas.addEventListener('wheel', (e) => {
 
     // Get mouse position relative to canvas
     const rect = canvas.getBoundingClientRect();
-    const mouseScreenX = e.clientX - rect.left;
-    const mouseScreenY = e.clientY - rect.top;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-    // Get world position under mouse BEFORE zoom
-    const worldPosBefore = screenToWorld(mouseScreenX, mouseScreenY);
-
-    // Update zoom level
-    const zoomSpeed = 0.1;
-    const delta = -Math.sign(e.deltaY);
-    const oldZoom = zoomLevel;
-    const newZoom = zoomLevel + delta * zoomSpeed;
-    zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
-
-    // If zoom didn't actually change (hit min/max), don't adjust camera
-    if (zoomLevel === oldZoom) {
-      return;
-    }
-
-    // Get world position under mouse AFTER zoom (same screen position)
-    const worldPosAfter = screenToWorld(mouseScreenX, mouseScreenY);
-
-    // Calculate how much the world position shifted
-    const worldDeltaX = worldPosAfter.x - worldPosBefore.x;
-    const worldDeltaY = worldPosAfter.y - worldPosBefore.y;
-
-    // Adjust camera offset to compensate for the shift
-    // We need to move the camera in screen space
+    // Calculate world position before zoom (using diagram editor formula)
     const gameWidth = canvas.width;
     const gameHeight = canvas.height;
     const scaleX = gameWidth / WORLD_WIDTH;
     const scaleY = gameHeight / WORLD_HEIGHT;
     const baseScale = Math.min(scaleX, scaleY);
-    const currentScale = baseScale * zoomLevel;
 
-    cameraOffsetX -= worldDeltaX * currentScale;
-    cameraOffsetY -= worldDeltaY * currentScale;
+    const scaledWorldWidth = WORLD_WIDTH * baseScale * zoomLevel;
+    const scaledWorldHeight = WORLD_HEIGHT * baseScale * zoomLevel;
+    const offsetX = (gameWidth - scaledWorldWidth) / 2 + cameraOffsetX;
+    const offsetY = (gameHeight - scaledWorldHeight) / 2 + cameraOffsetY;
+
+    const worldX = (mouseX - offsetX) / (baseScale * zoomLevel);
+    const worldY = (mouseY - offsetY) / (baseScale * zoomLevel);
+
+    // Update zoom level
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    const oldZoom = zoomLevel;
+    zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel + delta));
+
+    // If zoom didn't change, stop
+    if (zoomLevel === oldZoom) {
+      return;
+    }
+
+    // Calculate new pan to keep same world position under mouse (diagram editor formula)
+    const newScaledWorldWidth = WORLD_WIDTH * baseScale * zoomLevel;
+    const newScaledWorldHeight = WORLD_HEIGHT * baseScale * zoomLevel;
+    const newOffsetX = (gameWidth - newScaledWorldWidth) / 2;
+    const newOffsetY = (gameHeight - newScaledWorldHeight) / 2;
+
+    cameraOffsetX = mouseX - worldX * (baseScale * zoomLevel) - newOffsetX;
+    cameraOffsetY = mouseY - worldY * (baseScale * zoomLevel) - newOffsetY;
 
     console.log('🔍 Zoom level:', zoomLevel.toFixed(2), 'at cursor position');
   }
+  // No else clause - regular scroll does nothing (like diagram editor)
 }, { passive: false });
 
 // Room management (keeping for compatibility but not used)
