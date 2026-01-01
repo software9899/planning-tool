@@ -587,7 +587,8 @@ class Player {
 // Join game
 joinBtn.addEventListener('click', () => {
   const username = usernameInput.value.trim();
-  const room = roomSelect.value;
+  // Always join lobby (unified map)
+  const room = 'lobby';
 
   if (username.length < 3) {
     alert('ชื่อต้องมีอย่างน้อย 3 ตัวอักษร');
@@ -632,7 +633,7 @@ window.addEventListener('DOMContentLoaded', () => {
       const userId = getUserId();
       socket.emit('join', {
         username: savedUsername,
-        room: savedRoom || 'lobby',
+        room: 'lobby', // Always join lobby (unified map)
         userId: userId
       });
     }, 500);

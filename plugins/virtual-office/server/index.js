@@ -44,6 +44,9 @@ io.on('connection', (socket) => {
 
   // Player joins with username
   socket.on('join', ({ username, room = 'lobby', userId }) => {
+    // Force everyone to lobby since we now have unified map
+    room = 'lobby';
+
     // Check if player with this userId already exists (reconnection case)
     let existingPlayerId = null;
     let savedState = null;
@@ -52,41 +55,44 @@ io.on('connection', (socket) => {
       // Check for saved player state
       savedState = playerStates.get(userId);
 
-      // Check for active player with same userId
+      // Check for active player with same userId and remove ALL duplicates
+      const duplicateIds = [];
       players.forEach((player, id) => {
-        if (player.userId === userId) {
-          existingPlayerId = id;
+        if (player.userId === userId && id !== socket.id) {
+          duplicateIds.push(id);
         }
       });
-    }
 
-    // If exists, remove old connection
-    if (existingPlayerId && existingPlayerId !== socket.id) {
-      console.log(`🔄 Reconnecting user ${userId}, removing old socket ${existingPlayerId}`);
+      // Remove all duplicates
+      duplicateIds.forEach(id => {
+        const oldPlayer = players.get(id);
+        if (oldPlayer) {
+          console.log(`🗑️ Removing duplicate player ${id} for userId ${userId}`);
 
-      const oldPlayer = players.get(existingPlayerId);
-      if (oldPlayer) {
-        // Save state before removing
-        playerStates.set(userId, {
-          x: oldPlayer.x,
-          y: oldPlayer.y,
-          color: oldPlayer.color,
-          room: oldPlayer.room
-        });
-        savedState = playerStates.get(userId);
+          // Save state before removing
+          if (!savedState) {
+            savedState = {
+              x: oldPlayer.x,
+              y: oldPlayer.y,
+              color: oldPlayer.color,
+              room: oldPlayer.room
+            };
+            playerStates.set(userId, savedState);
+          }
 
-        // Notify room that old player left
-        socket.to(oldPlayer.room).emit('playerLeft', existingPlayerId);
+          // Notify room that old player left
+          socket.to(oldPlayer.room).emit('playerLeft', id);
 
-        // Remove from room
-        const oldRoomData = rooms.get(oldPlayer.room);
-        if (oldRoomData) {
-          oldRoomData.players.delete(existingPlayerId);
+          // Remove from room
+          const oldRoomData = rooms.get(oldPlayer.room);
+          if (oldRoomData) {
+            oldRoomData.players.delete(id);
+          }
+
+          // Remove from players map
+          players.delete(id);
         }
-
-        // Remove from players map
-        players.delete(existingPlayerId);
-      }
+      });
     }
 
     // World coordinates - 3x3 grid of rooms (4800x3600 total)
