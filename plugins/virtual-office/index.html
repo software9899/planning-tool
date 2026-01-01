@@ -22,13 +22,100 @@
       height: 100%;
       border: none;
     }
+
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: Arial, sans-serif;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #667eea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .error {
+      padding: 40px;
+      text-align: center;
+      color: #d32f2f;
+    }
   </style>
 </head>
 <body>
-  <iframe
-    src="http://localhost:3000"
-    allow="microphone; camera; autoplay"
-    allowfullscreen
-  ></iframe>
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div>Loading Virtual Office...</div>
+  </div>
+
+  <div class="error" id="error" style="display: none;">
+    <h2>⚠️ Cannot Connect to Virtual Office</h2>
+    <p>Please make sure Virtual Office server is running on port 3000</p>
+    <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; cursor: pointer;">Retry</button>
+  </div>
+
+  <iframe id="virtualOfficeFrame" style="display: none;"></iframe>
+
+  <script>
+    // Determine the correct Virtual Office URL
+    function getVirtualOfficeUrl() {
+      const hostname = window.location.hostname;
+
+      // If accessing via IP or domain, use the same host with port 3000
+      if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        return `http://${hostname}:3000`;
+      }
+
+      // If local, use localhost
+      return 'http://localhost:3000';
+    }
+
+    const iframe = document.getElementById('virtualOfficeFrame');
+    const loading = document.getElementById('loading');
+    const error = document.getElementById('error');
+    const virtualOfficeUrl = getVirtualOfficeUrl();
+
+    console.log('🏢 Loading Virtual Office from:', virtualOfficeUrl);
+
+    // Set iframe source
+    iframe.src = virtualOfficeUrl;
+    iframe.allow = 'microphone; camera; autoplay';
+    iframe.allowFullscreen = true;
+
+    // Handle iframe load
+    iframe.onload = function() {
+      loading.style.display = 'none';
+      iframe.style.display = 'block';
+      console.log('✅ Virtual Office loaded successfully');
+    };
+
+    // Handle iframe error
+    iframe.onerror = function() {
+      loading.style.display = 'none';
+      error.style.display = 'block';
+      console.error('❌ Failed to load Virtual Office');
+    };
+
+    // Timeout fallback
+    setTimeout(() => {
+      if (loading.style.display !== 'none') {
+        // Assume it loaded if no error after 5 seconds
+        loading.style.display = 'none';
+        iframe.style.display = 'block';
+      }
+    }, 5000);
+  </script>
 </body>
 </html>
