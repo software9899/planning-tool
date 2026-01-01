@@ -243,6 +243,14 @@ class Player {
     this.walkFrame = 0;
     this.chatMessage = null;
     this.chatTimeout = null;
+    // Jump variables
+    this.isJumping = false;
+    this.jumpProgress = 0;
+    this.jumpStartX = 0;
+    this.jumpStartY = 0;
+    this.jumpTargetX = 0;
+    this.jumpTargetY = 0;
+    this.jumpHeight = 0;
   }
 
   showChatBubble(message) {
@@ -264,13 +272,27 @@ class Player {
     const bodyHeight = 30 * scale;
     const headSize = 14 * scale;
 
+    // Save context for transformations
+    ctx.save();
+
+    // Apply tilt/rotation based on direction (like version 6.6)
+    if (direction === 'left') {
+      ctx.translate(x, y + bodyHeight/2);
+      ctx.rotate(-0.15); // Tilt left
+      ctx.translate(-x, -(y + bodyHeight/2));
+    } else if (direction === 'right') {
+      ctx.translate(x, y + bodyHeight/2);
+      ctx.rotate(0.15); // Tilt right
+      ctx.translate(-x, -(y + bodyHeight/2));
+    }
+
     // Shadow
     ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
     ctx.beginPath();
     ctx.ellipse(x, y + bodyHeight + 5 * scale, bodyWidth * 0.7, 6 * scale, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Body
+    // Body (full width - like version 6.6)
     ctx.fillStyle = color;
     ctx.fillRect(x - bodyWidth/2, y, bodyWidth, bodyHeight);
 
@@ -283,29 +305,74 @@ class Player {
     ctx.lineWidth = 1 * scale;
     ctx.stroke();
 
-    // Hair/Hat
+    // Hair/Hat - different for back view
     ctx.fillStyle = this.getHairColor(color);
     ctx.beginPath();
-    ctx.arc(x, y - 8 * scale, headSize * 0.9, Math.PI, 2 * Math.PI);
+    if (direction === 'up') {
+      // Full hair visible from behind
+      ctx.arc(x, y - 5 * scale, headSize * 0.95, 0, Math.PI * 2);
+    } else {
+      // Hair on top
+      ctx.arc(x, y - 8 * scale, headSize * 0.9, Math.PI, 2 * Math.PI);
+    }
     ctx.fill();
 
-    // Face
+    // Face - improved side profile (like version 6.7)
     const faceY = y - 5 * scale;
     ctx.fillStyle = '#333';
 
-    // Eyes based on direction
-    if (direction === 'down' || direction === 'up') {
-      ctx.fillRect(x - 5 * scale, faceY - 2 * scale, 3 * scale, 2 * scale);
-      ctx.fillRect(x + 2 * scale, faceY - 2 * scale, 3 * scale, 2 * scale);
-    } else if (direction === 'left') {
-      ctx.fillRect(x - 3 * scale, faceY - 2 * scale, 2 * scale, 2 * scale);
-      ctx.fillRect(x + 2 * scale, faceY - 2 * scale, 2 * scale, 2 * scale);
-    } else if (direction === 'right') {
-      ctx.fillRect(x - 4 * scale, faceY - 2 * scale, 2 * scale, 2 * scale);
-      ctx.fillRect(x + 1 * scale, faceY - 2 * scale, 2 * scale, 2 * scale);
+    if (direction !== 'up') {
+      if (direction === 'down') {
+        // Front view - two eyes
+        ctx.fillRect(x - 5 * scale, faceY - 2 * scale, 3 * scale, 2 * scale);
+        ctx.fillRect(x + 2 * scale, faceY - 2 * scale, 3 * scale, 2 * scale);
+      } else if (direction === 'left') {
+        // Side profile - left
+        // One eye
+        ctx.fillRect(x - 6 * scale, faceY - 2 * scale, 3 * scale, 2 * scale);
+
+        // Nose (profile pointing left)
+        ctx.beginPath();
+        ctx.moveTo(x - 8 * scale, faceY);
+        ctx.lineTo(x - 11 * scale, faceY + 2 * scale);
+        ctx.lineTo(x - 8 * scale, faceY + 3 * scale);
+        ctx.fillStyle = '#ffdbac';
+        ctx.fill();
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 0.5 * scale;
+        ctx.stroke();
+
+        // Mouth (side)
+        ctx.fillStyle = '#333';
+        ctx.fillRect(x - 9 * scale, faceY + 5 * scale, 3 * scale, 1 * scale);
+      } else if (direction === 'right') {
+        // Side profile - right
+        // One eye
+        ctx.fillRect(x + 3 * scale, faceY - 2 * scale, 3 * scale, 2 * scale);
+
+        // Nose (profile pointing right)
+        ctx.beginPath();
+        ctx.moveTo(x + 8 * scale, faceY);
+        ctx.lineTo(x + 11 * scale, faceY + 2 * scale);
+        ctx.lineTo(x + 8 * scale, faceY + 3 * scale);
+        ctx.fillStyle = '#ffdbac';
+        ctx.fill();
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 0.5 * scale;
+        ctx.stroke();
+
+        // Mouth (side)
+        ctx.fillStyle = '#333';
+        ctx.fillRect(x + 6 * scale, faceY + 5 * scale, 3 * scale, 1 * scale);
+      }
+
+      // Mouth for front view only
+      if (direction === 'down') {
+        ctx.fillRect(x - 2 * scale, faceY + 3 * scale, 4 * scale, 1 * scale);
+      }
     }
 
-    // Arms
+    // Arms (like version 6.6)
     ctx.strokeStyle = color;
     ctx.lineWidth = 5 * scale;
     ctx.lineCap = 'round';
@@ -324,7 +391,7 @@ class Player {
     ctx.lineTo(x + bodyWidth/2 + 3 * scale, y + 15 * scale - armOffset);
     ctx.stroke();
 
-    // Legs
+    // Legs (like version 6.6)
     ctx.lineWidth = 6 * scale;
     const legOffset = isMoving ? Math.sin(this.walkFrame * 0.3) * 6 * scale : 0;
 
@@ -339,6 +406,9 @@ class Player {
     ctx.moveTo(x + 6 * scale, y + bodyHeight);
     ctx.lineTo(x + 6 * scale, y + bodyHeight + 10 * scale - legOffset);
     ctx.stroke();
+
+    // Restore context
+    ctx.restore();
   }
 
   getHairColor(bodyColor) {
