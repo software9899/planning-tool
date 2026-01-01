@@ -23,7 +23,7 @@ let mouseX = 0;
 let mouseY = 0;
 let hoveredPlayer = null;
 let targetPosition = null; // For click-to-move
-let zoomLevel = 1.0; // Zoom level (1.0 = normal, > 1.0 = zoomed in, < 1.0 = zoomed out)
+let zoomLevel = 2.0; // Zoom level (1.0 = normal, > 1.0 = zoomed in, < 1.0 = zoomed out)
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 15.0;
 let cameraOffsetX = 0; // Camera offset for panning/zoom
@@ -85,6 +85,39 @@ function screenToWorld(screenX, screenY) {
     x: (screenX - offsetX) / scale,
     y: (screenY - offsetY) / scale
   };
+}
+
+// Clamp camera offset to prevent showing areas outside the game world
+function clampCameraOffset() {
+  const gameWidth = canvas.width;
+  const gameHeight = canvas.height;
+  const scaleX = gameWidth / WORLD_WIDTH;
+  const scaleY = gameHeight / WORLD_HEIGHT;
+  const baseScale = Math.min(scaleX, scaleY);
+  const currentScale = baseScale * zoomLevel;
+
+  const scaledWorldWidth = WORLD_WIDTH * currentScale;
+  const scaledWorldHeight = WORLD_HEIGHT * currentScale;
+  const baseOffsetX = (gameWidth - scaledWorldWidth) / 2;
+  const baseOffsetY = (gameHeight - scaledWorldHeight) / 2;
+
+  // Only clamp if world is larger than canvas (zoomed in)
+  if (scaledWorldWidth > gameWidth) {
+    const maxOffsetX = -baseOffsetX; // Left edge of world at left edge of screen
+    const minOffsetX = gameWidth - baseOffsetX - scaledWorldWidth; // Right edge at right edge
+    cameraOffsetX = Math.max(minOffsetX, Math.min(maxOffsetX, cameraOffsetX));
+  } else {
+    // If world is smaller than canvas, keep it centered
+    cameraOffsetX = 0;
+  }
+
+  if (scaledWorldHeight > gameHeight) {
+    const maxOffsetY = -baseOffsetY;
+    const minOffsetY = gameHeight - baseOffsetY - scaledWorldHeight;
+    cameraOffsetY = Math.max(minOffsetY, Math.min(maxOffsetY, cameraOffsetY));
+  } else {
+    cameraOffsetY = 0;
+  }
 }
 
 // Resize canvas
@@ -688,6 +721,40 @@ socket.on('init', (data) => {
   canvas.focus();
   canvas.tabIndex = 1;
 
+  // Center camera on player initially
+  setTimeout(() => {
+    if (currentPlayer) {
+      const gameWidth = canvas.width;
+      const gameHeight = canvas.height;
+      const scaleX = gameWidth / WORLD_WIDTH;
+      const scaleY = gameHeight / WORLD_HEIGHT;
+      const baseScale = Math.min(scaleX, scaleY);
+      const currentScale = baseScale * zoomLevel;
+
+      const scaledWorldWidth = WORLD_WIDTH * currentScale;
+      const scaledWorldHeight = WORLD_HEIGHT * currentScale;
+      const baseOffsetX = (gameWidth - scaledWorldWidth) / 2;
+      const baseOffsetY = (gameHeight - scaledWorldHeight) / 2;
+
+      // Calculate where player currently is on screen (without camera offset)
+      const playerScreenX = currentPlayer.x * currentScale + baseOffsetX;
+      const playerScreenY = currentPlayer.y * currentScale + baseOffsetY;
+
+      // Calculate where we want player to be (center of screen)
+      const targetScreenX = gameWidth / 2;
+      const targetScreenY = gameHeight / 2;
+
+      // Set camera offset to center player
+      cameraOffsetX = targetScreenX - playerScreenX;
+      cameraOffsetY = targetScreenY - playerScreenY;
+
+      // Clamp to prevent showing gray areas
+      clampCameraOffset();
+
+      console.log('📷 Camera centered on player');
+    }
+  }, 100);
+
   // Start game loop
   gameLoop();
 });
@@ -1014,6 +1081,7 @@ canvas.addEventListener('mousemove', (e) => {
     const deltaY = e.clientY - panStartY;
     cameraOffsetX = panStartOffsetX + deltaX;
     cameraOffsetY = panStartOffsetY + deltaY;
+    clampCameraOffset(); // Prevent showing gray areas
   }
 });
 
@@ -1245,8 +1313,8 @@ canvas.addEventListener('wheel', (e) => {
   const worldX = (mouseX - offsetX) / (baseScale * zoomLevel);
   const worldY = (mouseY - offsetY) / (baseScale * zoomLevel);
 
-  // Update zoom level
-  const delta = e.deltaY > 0 ? -0.1 : 0.1;
+  // Update zoom level (smaller delta for smoother zoom)
+  const delta = e.deltaY > 0 ? -0.03 : 0.03;
   const oldZoom = zoomLevel;
   zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel + delta));
 
@@ -1263,6 +1331,9 @@ canvas.addEventListener('wheel', (e) => {
 
   cameraOffsetX = mouseX - worldX * (baseScale * zoomLevel) - newOffsetX;
   cameraOffsetY = mouseY - worldY * (baseScale * zoomLevel) - newOffsetY;
+
+  // Clamp to prevent showing gray areas
+  clampCameraOffset();
 
   console.log('🔍 Zoom level:', zoomLevel.toFixed(2), 'at cursor position');
 }, { passive: false });
@@ -1848,6 +1919,9 @@ function gameLoop() {
       const smoothness = 0.1; // 0.1 = smooth, 1.0 = instant
       cameraOffsetX += deltaX * smoothness;
       cameraOffsetY += deltaY * smoothness;
+
+      // Clamp to prevent showing gray areas
+      clampCameraOffset();
     }
 
     const showCurrentPlayerName = hoveredPlayer && hoveredPlayer.id === currentPlayer.id;
