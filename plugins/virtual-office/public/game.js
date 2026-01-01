@@ -25,20 +25,17 @@ let hoveredPlayer = null;
 let targetPosition = null; // For click-to-move
 let zoomLevel = 1.0; // Zoom level (1.0 = normal, > 1.0 = zoomed in, < 1.0 = zoomed out)
 const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 3.0;
+const MAX_ZOOM = 15.0;
 let cameraOffsetX = 0; // Camera offset for panning/zoom
 let cameraOffsetY = 0;
 
-// Pan/drag variables (pan is now default, auto-detected)
+// Pan variables
 let isPanning = false;
-let mouseDownX = 0;
-let mouseDownY = 0;
 let panStartX = 0;
 let panStartY = 0;
 let panStartOffsetX = 0;
 let panStartOffsetY = 0;
-let hasDragged = false;
-const DRAG_THRESHOLD = 5; // pixels to distinguish drag from click
+let clickedOnGrayArea = false;
 
 // Canvas setup
 const canvas = document.getElementById('game-canvas');
@@ -979,14 +976,27 @@ displayTimeSlider.addEventListener('input', (e) => {
 // Mouse down - prepare for either pan or click-to-move
 canvas.addEventListener('mousedown', (e) => {
   if (e.button === 0) { // Left mouse button
-    mouseDownX = e.clientX;
-    mouseDownY = e.clientY;
-    panStartX = e.clientX;
-    panStartY = e.clientY;
-    panStartOffsetX = cameraOffsetX;
-    panStartOffsetY = cameraOffsetY;
-    hasDragged = false;
-  } else if (e.button === 1) { // Middle mouse button - always pan
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const worldPos = screenToWorld(x, y);
+
+    // Check if clicked on gray area (outside game world)
+    if (worldPos.x < 0 || worldPos.x > WORLD_WIDTH ||
+        worldPos.y < 0 || worldPos.y > WORLD_HEIGHT) {
+      // Clicked on gray area - start panning immediately
+      clickedOnGrayArea = true;
+      isPanning = true;
+      panStartX = e.clientX;
+      panStartY = e.clientY;
+      panStartOffsetX = cameraOffsetX;
+      panStartOffsetY = cameraOffsetY;
+      canvas.style.cursor = 'grabbing';
+    } else {
+      // Clicked on game world - prepare for click-to-move
+      clickedOnGrayArea = false;
+    }
+  } else if (e.button === 1) { // Middle mouse button - pan only
     e.preventDefault();
     isPanning = true;
     panStartX = e.clientX;
@@ -997,21 +1007,9 @@ canvas.addEventListener('mousedown', (e) => {
   }
 });
 
-// Mouse move - detect drag for panning
+// Mouse move - panning
 canvas.addEventListener('mousemove', (e) => {
-  if (e.buttons === 1 && !isPanning) { // Left button held
-    const deltaX = Math.abs(e.clientX - mouseDownX);
-    const deltaY = Math.abs(e.clientY - mouseDownY);
-
-    // If moved more than threshold, start panning
-    if (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD) {
-      isPanning = true;
-      hasDragged = true;
-      canvas.style.cursor = 'grabbing';
-    }
-  }
-
-  if (isPanning) {
+  if (isPanning && (e.buttons === 1 || e.buttons === 4)) { // Left or middle button
     const deltaX = e.clientX - panStartX;
     const deltaY = e.clientY - panStartY;
     cameraOffsetX = panStartOffsetX + deltaX;
@@ -1021,8 +1019,9 @@ canvas.addEventListener('mousemove', (e) => {
 
 // Mouse up - end panning
 canvas.addEventListener('mouseup', (e) => {
-  if (isPanning) {
+  if ((e.button === 0 || e.button === 1) && isPanning) {
     isPanning = false;
+    clickedOnGrayArea = false;
     canvas.style.cursor = 'default';
   }
 });
@@ -1031,6 +1030,7 @@ canvas.addEventListener('mouseup', (e) => {
 canvas.addEventListener('mouseleave', () => {
   if (isPanning) {
     isPanning = false;
+    clickedOnGrayArea = false;
     canvas.style.cursor = 'default';
   }
 });
@@ -1170,14 +1170,19 @@ canvas.addEventListener('click', (e) => {
     }
   }
 
-  // Click-to-move: only if didn't drag (drag = pan, click = move)
-  if (currentPlayer && !hasDragged) {
+  // Click-to-move (only if clicked on game world, not gray area)
+  if (currentPlayer && !clickedOnGrayArea) {
     const worldPos = screenToWorld(x, y);
-    targetPosition = {
-      x: Math.max(30, Math.min(WORLD_WIDTH - 30, worldPos.x)),
-      y: Math.max(30, Math.min(WORLD_HEIGHT - 30, worldPos.y))
-    };
-    console.log('🎯 Moving to:', targetPosition);
+
+    // Only move if clicked within game world bounds
+    if (worldPos.x >= 0 && worldPos.x <= WORLD_WIDTH &&
+        worldPos.y >= 0 && worldPos.y <= WORLD_HEIGHT) {
+      targetPosition = {
+        x: Math.max(30, Math.min(WORLD_WIDTH - 30, worldPos.x)),
+        y: Math.max(30, Math.min(WORLD_HEIGHT - 30, worldPos.y))
+      };
+      console.log('🎯 Moving to:', targetPosition);
+    }
   }
 });
 
@@ -1216,54 +1221,50 @@ canvas.addEventListener('mousemove', (e) => {
   }
 });
 
-// Mouse wheel for zoom (with Ctrl/Command key only, like diagram editor)
+// Mouse wheel for zoom (scroll to zoom in/out)
 canvas.addEventListener('wheel', (e) => {
-  // Only zoom if Ctrl (Windows/Linux) or Command (Mac) key is pressed
-  if (e.ctrlKey || e.metaKey) {
-    e.preventDefault();
+  e.preventDefault();
 
-    // Get mouse position relative to canvas
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+  // Get mouse position relative to canvas
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
 
-    // Calculate world position before zoom (using diagram editor formula)
-    const gameWidth = canvas.width;
-    const gameHeight = canvas.height;
-    const scaleX = gameWidth / WORLD_WIDTH;
-    const scaleY = gameHeight / WORLD_HEIGHT;
-    const baseScale = Math.min(scaleX, scaleY);
+  // Calculate world position before zoom (using diagram editor formula)
+  const gameWidth = canvas.width;
+  const gameHeight = canvas.height;
+  const scaleX = gameWidth / WORLD_WIDTH;
+  const scaleY = gameHeight / WORLD_HEIGHT;
+  const baseScale = Math.min(scaleX, scaleY);
 
-    const scaledWorldWidth = WORLD_WIDTH * baseScale * zoomLevel;
-    const scaledWorldHeight = WORLD_HEIGHT * baseScale * zoomLevel;
-    const offsetX = (gameWidth - scaledWorldWidth) / 2 + cameraOffsetX;
-    const offsetY = (gameHeight - scaledWorldHeight) / 2 + cameraOffsetY;
+  const scaledWorldWidth = WORLD_WIDTH * baseScale * zoomLevel;
+  const scaledWorldHeight = WORLD_HEIGHT * baseScale * zoomLevel;
+  const offsetX = (gameWidth - scaledWorldWidth) / 2 + cameraOffsetX;
+  const offsetY = (gameHeight - scaledWorldHeight) / 2 + cameraOffsetY;
 
-    const worldX = (mouseX - offsetX) / (baseScale * zoomLevel);
-    const worldY = (mouseY - offsetY) / (baseScale * zoomLevel);
+  const worldX = (mouseX - offsetX) / (baseScale * zoomLevel);
+  const worldY = (mouseY - offsetY) / (baseScale * zoomLevel);
 
-    // Update zoom level
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    const oldZoom = zoomLevel;
-    zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel + delta));
+  // Update zoom level
+  const delta = e.deltaY > 0 ? -0.1 : 0.1;
+  const oldZoom = zoomLevel;
+  zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel + delta));
 
-    // If zoom didn't change, stop
-    if (zoomLevel === oldZoom) {
-      return;
-    }
-
-    // Calculate new pan to keep same world position under mouse (diagram editor formula)
-    const newScaledWorldWidth = WORLD_WIDTH * baseScale * zoomLevel;
-    const newScaledWorldHeight = WORLD_HEIGHT * baseScale * zoomLevel;
-    const newOffsetX = (gameWidth - newScaledWorldWidth) / 2;
-    const newOffsetY = (gameHeight - newScaledWorldHeight) / 2;
-
-    cameraOffsetX = mouseX - worldX * (baseScale * zoomLevel) - newOffsetX;
-    cameraOffsetY = mouseY - worldY * (baseScale * zoomLevel) - newOffsetY;
-
-    console.log('🔍 Zoom level:', zoomLevel.toFixed(2), 'at cursor position');
+  // If zoom didn't change, stop
+  if (zoomLevel === oldZoom) {
+    return;
   }
-  // No else clause - regular scroll does nothing (like diagram editor)
+
+  // Calculate new pan to keep same world position under mouse (diagram editor formula)
+  const newScaledWorldWidth = WORLD_WIDTH * baseScale * zoomLevel;
+  const newScaledWorldHeight = WORLD_HEIGHT * baseScale * zoomLevel;
+  const newOffsetX = (gameWidth - newScaledWorldWidth) / 2;
+  const newOffsetY = (gameHeight - newScaledWorldHeight) / 2;
+
+  cameraOffsetX = mouseX - worldX * (baseScale * zoomLevel) - newOffsetX;
+  cameraOffsetY = mouseY - worldY * (baseScale * zoomLevel) - newOffsetY;
+
+  console.log('🔍 Zoom level:', zoomLevel.toFixed(2), 'at cursor position');
 }, { passive: false });
 
 // Room management (keeping for compatibility but not used)
@@ -1816,6 +1817,39 @@ function gameLoop() {
   // Update and draw current player
   if (currentPlayer) {
     currentPlayer.update();
+
+    // Camera follows player only when moving (smooth lerp)
+    if (!isPanning && currentPlayer.isMoving) { // Only follow when player is moving
+      const gameWidth = canvas.width;
+      const gameHeight = canvas.height;
+      const scaleX = gameWidth / WORLD_WIDTH;
+      const scaleY = gameHeight / WORLD_HEIGHT;
+      const baseScale = Math.min(scaleX, scaleY);
+      const currentScale = baseScale * zoomLevel;
+
+      // Calculate where player should be on screen (center)
+      const targetScreenX = gameWidth / 2;
+      const targetScreenY = gameHeight / 2;
+
+      // Calculate current player screen position without camera offset
+      const scaledWorldWidth = WORLD_WIDTH * currentScale;
+      const scaledWorldHeight = WORLD_HEIGHT * currentScale;
+      const baseOffsetX = (gameWidth - scaledWorldWidth) / 2;
+      const baseOffsetY = (gameHeight - scaledWorldHeight) / 2;
+
+      const currentScreenX = currentPlayer.x * currentScale + baseOffsetX + cameraOffsetX;
+      const currentScreenY = currentPlayer.y * currentScale + baseOffsetY + cameraOffsetY;
+
+      // Calculate how much to adjust camera to center player
+      const deltaX = targetScreenX - currentScreenX;
+      const deltaY = targetScreenY - currentScreenY;
+
+      // Smooth camera follow (lerp)
+      const smoothness = 0.1; // 0.1 = smooth, 1.0 = instant
+      cameraOffsetX += deltaX * smoothness;
+      cameraOffsetY += deltaY * smoothness;
+    }
+
     const showCurrentPlayerName = hoveredPlayer && hoveredPlayer.id === currentPlayer.id;
     currentPlayer.draw(true, showCurrentPlayerName);
   }
