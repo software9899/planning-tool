@@ -89,16 +89,22 @@ io.on('connection', (socket) => {
       }
     }
 
-    // World coordinates - fixed size 1600x1200
-    const WORLD_WIDTH = 1600;
-    const WORLD_HEIGHT = 1200;
+    // World coordinates - 3x3 grid of rooms (4800x3600 total)
+    const WORLD_WIDTH = 4800;
+    const WORLD_HEIGHT = 3600;
+
+    // Lobby spawn area (center room: 1600-3200, 1200-2400)
+    const LOBBY_X_MIN = 1700;
+    const LOBBY_X_MAX = 3100;
+    const LOBBY_Y_MIN = 1300;
+    const LOBBY_Y_MAX = 2300;
 
     const player = {
       id: socket.id,
       userId: userId,
       username: username || `Player_${socket.id.substring(0, 4)}`,
-      x: savedState ? savedState.x : Math.random() * (WORLD_WIDTH - 100) + 50,
-      y: savedState ? savedState.y : Math.random() * (WORLD_HEIGHT - 100) + 50,
+      x: savedState ? savedState.x : Math.random() * (LOBBY_X_MAX - LOBBY_X_MIN) + LOBBY_X_MIN,
+      y: savedState ? savedState.y : Math.random() * (LOBBY_Y_MAX - LOBBY_Y_MIN) + LOBBY_Y_MIN,
       room: savedState ? savedState.room : room,
       color: savedState ? savedState.color : `hsl(${Math.random() * 360}, 70%, 60%)`
     };
@@ -237,12 +243,15 @@ io.on('connection', (socket) => {
         socket.to(oldRoom).emit('playerLeft', socket.id);
       }
 
-      // Join new room
-      const WORLD_WIDTH = 1600;
-      const WORLD_HEIGHT = 1200;
+      // Join new room (teleport to lobby area on unified map)
+      const LOBBY_X_MIN = 1700;
+      const LOBBY_X_MAX = 3100;
+      const LOBBY_Y_MIN = 1300;
+      const LOBBY_Y_MAX = 2300;
+
       player.room = newRoom;
-      player.x = Math.random() * (WORLD_WIDTH - 100) + 50;
-      player.y = Math.random() * (WORLD_HEIGHT - 100) + 50;
+      player.x = Math.random() * (LOBBY_X_MAX - LOBBY_X_MIN) + LOBBY_X_MIN;
+      player.y = Math.random() * (LOBBY_Y_MAX - LOBBY_Y_MIN) + LOBBY_Y_MIN;
       socket.join(newRoom);
 
       const newRoomData = rooms.get(newRoom);

@@ -1,9 +1,9 @@
 // Socket.io connection
 const socket = io();
 
-// World coordinates - fixed size for all players
-const WORLD_WIDTH = 1600;
-const WORLD_HEIGHT = 1200;
+// World coordinates - fixed size for all players (3x3 grid of rooms)
+const WORLD_WIDTH = 4800;  // 3 rooms wide (1600 * 3)
+const WORLD_HEIGHT = 3600; // 3 rooms tall (1200 * 3)
 
 // Game state
 let currentPlayer = null;
@@ -24,12 +24,14 @@ let targetPosition = null; // For click-to-move
 let zoomLevel = 1.0; // Zoom level (1.0 = normal, > 1.0 = zoomed in, < 1.0 = zoomed out)
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3.0;
+let cameraOffsetX = 0; // Camera offset for panning/zoom
+let cameraOffsetY = 0;
 
 // Canvas setup
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 
-// Coordinate conversion functions
+// Coordinate conversion functions with camera offset
 function worldToScreen(worldX, worldY) {
   const gameWidth = canvas.width;
   const gameHeight = canvas.height;
@@ -41,11 +43,11 @@ function worldToScreen(worldX, worldY) {
   const baseScale = Math.min(scaleX, scaleY);
   const scale = baseScale * zoomLevel;
 
-  // Calculate offset to center the world
+  // Calculate offset to center the world + camera offset
   const scaledWorldWidth = WORLD_WIDTH * scale;
   const scaledWorldHeight = WORLD_HEIGHT * scale;
-  const offsetX = (gameWidth - scaledWorldWidth) / 2;
-  const offsetY = (gameHeight - scaledWorldHeight) / 2;
+  const offsetX = (gameWidth - scaledWorldWidth) / 2 + cameraOffsetX;
+  const offsetY = (gameHeight - scaledWorldHeight) / 2 + cameraOffsetY;
 
   return {
     x: worldX * scale + offsetX,
@@ -63,11 +65,11 @@ function screenToWorld(screenX, screenY) {
   const baseScale = Math.min(scaleX, scaleY);
   const scale = baseScale * zoomLevel;
 
-  // Calculate offset to center the world
+  // Calculate offset to center the world + camera offset
   const scaledWorldWidth = WORLD_WIDTH * scale;
   const scaledWorldHeight = WORLD_HEIGHT * scale;
-  const offsetX = (gameWidth - scaledWorldWidth) / 2;
-  const offsetY = (gameHeight - scaledWorldHeight) / 2;
+  const offsetX = (gameWidth - scaledWorldWidth) / 2 + cameraOffsetX;
+  const offsetY = (gameHeight - scaledWorldHeight) / 2 + cameraOffsetY;
 
   return {
     x: (screenX - offsetX) / scale,
@@ -1171,6 +1173,39 @@ canvas.addEventListener('click', (e) => {
     }
   }
 
+  // Check if clicked on a room frame (when zoomed out and overlay is visible)
+  if (zoomLevel <= 0.7 && canvas.roomBounds && canvas.roomBounds.length > 0) {
+    for (const bound of canvas.roomBounds) {
+      if (x >= bound.x && x <= bound.x + bound.width &&
+          y >= bound.y && y <= bound.y + bound.height) {
+        // Teleport player to center of clicked room
+        if (currentPlayer) {
+          currentPlayer.x = bound.centerWorldX;
+          currentPlayer.y = bound.centerWorldY;
+
+          // Emit position update to server
+          socket.emit('move', {
+            x: currentPlayer.x,
+            y: currentPlayer.y,
+            direction: currentPlayer.direction,
+            isMoving: false
+          });
+
+          // Clear camera offset and zoom in
+          cameraOffsetX = 0;
+          cameraOffsetY = 0;
+          zoomLevel = 1.0;
+
+          console.log(`🚀 Teleported to ${bound.room.emoji} ${bound.room.name}`);
+
+          // Clear room bounds after teleport
+          canvas.roomBounds = [];
+          return;
+        }
+      }
+    }
+  }
+
   // Click-to-move: convert screen coordinates to world coordinates
   if (currentPlayer) {
     const worldPos = screenToWorld(x, y);
@@ -1217,20 +1252,64 @@ canvas.addEventListener('mousemove', (e) => {
   }
 });
 
-// Mouse wheel for zoom (with Ctrl/Command key)
+// Mouse wheel for zoom (with Ctrl/Command key) - Zoom to cursor
 canvas.addEventListener('wheel', (e) => {
   // Only zoom if Ctrl (Windows/Linux) or Command (Mac) key is pressed
   if (e.ctrlKey || e.metaKey) {
     e.preventDefault();
 
+    // Get mouse position relative to canvas
+    const rect = canvas.getBoundingClientRect();
+    const mouseScreenX = e.clientX - rect.left;
+    const mouseScreenY = e.clientY - rect.top;
+
+    // Get world position under mouse BEFORE zoom
+    const worldPosBefore = screenToWorld(mouseScreenX, mouseScreenY);
+
     const zoomSpeed = 0.1;
     const delta = -Math.sign(e.deltaY);
+    const oldZoom = zoomLevel;
 
     // Update zoom level
     const newZoom = zoomLevel + delta * zoomSpeed;
     zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
 
-    console.log('🔍 Zoom level:', zoomLevel.toFixed(2));
+    // If zoom didn't actually change (hit min/max), don't adjust camera
+    if (zoomLevel === oldZoom) {
+      return;
+    }
+
+    // Calculate scale change
+    const gameWidth = canvas.width;
+    const gameHeight = canvas.height;
+    const scaleX = gameWidth / WORLD_WIDTH;
+    const scaleY = gameHeight / WORLD_HEIGHT;
+    const baseScale = Math.min(scaleX, scaleY);
+
+    const oldScale = baseScale * oldZoom;
+    const newScale = baseScale * zoomLevel;
+    const scaleDiff = newScale - oldScale;
+
+    // Adjust camera offset to keep world position under cursor
+    // The world point under cursor should remain at the same screen position
+    const scaledWorldWidth = WORLD_WIDTH * oldScale;
+    const scaledWorldHeight = WORLD_HEIGHT * oldScale;
+    const oldOffsetX = (gameWidth - scaledWorldWidth) / 2 + cameraOffsetX;
+    const oldOffsetY = (gameHeight - scaledWorldHeight) / 2 + cameraOffsetY;
+
+    // Current world position in old scale
+    const worldX = (mouseScreenX - oldOffsetX) / oldScale;
+    const worldY = (mouseScreenY - oldOffsetY) / oldScale;
+
+    // Calculate how much to adjust camera offset
+    // to keep the same world point at the same screen position
+    const dx = -worldX * scaleDiff;
+    const dy = -worldY * scaleDiff;
+
+    cameraOffsetX += dx;
+    cameraOffsetY += dy;
+
+    console.log('🔍 Zoom level:', zoomLevel.toFixed(2), 'at cursor position');
   }
 }, { passive: false });
 
@@ -1276,63 +1355,156 @@ function displayRoomList(rooms) {
 function getRoomEmoji(roomName) {
   const emojis = {
     'lobby': '🏠',
-    'meeting-room': '🎯',
-    'lounge': '☕'
+    'workspace-1': '💼',
+    'workspace-2': '💼',
+    'meeting-room-1': '🎯',
+    'meeting-room-2': '📊',
+    'huddle-room': '🤝',
+    'lounge': '☕',
+    'kitchen': '🍕',
+    'game-room': '🎮'
   };
   return emojis[roomName] || '🚪';
 }
 
 // UI is now drawn on canvas - no need for DOM updates
 
-// Initialize furniture based on room (using world coordinates 1600x1200)
+// Global car state - only ONE car in the entire game
+let globalCarLocation = { room: 'lobby', x: 1400, y: 600 };
+let globalCarCollected = false;
+
+// Initialize furniture for unified 3x3 map (all 9 rooms on one map)
+// Each room is 1600x1200, arranged in a 3x3 grid (4800x3600 total)
 function initializeFurniture(room) {
   furniture = [];
   collectibles = [];
 
-  if (room === 'lobby') {
-    // Lobby furniture in world coordinates
-    furniture.push(
-      { x: 200, y: 200, width: 120, height: 60, type: 'desk', color: '#8B4513' },
-      { x: 200, y: 260, width: 40, height: 40, type: 'chair', color: '#654321' },
-      { x: 500, y: 300, width: 120, height: 60, type: 'desk', color: '#8B4513' },
-      { x: 500, y: 360, width: 40, height: 40, type: 'chair', color: '#654321' },
-      { x: 900, y: 200, width: 60, height: 60, type: 'plant', color: '#228B22' },
-      { x: 100, y: 600, width: 60, height: 60, type: 'plant', color: '#228B22' },
-      { x: 700, y: 500, width: 150, height: 80, type: 'table', color: '#A0522D' }
-    );
-    // Add car collectible
-    collectibles.push(
-      { x: 1200, y: 400, width: 80, height: 50, type: 'car', collected: false }
-    );
-  } else if (room === 'meeting-room') {
-    // Meeting room furniture in world coordinates
-    furniture.push(
-      { x: 400, y: 400, width: 300, height: 150, type: 'conference-table', color: '#654321' },
-      { x: 370, y: 360, width: 40, height: 40, type: 'chair', color: '#8B4513' },
-      { x: 690, y: 360, width: 40, height: 40, type: 'chair', color: '#8B4513' },
-      { x: 370, y: 540, width: 40, height: 40, type: 'chair', color: '#8B4513' },
-      { x: 690, y: 540, width: 40, height: 40, type: 'chair', color: '#8B4513' },
-      { x: 150, y: 200, width: 60, height: 60, type: 'plant', color: '#228B22' },
-      { x: 900, y: 200, width: 60, height: 60, type: 'plant', color: '#228B22' }
-    );
-    // Add car collectible
-    collectibles.push(
-      { x: 1100, y: 700, width: 80, height: 50, type: 'car', collected: false }
-    );
-  } else if (room === 'lounge') {
-    // Lounge furniture in world coordinates
-    furniture.push(
-      { x: 300, y: 300, width: 150, height: 120, type: 'sofa', color: '#4A4A4A' },
-      { x: 650, y: 300, width: 150, height: 120, type: 'sofa', color: '#4A4A4A' },
-      { x: 450, y: 500, width: 120, height: 120, type: 'coffee-table', color: '#8B4513' },
-      { x: 100, y: 200, width: 60, height: 60, type: 'plant', color: '#228B22' },
-      { x: 900, y: 600, width: 80, height: 80, type: 'vending-machine', color: '#C41E3A' }
-    );
-    // Add car collectible
-    collectibles.push(
-      { x: 1300, y: 900, width: 80, height: 50, type: 'car', collected: false }
-    );
+  // Room offsets for 3x3 grid
+  // Row 1: Meeting-2 (0,0), Meeting-1 (1600,0), Huddle (3200,0)
+  // Row 2: Workspace-1 (0,1200), Lobby (1600,1200), Workspace-2 (3200,1200)
+  // Row 3: Lounge (0,2400), Kitchen (1600,2400), Game Room (3200,2400)
+
+  // MEETING ROOM 2 (Top Left: 0, 0)
+  const mr2X = 0, mr2Y = 0;
+  furniture.push(
+    { x: mr2X + 400, y: mr2Y + 450, width: 300, height: 150, type: 'conference-table', color: '#654321' },
+    { x: mr2X + 350, y: mr2Y + 400, width: 40, height: 40, type: 'chair', color: '#8B4513' },
+    { x: mr2X + 700, y: mr2Y + 400, width: 40, height: 40, type: 'chair', color: '#8B4513' },
+    { x: mr2X + 350, y: mr2Y + 600, width: 40, height: 40, type: 'chair', color: '#8B4513' },
+    { x: mr2X + 700, y: mr2Y + 600, width: 40, height: 40, type: 'chair', color: '#8B4513' },
+    { x: mr2X + 900, y: mr2Y + 300, width: 60, height: 60, type: 'plant', color: '#228B22' }
+  );
+
+  // MEETING ROOM 1 (Top Center: 1600, 0)
+  const mr1X = 1600, mr1Y = 0;
+  furniture.push(
+    { x: mr1X + 600, y: mr1Y + 400, width: 400, height: 200, type: 'conference-table', color: '#654321' },
+    { x: mr1X + 550, y: mr1Y + 350, width: 40, height: 40, type: 'chair', color: '#8B4513' },
+    { x: mr1X + 750, y: mr1Y + 350, width: 40, height: 40, type: 'chair', color: '#8B4513' },
+    { x: mr1X + 950, y: mr1Y + 350, width: 40, height: 40, type: 'chair', color: '#8B4513' },
+    { x: mr1X + 550, y: mr1Y + 600, width: 40, height: 40, type: 'chair', color: '#8B4513' },
+    { x: mr1X + 750, y: mr1Y + 600, width: 40, height: 40, type: 'chair', color: '#8B4513' },
+    { x: mr1X + 950, y: mr1Y + 600, width: 40, height: 40, type: 'chair', color: '#8B4513' },
+    { x: mr1X + 200, y: mr1Y + 200, width: 60, height: 60, type: 'plant', color: '#228B22' },
+    { x: mr1X + 1300, y: mr1Y + 200, width: 60, height: 60, type: 'plant', color: '#228B22' }
+  );
+
+  // HUDDLE ROOM (Top Right: 3200, 0)
+  const hudX = 3200, hudY = 0;
+  furniture.push(
+    { x: hudX + 700, y: hudY + 450, width: 200, height: 120, type: 'table', color: '#A0522D' },
+    { x: hudX + 650, y: hudY + 400, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: hudX + 900, y: hudY + 400, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: hudX + 650, y: hudY + 570, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: hudX + 900, y: hudY + 570, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: hudX + 1200, y: hudY + 300, width: 60, height: 60, type: 'plant', color: '#228B22' }
+  );
+
+  // WORKSPACE 1 (Middle Left: 0, 1200)
+  const ws1X = 0, ws1Y = 1200;
+  furniture.push(
+    { x: ws1X + 200, y: ws1Y + 200, width: 120, height: 60, type: 'desk', color: '#8B4513' },
+    { x: ws1X + 200, y: ws1Y + 260, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: ws1X + 500, y: ws1Y + 200, width: 120, height: 60, type: 'desk', color: '#8B4513' },
+    { x: ws1X + 500, y: ws1Y + 260, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: ws1X + 200, y: ws1Y + 500, width: 120, height: 60, type: 'desk', color: '#8B4513' },
+    { x: ws1X + 200, y: ws1Y + 560, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: ws1X + 500, y: ws1Y + 500, width: 120, height: 60, type: 'desk', color: '#8B4513' },
+    { x: ws1X + 500, y: ws1Y + 560, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: ws1X + 900, y: ws1Y + 350, width: 60, height: 60, type: 'plant', color: '#228B22' }
+  );
+
+  // LOBBY (Middle Center: 1600, 1200) - SPAWN POINT
+  const lobbyX = 1600, lobbyY = 1200;
+  furniture.push(
+    { x: lobbyX + 700, y: lobbyY + 300, width: 200, height: 80, type: 'desk', color: '#8B4513' },
+    { x: lobbyX + 750, y: lobbyY + 380, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: lobbyX + 400, y: lobbyY + 500, width: 80, height: 60, type: 'sofa', color: '#4A4A4A' },
+    { x: lobbyX + 600, y: lobbyY + 500, width: 80, height: 60, type: 'sofa', color: '#4A4A4A' },
+    { x: lobbyX + 1000, y: lobbyY + 500, width: 80, height: 60, type: 'sofa', color: '#4A4A4A' },
+    { x: lobbyX + 700, y: lobbyY + 600, width: 100, height: 100, type: 'coffee-table', color: '#A0522D' },
+    { x: lobbyX + 200, y: lobbyY + 200, width: 60, height: 60, type: 'plant', color: '#228B22' },
+    { x: lobbyX + 1300, y: lobbyY + 200, width: 60, height: 60, type: 'plant', color: '#228B22' },
+    { x: lobbyX + 200, y: lobbyY + 900, width: 60, height: 60, type: 'plant', color: '#228B22' },
+    { x: lobbyX + 1300, y: lobbyY + 900, width: 60, height: 60, type: 'plant', color: '#228B22' }
+  );
+
+  // Add car in Lobby if not collected
+  if (!globalCarCollected) {
+    collectibles.push({
+      x: lobbyX + 1400,
+      y: lobbyY + 600,
+      width: 80,
+      height: 50,
+      type: 'car',
+      collected: false
+    });
   }
+
+  // WORKSPACE 2 (Middle Right: 3200, 1200)
+  const ws2X = 3200, ws2Y = 1200;
+  furniture.push(
+    { x: ws2X + 800, y: ws2Y + 200, width: 120, height: 60, type: 'desk', color: '#8B4513' },
+    { x: ws2X + 800, y: ws2Y + 260, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: ws2X + 1100, y: ws2Y + 200, width: 120, height: 60, type: 'desk', color: '#8B4513' },
+    { x: ws2X + 1100, y: ws2Y + 260, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: ws2X + 800, y: ws2Y + 500, width: 120, height: 60, type: 'desk', color: '#8B4513' },
+    { x: ws2X + 800, y: ws2Y + 560, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: ws2X + 1100, y: ws2Y + 500, width: 120, height: 60, type: 'desk', color: '#8B4513' },
+    { x: ws2X + 1100, y: ws2Y + 560, width: 40, height: 40, type: 'chair', color: '#654321' },
+    { x: ws2X + 600, y: ws2Y + 350, width: 60, height: 60, type: 'plant', color: '#228B22' }
+  );
+
+  // LOUNGE (Bottom Left: 0, 2400)
+  const loungeX = 0, loungeY = 2400;
+  furniture.push(
+    { x: loungeX + 300, y: loungeY + 400, width: 150, height: 120, type: 'sofa', color: '#4A4A4A' },
+    { x: loungeX + 650, y: loungeY + 400, width: 150, height: 120, type: 'sofa', color: '#4A4A4A' },
+    { x: loungeX + 450, y: loungeY + 600, width: 120, height: 120, type: 'coffee-table', color: '#8B4513' },
+    { x: loungeX + 200, y: loungeY + 200, width: 60, height: 60, type: 'plant', color: '#228B22' },
+    { x: loungeX + 900, y: loungeY + 800, width: 60, height: 60, type: 'plant', color: '#228B22' }
+  );
+
+  // KITCHEN (Bottom Center: 1600, 2400)
+  const kitchenX = 1600, kitchenY = 2400;
+  furniture.push(
+    { x: kitchenX + 300, y: kitchenY + 300, width: 200, height: 80, type: 'table', color: '#8B4513' },
+    { x: kitchenX + 700, y: kitchenY + 300, width: 200, height: 80, type: 'table', color: '#8B4513' },
+    { x: kitchenX + 1100, y: kitchenY + 300, width: 200, height: 80, type: 'table', color: '#8B4513' },
+    { x: kitchenX + 1200, y: kitchenY + 600, width: 80, height: 80, type: 'vending-machine', color: '#C41E3A' },
+    { x: kitchenX + 1300, y: kitchenY + 600, width: 80, height: 80, type: 'vending-machine', color: '#4169E1' },
+    { x: kitchenX + 200, y: kitchenY + 800, width: 60, height: 60, type: 'plant', color: '#228B22' }
+  );
+
+  // GAME ROOM (Bottom Right: 3200, 2400)
+  const gameX = 3200, gameY = 2400;
+  furniture.push(
+    { x: gameX + 400, y: gameY + 400, width: 180, height: 100, type: 'table', color: '#228B22' },
+    { x: gameX + 900, y: gameY + 400, width: 180, height: 100, type: 'table', color: '#654321' },
+    { x: gameX + 600, y: gameY + 700, width: 100, height: 60, type: 'sofa', color: '#4A4A4A' },
+    { x: gameX + 900, y: gameY + 700, width: 100, height: 60, type: 'sofa', color: '#4A4A4A' },
+    { x: gameX + 1300, y: gameY + 300, width: 60, height: 60, type: 'plant', color: '#228B22' }
+  );
 }
 
 // Draw furniture
@@ -1750,11 +1922,91 @@ function gameLoop() {
     ctx.stroke();
   }
 
+  // Draw room selection overlay when zoomed out
+  if (zoomLevel <= 0.7) {
+    drawRoomSelectionOverlay();
+  } else {
+    // Clear room bounds when not zoomed out
+    canvas.roomBounds = [];
+  }
+
   // Draw UI overlay on top
   drawUI();
 
   frameCount++;
   requestAnimationFrame(gameLoop);
+}
+
+// Draw room selection overlay (when zoomed out)
+function drawRoomSelectionOverlay() {
+  // Clear previous room bounds
+  canvas.roomBounds = [];
+
+  // Define 3x3 room grid with names and positions
+  const rooms = [
+    // Row 1
+    { name: 'Meeting Room 2', emoji: '📊', worldX: 0, worldY: 0, width: 1600, height: 1200, color: '#e6f3e6' },
+    { name: 'Meeting Room 1', emoji: '🎯', worldX: 1600, worldY: 0, width: 1600, height: 1200, color: '#e6f3e6' },
+    { name: 'Huddle Room', emoji: '🤝', worldX: 3200, worldY: 0, width: 1600, height: 1200, color: '#fff0e6' },
+    // Row 2
+    { name: 'Workspace 1', emoji: '💼', worldX: 0, worldY: 1200, width: 1600, height: 1200, color: '#f5e6d3' },
+    { name: 'Lobby', emoji: '🏠', worldX: 1600, worldY: 1200, width: 1600, height: 1200, color: '#e8f4f8' },
+    { name: 'Workspace 2', emoji: '💼', worldX: 3200, worldY: 1200, width: 1600, height: 1200, color: '#f5e6d3' },
+    // Row 3
+    { name: 'Lounge', emoji: '☕', worldX: 0, worldY: 2400, width: 1600, height: 1200, color: '#f0e6f5' },
+    { name: 'Kitchen', emoji: '🍕', worldX: 1600, worldY: 2400, width: 1600, height: 1200, color: '#fff5e6' },
+    { name: 'Game Room', emoji: '🎮', worldX: 3200, worldY: 2400, width: 1600, height: 1200, color: '#ffe6e6' }
+  ];
+
+  ctx.save();
+
+  rooms.forEach(room => {
+    // Convert room world boundaries to screen coordinates
+    const topLeft = worldToScreen(room.worldX, room.worldY);
+    const bottomRight = worldToScreen(room.worldX + room.width, room.worldY + room.height);
+    const center = worldToScreen(room.worldX + room.width / 2, room.worldY + room.height / 2);
+
+    const screenWidth = bottomRight.x - topLeft.x;
+    const screenHeight = bottomRight.y - topLeft.y;
+
+    // Draw room frame/border
+    ctx.strokeStyle = '#667eea';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(topLeft.x, topLeft.y, screenWidth, screenHeight);
+
+    // Draw semi-transparent background
+    ctx.fillStyle = room.color + '40'; // Add transparency
+    ctx.fillRect(topLeft.x, topLeft.y, screenWidth, screenHeight);
+
+    // Draw room name and emoji in center
+    const fontSize = Math.max(16, Math.min(32, screenWidth / 10));
+    ctx.fillStyle = '#333';
+    ctx.font = `bold ${fontSize}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Draw emoji
+    ctx.font = `${fontSize * 2}px Arial`;
+    ctx.fillText(room.emoji, center.x, center.y - fontSize);
+
+    // Draw room name
+    ctx.font = `bold ${fontSize}px Arial`;
+    ctx.fillText(room.name, center.x, center.y + fontSize);
+
+    // Store clickable bounds for room selection
+    if (!canvas.roomBounds) canvas.roomBounds = [];
+    canvas.roomBounds.push({
+      x: topLeft.x,
+      y: topLeft.y,
+      width: screenWidth,
+      height: screenHeight,
+      room: room,
+      centerWorldX: room.worldX + room.width / 2,
+      centerWorldY: room.worldY + room.height / 2
+    });
+  });
+
+  ctx.restore();
 }
 
 function drawFloor() {
@@ -1773,15 +2025,47 @@ function drawFloor() {
   const offsetX = (gameWidth - scaledWorldWidth) / 2;
   const offsetY = (gameHeight - scaledWorldHeight) / 2;
 
+  // Function to get zone colors based on world coordinates
+  function getZoneColors(worldX, worldY) {
+    // Determine which zone (room) based on 3x3 grid
+    // Each zone is 1600x1200
+    const zoneX = Math.floor(worldX / 1600); // 0, 1, or 2
+    const zoneY = Math.floor(worldY / 1200); // 0, 1, or 2
+
+    // Row 1 (y=0): Meeting-2, Meeting-1, Huddle
+    // Row 2 (y=1): Workspace-1, Lobby, Workspace-2
+    // Row 3 (y=2): Lounge, Kitchen, Game Room
+
+    if (zoneY === 0) { // Top row
+      if (zoneX === 0) return { light: '#e6f3e6', dark: '#d0e8d0' }; // Meeting Room 2 (green)
+      if (zoneX === 1) return { light: '#e6f3e6', dark: '#d0e8d0' }; // Meeting Room 1 (green)
+      if (zoneX === 2) return { light: '#fff0e6', dark: '#ffe0cc' }; // Huddle (peach)
+    } else if (zoneY === 1) { // Middle row
+      if (zoneX === 0) return { light: '#f5e6d3', dark: '#e8d4ba' }; // Workspace 1 (beige)
+      if (zoneX === 1) return { light: '#e8f4f8', dark: '#d0e8f0' }; // Lobby (blue)
+      if (zoneX === 2) return { light: '#f5e6d3', dark: '#e8d4ba' }; // Workspace 2 (beige)
+    } else if (zoneY === 2) { // Bottom row
+      if (zoneX === 0) return { light: '#f0e6f5', dark: '#e0d0e8' }; // Lounge (lavender)
+      if (zoneX === 1) return { light: '#fff5e6', dark: '#ffe8cc' }; // Kitchen (yellow)
+      if (zoneX === 2) return { light: '#ffe6e6', dark: '#ffcccc' }; // Game Room (pink)
+    }
+
+    // Default (shouldn't happen)
+    return { light: '#d4d4d4', dark: '#c4c4c4' };
+  }
+
   for (let x = 0; x < WORLD_WIDTH; x += worldTileSize) {
     for (let y = 0; y < WORLD_HEIGHT; y += worldTileSize) {
       const screenX = x * scale + offsetX;
       const screenY = y * scale + offsetY;
       const screenTileSize = worldTileSize * scale;
 
-      // Alternate tile colors for checkerboard pattern
+      // Get colors based on this tile's zone
+      const colors = getZoneColors(x, y);
+
+      // Alternate tile colors for checkerboard pattern with zone-specific colors
       const isLight = (Math.floor(x / worldTileSize) + Math.floor(y / worldTileSize)) % 2 === 0;
-      ctx.fillStyle = isLight ? '#d4d4d4' : '#c4c4c4';
+      ctx.fillStyle = isLight ? colors.light : colors.dark;
       ctx.fillRect(screenX, screenY, screenTileSize, screenTileSize);
 
       // Tile border
