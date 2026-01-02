@@ -1014,29 +1014,41 @@ function loadSavedDecorations() {
     const savedFloorTypes = localStorage.getItem('virtualOfficeFloorTypes');
     const savedTileFloors = localStorage.getItem('virtualOfficeTileFloors');
 
+    console.log('📂 Loading decorations from localStorage...');
+
     if (savedFurniture) {
       furniture = JSON.parse(savedFurniture);
       console.log('🛋️ Loaded', furniture.length, 'saved objects');
+    } else {
+      console.log('🛋️ No saved furniture found');
     }
 
     if (savedColors) {
       customRoomColors = JSON.parse(savedColors);
-      console.log('🎨 Loaded saved room colors');
+      console.log('🎨 Loaded', Object.keys(customRoomColors).length, 'room colors');
+    } else {
+      console.log('🎨 No saved room colors found');
     }
 
     if (savedCustomObjects) {
       customObjects = JSON.parse(savedCustomObjects);
-      console.log('📸 Loaded saved custom images');
+      console.log('📸 Loaded', Object.keys(customObjects).length, 'custom object categories');
+    } else {
+      console.log('📸 No saved custom objects found');
     }
 
     if (savedFloorTypes) {
       customRoomFloorTypes = JSON.parse(savedFloorTypes);
-      console.log('🟫 Loaded saved floor types');
+      console.log('🟫 Loaded', Object.keys(customRoomFloorTypes).length, 'room floor types');
+    } else {
+      console.log('🟫 No saved floor types found');
     }
 
     if (savedTileFloors) {
       customTileFloors = JSON.parse(savedTileFloors);
-      console.log('🔲 Loaded saved tile floors');
+      console.log('🔲 Loaded', Object.keys(customTileFloors).length, 'tile floors');
+    } else {
+      console.log('🔲 No saved tile floors found');
     }
   } catch (error) {
     console.error('❌ Error loading saved decorations:', error);
@@ -1051,7 +1063,12 @@ function saveDecorations() {
     localStorage.setItem('virtualOfficeCustomObjects', JSON.stringify(customObjects));
     localStorage.setItem('virtualOfficeFloorTypes', JSON.stringify(customRoomFloorTypes));
     localStorage.setItem('virtualOfficeTileFloors', JSON.stringify(customTileFloors));
-    console.log('💾 Saved decorations to localStorage');
+    console.log('💾 Saved decorations to localStorage:');
+    console.log('  - Furniture:', furniture.length, 'items');
+    console.log('  - Room colors:', Object.keys(customRoomColors).length, 'rooms');
+    console.log('  - Floor types:', Object.keys(customRoomFloorTypes).length, 'rooms');
+    console.log('  - Tile floors:', Object.keys(customTileFloors).length, 'tiles');
+    console.log('  - Custom objects:', Object.keys(customObjects).length, 'categories');
   } catch (error) {
     console.error('❌ Error saving decorations:', error);
   }
@@ -1107,9 +1124,13 @@ socket.on('init', (data) => {
   });
   console.log('👥 Other players:', otherPlayers.size);
 
-  // Initialize furniture for this room
-  initializeFurniture(currentRoom);
-  console.log('🪑 Furniture initialized:', furniture.length, 'items');
+  // Initialize furniture only if no saved furniture exists
+  if (furniture.length === 0) {
+    initializeFurniture(currentRoom);
+    console.log('🪑 Default furniture initialized:', furniture.length, 'items');
+  } else {
+    console.log('🪑 Using saved furniture:', furniture.length, 'items');
+  }
 
   // Switch to game screen
   loginScreen.classList.remove('active');
@@ -1258,8 +1279,8 @@ socket.on('roomChanged', (data) => {
     }
   });
 
-  // Initialize furniture for new room
-  initializeFurniture(currentRoom);
+  // Don't reinitialize furniture when switching rooms on unified map
+  // Furniture is persistent across all rooms
 
   console.log(`📍 Moved to room: ${currentRoom}`);
 });
@@ -1335,7 +1356,8 @@ window.addEventListener('keydown', (e) => {
       const index = tempFurniture.indexOf(hoveredObject);
       if (index > -1) {
         const removedObj = tempFurniture.splice(index, 1)[0];
-        console.log('🗑️ Removed object:', removedObj.name);
+        const objName = removedObj.name || removedObj.type || 'Custom Object';
+        console.log('🗑️ Removed object:', objName, '- Remember to Save!');
         hoveredObject = null;
       }
       e.preventDefault();
@@ -1344,11 +1366,11 @@ window.addEventListener('keydown', (e) => {
     else if (isEditingObjects && hoveredFloor) {
       if (hoveredFloor.type === 'tile') {
         delete tempCustomTileFloors[hoveredFloor.id];
-        console.log('🗑️ Removed tile floor:', hoveredFloor.id);
+        console.log('🗑️ Removed tile floor:', hoveredFloor.id, '- Remember to Save!');
       } else if (hoveredFloor.type === 'room') {
         delete tempCustomRoomFloorTypes[hoveredFloor.id];
         delete tempCustomRoomColors[hoveredFloor.id];
-        console.log('🗑️ Removed room floor:', hoveredFloor.id);
+        console.log('🗑️ Removed room floor:', hoveredFloor.id, '- Remember to Save!');
       }
       hoveredFloor = null;
       e.preventDefault();
