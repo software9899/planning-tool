@@ -246,6 +246,7 @@ body {
 
 #mic-btn,
 #translate-btn,
+#translator-btn,
 #history-btn {
   width: 45px;
   height: 45px;
@@ -264,6 +265,7 @@ body {
 
 #mic-btn:hover,
 #translate-btn:hover,
+#translator-btn:hover,
 #history-btn:hover {
   background: #5568d3;
   transform: scale(1.05);
@@ -284,6 +286,14 @@ body {
 
 #translate-btn.active {
   background: #FFA500;
+}
+
+#translator-btn {
+  background: #00BCD4;
+}
+
+#translator-btn:hover {
+  background: #0097A7;
 }
 
 #history-btn {

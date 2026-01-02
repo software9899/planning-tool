@@ -51,6 +51,7 @@
       <div id="chat-container">
         <button id="mic-btn" title="กดค้างเพื่อพูด">🎤</button>
         <button id="history-btn" title="ดูประวัติแชท">📜</button>
+        <button id="translator-btn" title="เปิด/ปิดโหมด Translator">🤖</button>
         <div class="chat-input-container">
           <input
             type="text"
@@ -84,6 +85,11 @@
           <div class="settings-group">
             <label>เวลาแสดง: <span id="display-time-value">5</span> วินาที</label>
             <input type="range" id="display-time-slider" min="2" max="10" value="5" step="1">
+          </div>
+          <div class="settings-group">
+            <label>🤖 AI API Key (สำหรับ Translator):</label>
+            <input type="password" id="ai-api-key-input" placeholder="sk-..." style="width: 100%; padding: 8px; margin-top: 5px; border: 2px solid #ddd; border-radius: 4px;">
+            <small style="color: #666; font-size: 12px;">แปลและแก้ไวยากรณ์เป็นภาษาอังกฤษอัตโนมัติก่อนส่งแชท</small>
           </div>
           <button id="close-settings-btn">ปิด</button>
         </div>

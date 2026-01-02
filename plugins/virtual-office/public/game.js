@@ -37,6 +37,8 @@ const TILE_SIZE = 100; // Size of each floor tile in world coordinates
 let hoveredFloor = null; // Track hovered floor for deletion {type: 'room'|'tile', id: string}
 let customObjects = {}; // Store custom uploaded images for each category
 let imageCache = {}; // Cache for loaded images
+let aiApiKey = ''; // Store AI API key for translator
+let translatorMode = false; // Track if translator mode is active
 let collectibles = []; // Cars and other collectible items
 let animationFrame = 0;
 let chatPanelOpen = false; // Track if chat panel is open
@@ -1437,17 +1439,39 @@ function saveChatHistory(message, translation = null) {
   localStorage.setItem('virtualOfficeChatHistory', JSON.stringify(chatHistory));
 }
 
-function sendMessage() {
+async function sendMessage() {
   const message = chatInput.value.trim();
   if (!message) return;
 
-  // Save to history
-  saveChatHistory(message);
+  let finalMessage = message;
+
+  // If translator mode is ON, translate and correct grammar with AI
+  if (translatorMode && aiApiKey) {
+    try {
+      // Show loading indicator
+      chatInput.value = '🤖 กำลังแปลและแก้ไวยากรณ์...';
+      chatInput.disabled = true;
+
+      // Translate and correct grammar to English
+      finalMessage = await correctGrammar(message);
+
+      // Re-enable input
+      chatInput.disabled = false;
+    } catch (error) {
+      console.error('❌ AI translation error:', error);
+      chatInput.disabled = false;
+      // Continue with original message if translation fails
+      finalMessage = message;
+    }
+  }
+
+  // Save to history (save corrected version)
+  saveChatHistory(finalMessage);
 
   // Add to sidebar chat (own message)
   sidebarChatMessages.push({
     username: currentPlayer ? currentPlayer.username : 'You',
-    message: message,
+    message: finalMessage,
     timestamp: new Date(),
     isOwn: true
   });
@@ -1458,11 +1482,11 @@ function sendMessage() {
   }
 
   // Always send as global chat (visible to everyone in room)
-  socket.emit('globalChat', message);
+  socket.emit('globalChat', finalMessage);
 
   // Show on own character immediately
   if (currentPlayer) {
-    currentPlayer.showChatBubble(message);
+    currentPlayer.showChatBubble(finalMessage);
   }
 
   // Clear input and blur to allow WASD movement
@@ -1494,6 +1518,95 @@ const closeSettingsBtn = document.getElementById('close-settings-btn');
 if (closeSettingsBtn && settingsModal) {
   closeSettingsBtn.addEventListener('click', () => {
     settingsModal.classList.remove('active');
+    // Save AI API key when closing settings
+    const aiKeyInput = document.getElementById('ai-api-key-input');
+    if (aiKeyInput && aiKeyInput.value) {
+      aiApiKey = aiKeyInput.value;
+      localStorage.setItem('virtualOfficeAiApiKey', aiApiKey);
+      console.log('✅ AI API Key saved');
+    }
+  });
+}
+
+// Load AI API key on page load
+const savedAiKey = localStorage.getItem('virtualOfficeAiApiKey');
+if (savedAiKey) {
+  aiApiKey = savedAiKey;
+  const aiKeyInput = document.getElementById('ai-api-key-input');
+  if (aiKeyInput) {
+    aiKeyInput.value = savedAiKey;
+  }
+  console.log('🔑 AI API Key loaded');
+}
+
+// AI Grammar Correction Function
+async function correctGrammar(text) {
+  if (!aiApiKey) {
+    console.error('❌ No AI API key set');
+    return text;
+  }
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${aiApiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a translation and grammar correction assistant. Translate the input text to English and correct the grammar. If the input is already in English, just correct the grammar. Return ONLY the corrected English text without any explanation or additional comments.'
+          },
+          {
+            role: 'user',
+            content: text
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 200
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const correctedText = data.choices[0].message.content.trim();
+    console.log('✅ Translated to English:', text, '→', correctedText);
+    return correctedText;
+  } catch (error) {
+    console.error('❌ Translation failed:', error);
+    alert('⚠️ ไม่สามารถแปลและแก้ไวยากรณ์ได้ กรุณาตรวจสอบ API Key');
+    return text; // Return original text if translation fails
+  }
+}
+
+// Translator mode toggle button
+const translatorBtn = document.getElementById('translator-btn');
+if (translatorBtn) {
+  translatorBtn.addEventListener('click', () => {
+    translatorMode = !translatorMode;
+    if (translatorMode) {
+      translatorBtn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+      translatorBtn.style.color = 'white';
+      console.log('🤖 Translator mode: ON');
+
+      // Check if API key is set
+      if (!aiApiKey) {
+        alert('⚠️ กรุณาตั้งค่า AI API Key ในเมนู Settings ก่อน');
+        translatorMode = false;
+        translatorBtn.style.background = '';
+        translatorBtn.style.color = '';
+      }
+    } else {
+      translatorBtn.style.background = '';
+      translatorBtn.style.color = '';
+      console.log('🤖 Translator mode: OFF');
+    }
   });
 }
 
