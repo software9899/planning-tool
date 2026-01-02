@@ -250,6 +250,94 @@ let isRecording = false;
 let mediaRecorder = null;
 let audioChunks = [];
 
+// Speech recognition (Speech-to-Text)
+let recognition = null;
+let isListening = false;
+
+// Initialize Speech Recognition
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true; // Show interim results while speaking
+  recognition.lang = 'th-TH'; // Thai language, can change to 'en-US' for English
+  recognition.maxAlternatives = 1;
+
+  // Check protocol and warn user
+  if (window.location.protocol === 'http:' && !window.location.hostname.includes('localhost')) {
+    console.warn('⚠️ Speech Recognition works best with HTTPS. Permissions may not persist.');
+  }
+
+  recognition.onstart = () => {
+    isListening = true;
+    if (micBtn) {
+      micBtn.style.background = '#f44336';
+      micBtn.style.transform = 'scale(1.1)';
+    }
+    console.log('🎤 Speech recognition started');
+  };
+
+  recognition.onresult = (event) => {
+    // Get the latest result
+    const lastResult = event.results[event.results.length - 1];
+    const transcript = lastResult[0].transcript;
+    const isFinal = lastResult.isFinal;
+
+    console.log('📝 Recognized:', transcript, isFinal ? '(final)' : '(interim)');
+
+    // Update chat input with transcript
+    chatInput.value = transcript;
+
+    // Only focus on final result
+    if (isFinal) {
+      chatInput.focus();
+    }
+  };
+
+  recognition.onerror = (event) => {
+    console.error('❌ Speech recognition error:', event.error);
+
+    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      const isHttps = window.location.protocol === 'https:';
+      const isLocalhost = window.location.hostname.includes('localhost') || window.location.hostname === '127.0.0.1';
+
+      let message = '⚠️ ไม่สามารถใช้ไมโครโฟนได้\n\n';
+
+      if (!isHttps && !isLocalhost) {
+        message += '❌ ต้องใช้ HTTPS เท่านั้น!\n\n';
+        message += 'วิธีแก้:\n';
+        message += '1. เปิดเว็บผ่าน https://\n';
+        message += '2. หรือใช้ localhost แทน\n';
+        message += '\nตอนนี้: ' + window.location.protocol + '//' + window.location.host;
+      } else {
+        message += 'กรุณาอนุญาตไมโครโฟน:\n\n';
+        message += '1. คลิก 🔒 ข้างหน้า URL\n';
+        message += '2. เลือก "อนุญาต" สำหรับไมโครโฟน\n';
+        message += '3. รีเฟรชหน้าเว็บ (F5)';
+      }
+
+      alert(message);
+    } else if (event.error === 'no-speech') {
+      console.log('⚠️ ไม่ได้ยินเสียง กรุณาพูดใหม่');
+    } else if (event.error === 'aborted') {
+      console.log('⚠️ Speech recognition aborted');
+    } else if (event.error === 'network') {
+      alert('⚠️ เกิดข้อผิดพลาดเครือข่าย กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
+    }
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    if (micBtn) {
+      micBtn.style.background = '';
+      micBtn.style.transform = '';
+    }
+    console.log('🎤 Speech recognition ended');
+  };
+} else {
+  console.warn('⚠️ Speech Recognition not supported in this browser');
+}
+
 // Player class
 class Player {
   constructor(data) {
@@ -1126,6 +1214,7 @@ socket.on('init', (data) => {
     }
   });
   console.log('👥 Other players:', otherPlayers.size);
+  updateOnlinePlayersList();
 
   // Initialize furniture only if no saved furniture exists
   if (furniture.length === 0) {
@@ -1193,6 +1282,7 @@ socket.on('playerJoined', (playerData) => {
   if (playerData.id !== currentPlayer.id) {
     otherPlayers.set(playerData.id, new Player(playerData));
     console.log(`👋 ${playerData.username} joined the room`);
+    updateOnlinePlayersList();
   }
 });
 
@@ -1217,6 +1307,7 @@ socket.on('playerLeft', (playerId) => {
   if (player) {
     console.log(`👋 ${player.username} left the room`);
     otherPlayers.delete(playerId);
+    updateOnlinePlayersList();
   }
 });
 
@@ -1843,10 +1934,21 @@ function displayChatHistory() {
   });
 }
 
-// Microphone functionality
+// Microphone functionality - Voice Recording
 async function startRecording() {
   try {
+    console.log('🎤 Requesting microphone access...');
+    console.log('📍 URL:', window.location.href);
+    console.log('🌐 Protocol:', window.location.protocol);
+    console.log('🖥️ Browser:', navigator.userAgent);
+
+    // Check if getUserMedia is available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('getUserMedia is not supported in this browser');
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
     mediaRecorder = new MediaRecorder(stream);
     audioChunks = [];
 
@@ -1871,6 +1973,7 @@ async function startRecording() {
         if (currentPlayer) {
           currentPlayer.showChatBubble('🎤 Voice message');
         }
+        console.log('📤 Voice message sent!');
       };
 
       // Stop all tracks
@@ -1879,11 +1982,51 @@ async function startRecording() {
 
     mediaRecorder.start();
     isRecording = true;
-    micBtn.classList.add('active');
-    console.log('🎤 Recording started');
+    if (micBtn) {
+      micBtn.classList.add('active');
+      micBtn.style.background = '#f44336';
+      micBtn.style.transform = 'scale(1.1)';
+    }
+    console.log('✅ Recording... Hold the button and speak!');
   } catch (error) {
-    console.error('❌ Microphone access denied:', error);
-    alert('ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาอนุญาตการใช้งานไมโครโฟน');
+    console.error('❌ Microphone error:');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Full error:', error);
+
+    let errorMsg = '⚠️ ไม่สามารถเข้าถึงไมโครโฟนได้\n\n';
+    errorMsg += '🔧 Error: ' + error.name + '\n';
+    errorMsg += '📝 Message: ' + error.message + '\n\n';
+
+    if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+      errorMsg += '💡 วิธีแก้:\n\n';
+      errorMsg += '1. คลิก 🔒 ข้าง URL\n';
+      errorMsg += '2. "ตั้งค่าไซต์" → Microphone\n';
+      errorMsg += '3. เปลี่ยนเป็น "อนุญาต"\n';
+      errorMsg += '4. Refresh (F5) แล้วกดค้าง 🎤 อีกครั้ง\n\n';
+      errorMsg += 'หรือลอง:\n';
+      errorMsg += '• ปิดแอปอื่นที่ใช้ไมค์ (Zoom, Teams)\n';
+      errorMsg += '• เปลี่ยนไมค์เริ่มต้นในระบบ';
+    } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+      errorMsg += '❌ ไม่พบไมโครโฟน!\n\n';
+      errorMsg += 'ตรวจสอบ:\n';
+      errorMsg += '• ไมค์เสียบอยู่?\n';
+      errorMsg += '• ไมค์ทำงานในแอปอื่นได้?\n';
+      errorMsg += '• ลองเปลี่ยนพอร์ต USB';
+    } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+      errorMsg += '⚠️ ไมค์ถูกใช้งานอยู่!\n\n';
+      errorMsg += 'กรุณา:\n';
+      errorMsg += '• ปิดแท็บอื่นที่ใช้ไมค์\n';
+      errorMsg += '• ปิด Zoom, Teams, Discord\n';
+      errorMsg += '• รีสตาร์ทเบราว์เซอร์';
+    } else {
+      errorMsg += '💡 ลองทำ:\n';
+      errorMsg += '• Refresh (F5)\n';
+      errorMsg += '• รีสตาร์ทเบราว์เซอร์\n';
+      errorMsg += '• ตรวจสอบ Console (F12)';
+    }
+
+    alert(errorMsg);
   }
 }
 
@@ -1891,36 +2034,104 @@ function stopRecording() {
   if (mediaRecorder && isRecording) {
     mediaRecorder.stop();
     isRecording = false;
-    micBtn.classList.remove('active');
-    console.log('🎤 Recording stopped');
+    if (micBtn) {
+      micBtn.classList.remove('active');
+      micBtn.style.background = '';
+      micBtn.style.transform = '';
+    }
+    console.log('⏹️ Recording stopped');
   }
 }
 
-// Mouse events for mic button (hold to speak)
-micBtn.addEventListener('mousedown', () => {
-  startRecording();
-});
-
-micBtn.addEventListener('mouseup', () => {
-  stopRecording();
-});
-
-micBtn.addEventListener('mouseleave', () => {
-  if (isRecording) {
-    stopRecording();
+// Test microphone permissions first
+async function testMicrophoneAccess() {
+  // First check if getUserMedia is available
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert('⚠️ เบราว์เซอร์ไม่รองรับการใช้ไมโครโฟน\nกรุณาใช้ Chrome, Edge, หรือ Safari เวอร์ชันล่าสุด');
+    return false;
   }
-});
 
-// Touch events for mobile
-micBtn.addEventListener('touchstart', (e) => {
-  e.preventDefault();
-  startRecording();
-});
+  try {
+    console.log('🎤 Requesting microphone access...');
+    console.log('📍 Current URL:', window.location.href);
 
-micBtn.addEventListener('touchend', (e) => {
-  e.preventDefault();
-  stopRecording();
-});
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(track => track.stop());
+    console.log('✅ Microphone access granted!');
+    return true;
+  } catch (error) {
+    console.error('❌ Microphone access denied:', error);
+    console.log('Error name:', error.name);
+    console.log('Error message:', error.message);
+
+    let message = '⚠️ ไม่สามารถเข้าถึงไมโครโฟนได้\n\n';
+
+    // Check protocol
+    const isHttps = window.location.protocol === 'https:';
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    message += '📍 URL: ' + window.location.href + '\n';
+    message += '🔧 Error: ' + (error.name || error.message) + '\n\n';
+
+    if (!isHttps && !isLocalhost) {
+      message += '❌ ปัญหา: ไม่ใช่ HTTPS!\n\n';
+      message += 'วิธีแก้:\n';
+      message += '1. เปลี่ยนเป็น https://...\n';
+      message += '2. หรือใช้ http://localhost แทน IP\n';
+    } else {
+      message += '💡 วิธีแก้:\n\n';
+      message += '1️⃣ ตรวจสอบ Address Bar:\n';
+      message += '   • มี popup ขออนุญาต? → กด "อนุญาต"\n';
+      message += '   • คลิก 🔒 → Microphone → "อนุญาต"\n\n';
+
+      message += '2️⃣ ตั้งค่าเบราว์เซอร์:\n';
+      message += '   Chrome/Edge:\n';
+      message += '   • พิมพ์: chrome://settings/content/microphone\n';
+      message += '   • เพิ่ม http://localhost ใน "อนุญาต"\n\n';
+
+      message += '3️⃣ ตรวจสอบระบบ:\n';
+      message += '   • ไมค์เสียบอยู่?\n';
+      message += '   • ไมค์ทำงานในแอปอื่นได้?\n';
+      message += '   • ลองปิดแอปอื่นที่ใช้ไมค์\n\n';
+
+      message += '4️⃣ หลังจากแก้:\n';
+      message += '   • Refresh (F5)\n';
+      message += '   • คลิก 🎤 อีกครั้ง';
+    }
+
+    alert(message);
+    return false;
+  }
+}
+
+// Mic button - Hold to record voice (Original functionality)
+if (micBtn) {
+  // Mouse events for desktop
+  micBtn.addEventListener('mousedown', () => {
+    startRecording();
+  });
+
+  micBtn.addEventListener('mouseup', () => {
+    stopRecording();
+  });
+
+  micBtn.addEventListener('mouseleave', () => {
+    if (isRecording) {
+      stopRecording();
+    }
+  });
+
+  // Touch events for mobile
+  micBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    startRecording();
+  });
+
+  micBtn.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    stopRecording();
+  });
+}
 
 // Canvas mousedown for dragging objects or drawing partitions
 canvas.addEventListener('mousedown', (e) => {
@@ -3774,6 +3985,95 @@ function drawUI() {
 
   // Logout button remains null (can add back if needed)
   canvas.logoutButtonBounds = null;
+}
+
+// Update online players list in chat panel
+function updateOnlinePlayersList() {
+  const playersList = document.getElementById('online-players-list');
+  if (!playersList) return;
+
+  playersList.innerHTML = '';
+
+  if (otherPlayers.size === 0) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.style.padding = '20px 16px';
+    emptyMsg.style.textAlign = 'center';
+    emptyMsg.style.color = '#616161';
+    emptyMsg.style.fontSize = '12px';
+    emptyMsg.textContent = 'No other players online';
+    playersList.appendChild(emptyMsg);
+    return;
+  }
+
+  otherPlayers.forEach((player) => {
+    const item = document.createElement('div');
+    item.className = 'chat-list-item';
+
+    // Avatar
+    const avatar = document.createElement('div');
+    avatar.className = 'chat-avatar';
+    avatar.textContent = player.username.charAt(0).toUpperCase();
+    avatar.style.background = player.color;
+
+    // Info
+    const info = document.createElement('div');
+    info.className = 'chat-info';
+
+    const name = document.createElement('div');
+    name.className = 'chat-name';
+    name.textContent = player.username;
+
+    const status = document.createElement('div');
+    status.className = 'chat-status';
+    status.textContent = '🟢 Online';
+
+    info.appendChild(name);
+    info.appendChild(status);
+
+    item.appendChild(avatar);
+    item.appendChild(info);
+    playersList.appendChild(item);
+  });
+
+  console.log('📋 Updated players list:', otherPlayers.size, 'players');
+}
+
+// Toggle chat panel visibility
+const toggleChatPanelBtn = document.getElementById('toggle-chat-panel-btn');
+const chatPanel = document.getElementById('chat-panel');
+const chatSidebarItem = document.querySelector('.sidebar-item[data-tab="chat"]');
+
+if (toggleChatPanelBtn && chatPanel && chatSidebarItem) {
+  toggleChatPanelBtn.addEventListener('click', () => {
+    if (chatPanel.style.display === 'none') {
+      // Show panel
+      chatPanel.style.display = 'flex';
+      chatSidebarItem.classList.add('active');
+      console.log('💬 Chat panel shown');
+    } else {
+      // Hide panel
+      chatPanel.style.display = 'none';
+      chatSidebarItem.classList.remove('active');
+      console.log('💬 Chat panel hidden');
+    }
+    // Resize canvas after toggling to prevent blurriness
+    setTimeout(resizeCanvas, 50);
+  });
+
+  // Also toggle when clicking the Chat sidebar item
+  chatSidebarItem.addEventListener('click', () => {
+    if (chatPanel.style.display === 'none') {
+      chatPanel.style.display = 'flex';
+      chatSidebarItem.classList.add('active');
+      console.log('💬 Chat panel shown');
+    } else {
+      chatPanel.style.display = 'none';
+      chatSidebarItem.classList.remove('active');
+      console.log('💬 Chat panel hidden');
+    }
+    // Resize canvas after toggling to prevent blurriness
+    setTimeout(resizeCanvas, 50);
+  });
 }
 
 // Game loop
