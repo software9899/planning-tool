@@ -14,6 +14,12 @@ let keys = {};
 let currentChatMode = 'global';
 let currentRoom = 'lobby';
 let furniture = [];
+let tempFurniture = []; // Temporary furniture for editing mode
+let isEditingObjects = false; // Track if in object editing mode
+let hoveredObject = null; // Track which object is being hovered
+let draggingObject = null; // Track which object is being dragged
+let dragOffsetX = 0;
+let dragOffsetY = 0;
 let collectibles = []; // Cars and other collectible items
 let animationFrame = 0;
 let chatPanelOpen = false; // Track if chat panel is open
@@ -1248,10 +1254,22 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   }
 
-  // Open room selector on R
+  // Remove object on R (in edit mode) OR open room selector
   if (e.key === 'r' || e.key === 'R') {
-    showRoomSelector();
-    e.preventDefault();
+    // If in edit mode and hovering over an object, remove it
+    if (isEditingObjects && hoveredObject) {
+      const index = tempFurniture.indexOf(hoveredObject);
+      if (index > -1) {
+        const removedObj = tempFurniture.splice(index, 1)[0];
+        console.log('🗑️ Removed object:', removedObj.name);
+        hoveredObject = null;
+      }
+      e.preventDefault();
+    } else if (!isEditingObjects) {
+      // Otherwise, open room selector
+      showRoomSelector();
+      e.preventDefault();
+    }
   }
 });
 
@@ -1662,6 +1680,32 @@ micBtn.addEventListener('touchend', (e) => {
   stopRecording();
 });
 
+// Canvas mousedown for dragging objects
+canvas.addEventListener('mousedown', (e) => {
+  // Only handle dragging in edit mode
+  if (!isEditingObjects) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const worldPos = screenToWorld(x, y);
+
+  // Check if mousedown on existing temp object to start dragging
+  if (worldPos.x >= 0 && worldPos.x <= WORLD_WIDTH &&
+      worldPos.y >= 0 && worldPos.y <= WORLD_HEIGHT) {
+    const clickedObject = getTempObjectAtPosition(worldPos.x, worldPos.y);
+    if (clickedObject) {
+      // Start dragging this object
+      draggingObject = clickedObject;
+      dragOffsetX = worldPos.x - clickedObject.x;
+      dragOffsetY = worldPos.y - clickedObject.y;
+      canvas.style.cursor = 'grabbing';
+      console.log('🖱️ Started dragging object:', clickedObject.name);
+      e.preventDefault(); // Prevent click event from firing
+    }
+  }
+});
+
 // Canvas click detection
 canvas.addEventListener('click', (e) => {
   const rect = canvas.getBoundingClientRect();
@@ -1744,15 +1788,14 @@ canvas.addEventListener('click', (e) => {
     }
   }
 
-  // Object placement mode - place selected object on canvas
-  if (selectedObject && !clickedOnGrayArea) {
+  // Edit mode - place new objects (dragging is handled in mousedown)
+  if (isEditingObjects && selectedObject && !clickedOnGrayArea) {
     const worldPos = screenToWorld(x, y);
 
     // Only place if clicked within game world bounds
     if (worldPos.x >= 0 && worldPos.x <= WORLD_WIDTH &&
         worldPos.y >= 0 && worldPos.y <= WORLD_HEIGHT) {
 
-      // Create new furniture object centered on click position
       const newFurniture = {
         x: Math.max(selectedObject.width / 2, Math.min(WORLD_WIDTH - selectedObject.width / 2, worldPos.x - selectedObject.width / 2)),
         y: Math.max(selectedObject.height / 2, Math.min(WORLD_HEIGHT - selectedObject.height / 2, worldPos.y - selectedObject.height / 2)),
@@ -1761,26 +1804,22 @@ canvas.addEventListener('click', (e) => {
         type: selectedObject.id,
         color: selectedObject.color,
         emoji: selectedObject.emoji,
-        name: selectedObject.name
+        name: selectedObject.name,
+        isTemp: true
       };
 
-      // Add to furniture array
-      furniture.push(newFurniture);
+      // Add to temporary furniture array
+      tempFurniture.push(newFurniture);
 
-      console.log('🛋️ Placed object:', selectedObject.name, 'at', newFurniture.x, newFurniture.y);
+      console.log('🛋️ Placed object:', selectedObject.name, 'at', newFurniture.x, newFurniture.y, '(temp)');
 
       // DON'T clear selected object - keep it selected for continuous placement
-      // selectedObject stays selected so user can place multiple copies
-
-      // TODO: Emit to server for multiplayer sync
-      // socket.emit('placeObject', newFurniture);
-
       return;
     }
   }
 
-  // Click-to-move (only if clicked on game world, not gray area)
-  if (currentPlayer && !clickedOnGrayArea) {
+  // Click-to-move (only if clicked on game world, not gray area, and NOT in edit mode)
+  if (currentPlayer && !clickedOnGrayArea && !isEditingObjects) {
     const worldPos = screenToWorld(x, y);
 
     // Only move if clicked within game world bounds
@@ -1795,6 +1834,31 @@ canvas.addEventListener('click', (e) => {
   }
 });
 
+// Mouse up to stop dragging
+canvas.addEventListener('mouseup', (e) => {
+  if (draggingObject) {
+    console.log('🖱️ Stopped dragging object');
+    draggingObject = null;
+
+    // Update cursor based on what's under the mouse
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const worldPos = screenToWorld(x, y);
+
+    if (isEditingObjects) {
+      const objUnderMouse = getTempObjectAtPosition(worldPos.x, worldPos.y);
+      if (objUnderMouse) {
+        canvas.style.cursor = 'grab';
+      } else if (selectedObject) {
+        canvas.style.cursor = 'crosshair';
+      } else {
+        canvas.style.cursor = 'default';
+      }
+    }
+  }
+});
+
 // Mouse move for hover detection
 canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
@@ -1803,6 +1867,27 @@ canvas.addEventListener('mousemove', (e) => {
 
   // Convert to world coordinates for hover detection
   const worldPos = screenToWorld(mouseX, mouseY);
+
+  // Handle object dragging
+  if (draggingObject && isEditingObjects) {
+    draggingObject.x = Math.max(0, Math.min(WORLD_WIDTH - draggingObject.width, worldPos.x - dragOffsetX));
+    draggingObject.y = Math.max(0, Math.min(WORLD_HEIGHT - draggingObject.height, worldPos.y - dragOffsetY));
+    canvas.style.cursor = 'grabbing'; // Keep grabbing cursor while dragging
+    return;
+  }
+
+  // Check if hovering over objects in edit mode
+  if (isEditingObjects) {
+    hoveredObject = getTempObjectAtPosition(worldPos.x, worldPos.y);
+    if (hoveredObject) {
+      canvas.style.cursor = 'grab'; // Show grab cursor when hovering
+      return;
+    } else if (selectedObject) {
+      canvas.style.cursor = 'crosshair'; // Crosshair for placing new objects
+    } else {
+      canvas.style.cursor = 'default';
+    }
+  }
 
   // Check if hovering over any player
   hoveredPlayer = null;
@@ -2128,6 +2213,11 @@ function showObjectSelector() {
 
   if (!objectSidebar || !categoriesDiv || !itemsDiv) return;
 
+  // Enter editing mode
+  isEditingObjects = true;
+  // Copy current furniture to temp for editing
+  tempFurniture = JSON.parse(JSON.stringify(furniture));
+
   // Clear existing content
   categoriesDiv.innerHTML = '';
   itemsDiv.innerHTML = '';
@@ -2153,7 +2243,7 @@ function showObjectSelector() {
   showCategoryItems(firstCategory);
 
   objectSidebar.classList.add('active');
-  console.log('🛋️ Object sidebar opened');
+  console.log('🛋️ Object sidebar opened - Edit mode active');
 }
 
 // Show items for selected category
@@ -2202,10 +2292,54 @@ const closeSidebarBtn = document.getElementById('close-sidebar-btn');
 if (closeSidebarBtn) {
   closeSidebarBtn.addEventListener('click', () => {
     document.getElementById('object-sidebar').classList.remove('active');
-    // Clear selected object when closing sidebar
+    // Exit edit mode without saving (same as cancel)
+    isEditingObjects = false;
+    tempFurniture = [];
     selectedObject = null;
+    hoveredObject = null;
+    draggingObject = null;
     canvas.style.cursor = 'crosshair';
-    console.log('🛋️ Object sidebar closed');
+    console.log('🛋️ Object sidebar closed (changes discarded)');
+  });
+}
+
+// Save objects button
+const saveObjectsBtn = document.getElementById('save-objects-btn');
+if (saveObjectsBtn) {
+  saveObjectsBtn.addEventListener('click', () => {
+    // Apply temp furniture to permanent furniture
+    furniture = JSON.parse(JSON.stringify(tempFurniture));
+    console.log('💾 Saved', furniture.length, 'objects');
+
+    // Close sidebar and exit edit mode
+    document.getElementById('object-sidebar').classList.remove('active');
+    isEditingObjects = false;
+    tempFurniture = [];
+    selectedObject = null;
+    hoveredObject = null;
+    draggingObject = null;
+    canvas.style.cursor = 'crosshair';
+
+    // TODO: Emit to server for multiplayer sync
+    // socket.emit('updateFurniture', furniture);
+  });
+}
+
+// Cancel objects button
+const cancelObjectsBtn = document.getElementById('cancel-objects-btn');
+if (cancelObjectsBtn) {
+  cancelObjectsBtn.addEventListener('click', () => {
+    // Discard changes
+    console.log('❌ Cancelled object editing');
+
+    // Close sidebar and exit edit mode
+    document.getElementById('object-sidebar').classList.remove('active');
+    isEditingObjects = false;
+    tempFurniture = [];
+    selectedObject = null;
+    hoveredObject = null;
+    draggingObject = null;
+    canvas.style.cursor = 'crosshair';
   });
 }
 
@@ -2354,18 +2488,48 @@ function initializeFurniture(room) {
   );
 }
 
+// Helper function to get temp object at position
+function getTempObjectAtPosition(worldX, worldY) {
+  // Check in reverse order (top object first)
+  for (let i = tempFurniture.length - 1; i >= 0; i--) {
+    const obj = tempFurniture[i];
+    if (worldX >= obj.x && worldX <= obj.x + obj.width &&
+        worldY >= obj.y && worldY <= obj.y + obj.height) {
+      return obj;
+    }
+  }
+  return null;
+}
+
 // Draw furniture
 function drawFurniture() {
-  furniture.forEach(obj => {
+  // Draw permanent or temp furniture based on edit mode
+  const furnitureToDraw = isEditingObjects ? tempFurniture : furniture;
+
+  furnitureToDraw.forEach(obj => {
     ctx.save();
+
+    // Check if this object is being dragged
+    const isBeingDragged = (draggingObject === obj);
 
     // Convert world coordinates to screen coordinates
     const screen = worldToScreen(obj.x, obj.y);
-    const screenX = screen.x;
-    const screenY = screen.y;
+    let screenX = screen.x;
+    let screenY = screen.y;
     const scale = Math.max(0.01, screen.scale);
     const screenWidth = Math.max(1, obj.width * scale);
     const screenHeight = Math.max(1, obj.height * scale);
+
+    // Apply "lift up" effect when dragging
+    if (isBeingDragged) {
+      screenY -= 10 * scale; // Lift up by 10 pixels
+
+      // Add shadow underneath to show it's lifted
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+      ctx.shadowBlur = 15 * scale;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 8 * scale;
+    }
 
     if (obj.type === 'desk' || obj.type === 'table' || obj.type === 'conference-table' || obj.type === 'coffee-table') {
       // Draw desk/table
@@ -2437,6 +2601,32 @@ function drawFurniture() {
         ctx.fillStyle = '#000';
         ctx.fillText(obj.emoji, screenX + screenWidth / 2, screenY + screenHeight / 2);
       }
+    }
+
+    // Reset shadow from dragging effect
+    if (isBeingDragged) {
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    }
+
+    // Highlight hovered object in edit mode (but not if being dragged)
+    if (isEditingObjects && hoveredObject === obj && !isBeingDragged) {
+      // Draw pink glowing shadow
+      ctx.shadowColor = 'rgba(255, 105, 180, 0.8)'; // Hot pink glow
+      ctx.shadowBlur = 25 * scale;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      // Draw thick pink border
+      ctx.strokeStyle = '#FF69B4'; // Hot pink
+      ctx.lineWidth = 12 * scale; // Very thick border
+      ctx.strokeRect(screenX - 6 * scale, screenY - 6 * scale, screenWidth + 12 * scale, screenHeight + 12 * scale);
+
+      // Reset shadow
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
     }
 
     ctx.restore();
