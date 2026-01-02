@@ -337,23 +337,13 @@ class Player {
       this.jumpProgress = 1;
       this.isJumping = false;
     } else {
-      // Interpolate position
+      // Interpolate position during jump (no collision check mid-air - you're flying!)
       const newX = this.jumpStartX + (this.jumpTargetX - this.jumpStartX) * this.jumpProgress;
       const newY = this.jumpStartY + (this.jumpTargetY - this.jumpStartY) * this.jumpProgress;
 
-      // Check collision during jump
-      if (this.checkCollision(newX, newY)) {
-        // Hit obstacle mid-jump - cancel and return to start
-        console.log('🦘 Jump cancelled - hit obstacle mid-air');
-        this.x = this.jumpStartX;
-        this.y = this.jumpStartY;
-        this.isJumping = false;
-        this.jumpProgress = 0;
-      } else {
-        // Safe to continue jump
-        this.x = newX;
-        this.y = newY;
-      }
+      // Update position without collision check (jumping over obstacles)
+      this.x = newX;
+      this.y = newY;
     }
   }
 
