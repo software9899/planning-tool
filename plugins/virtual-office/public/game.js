@@ -1459,6 +1459,15 @@ canvas.addEventListener('mousedown', (e) => {
       }
     }
 
+    // Check object button
+    if (canvas.objectBtnBounds && !clickedOnUI) {
+      const btn = canvas.objectBtnBounds;
+      if (x >= btn.x && x <= btn.x + btn.width &&
+          y >= btn.y && y <= btn.y + btn.height) {
+        clickedOnUI = true;
+      }
+    }
+
     // Check settings button
     if (canvas.settingsIconBounds && !clickedOnUI) {
       const btn = canvas.settingsIconBounds;
@@ -1685,6 +1694,18 @@ canvas.addEventListener('click', (e) => {
     }
   }
 
+  // Check if clicked on object button
+  if (canvas.objectBtnBounds) {
+    const btn = canvas.objectBtnBounds;
+    console.log('🛋️ Object button bounds:', btn);
+    if (x >= btn.x && x <= btn.x + btn.width &&
+        y >= btn.y && y <= btn.y + btn.height) {
+      console.log('🛋️ Object button clicked!');
+      showObjectSelector();
+      return;
+    }
+  }
+
   // Check if clicked on settings button
   if (canvas.settingsIconBounds) {
     const btn = canvas.settingsIconBounds;
@@ -1719,6 +1740,44 @@ canvas.addEventListener('click', (e) => {
         y >= btn.y && y <= btn.y + btn.height) {
       socket.emit('getRooms');
       roomModal.classList.add('active');
+      return;
+    }
+  }
+
+  // Object placement mode - place selected object on canvas
+  if (selectedObject && !clickedOnGrayArea) {
+    const worldPos = screenToWorld(x, y);
+
+    // Only place if clicked within game world bounds
+    if (worldPos.x >= 0 && worldPos.x <= WORLD_WIDTH &&
+        worldPos.y >= 0 && worldPos.y <= WORLD_HEIGHT) {
+
+      // Create new furniture object centered on click position
+      const newFurniture = {
+        x: Math.max(selectedObject.width / 2, Math.min(WORLD_WIDTH - selectedObject.width / 2, worldPos.x - selectedObject.width / 2)),
+        y: Math.max(selectedObject.height / 2, Math.min(WORLD_HEIGHT - selectedObject.height / 2, worldPos.y - selectedObject.height / 2)),
+        width: selectedObject.width,
+        height: selectedObject.height,
+        type: selectedObject.id,
+        color: selectedObject.color,
+        emoji: selectedObject.emoji,
+        name: selectedObject.name
+      };
+
+      // Add to furniture array
+      furniture.push(newFurniture);
+
+      console.log('🛋️ Placed object:', selectedObject.name, 'at', newFurniture.x, newFurniture.y);
+
+      // Clear selected object
+      selectedObject = null;
+
+      // Change cursor back to normal
+      canvas.style.cursor = 'crosshair';
+
+      // TODO: Emit to server for multiplayer sync
+      // socket.emit('placeObject', newFurniture);
+
       return;
     }
   }
@@ -2008,6 +2067,136 @@ function teleportToRoom(roomId) {
   console.log(`✅ Teleported to ${room.name}`);
 }
 
+// Object categories with items
+const OBJECT_CATEGORIES = {
+  furniture: {
+    name: 'เฟอร์นิเจอร์',
+    emoji: '🪑',
+    items: [
+      { id: 'desk', name: 'โต๊ะทำงาน', emoji: '🗄️', width: 200, height: 80, color: '#8B4513' },
+      { id: 'chair', name: 'เก้าอี้', emoji: '🪑', width: 40, height: 40, color: '#654321' },
+      { id: 'sofa', name: 'โซฟา', emoji: '🛋️', width: 80, height: 60, color: '#4A4A4A' },
+      { id: 'table', name: 'โต๊ะกาแฟ', emoji: '☕', width: 100, height: 100, color: '#A0522D' }
+    ]
+  },
+  decoration: {
+    name: 'ของตกแต่ง',
+    emoji: '🌿',
+    items: [
+      { id: 'plant', name: 'ต้นไม้', emoji: '🌿', width: 60, height: 60, color: '#228B22' },
+      { id: 'painting', name: 'รูปภาพ', emoji: '🖼️', width: 80, height: 60, color: '#DAA520' },
+      { id: 'lamp', name: 'โคมไฟ', emoji: '💡', width: 40, height: 60, color: '#FFD700' },
+      { id: 'rug', name: 'พรม', emoji: '🟫', width: 150, height: 100, color: '#8B7355' }
+    ]
+  },
+  electronics: {
+    name: 'อุปกรณ์อิเล็กทรอนิกส์',
+    emoji: '💻',
+    items: [
+      { id: 'computer', name: 'คอมพิวเตอร์', emoji: '💻', width: 50, height: 40, color: '#2F4F4F' },
+      { id: 'printer', name: 'เครื่องพิมพ์', emoji: '🖨️', width: 60, height: 50, color: '#696969' },
+      { id: 'tv', name: 'ทีวี', emoji: '📺', width: 100, height: 60, color: '#000000' },
+      { id: 'phone', name: 'โทรศัพท์', emoji: '☎️', width: 30, height: 30, color: '#DC143C' }
+    ]
+  },
+  storage: {
+    name: 'ที่เก็บของ',
+    emoji: '📦',
+    items: [
+      { id: 'cabinet', name: 'ตู้เก็บของ', emoji: '🗄️', width: 80, height: 120, color: '#8B4513' },
+      { id: 'shelf', name: 'ชั้นวาง', emoji: '📚', width: 120, height: 80, color: '#A0522D' },
+      { id: 'drawer', name: 'ลิ้นชัก', emoji: '🗃️', width: 60, height: 50, color: '#654321' },
+      { id: 'locker', name: 'ล็อคเกอร์', emoji: '🔒', width: 60, height: 100, color: '#708090' }
+    ]
+  },
+  meeting: {
+    name: 'อุปกรณ์ประชุม',
+    emoji: '📊',
+    items: [
+      { id: 'whiteboard', name: 'ไวท์บอร์ด', emoji: '📋', width: 150, height: 100, color: '#FFFFFF' },
+      { id: 'projector', name: 'โปรเจคเตอร์', emoji: '📽️', width: 50, height: 40, color: '#2F4F4F' },
+      { id: 'conference-table', name: 'โต๊ะประชุม', emoji: '🪑', width: 200, height: 150, color: '#8B4513' },
+      { id: 'presentation-board', name: 'บอร์ดนำเสนอ', emoji: '📊', width: 100, height: 120, color: '#4682B4' }
+    ]
+  }
+};
+
+let selectedObject = null;
+
+// Show object selector modal
+function showObjectSelector() {
+  const objectModal = document.getElementById('object-modal');
+  const categoriesDiv = document.getElementById('object-categories');
+  const itemsDiv = document.getElementById('object-items');
+
+  if (!objectModal || !categoriesDiv || !itemsDiv) return;
+
+  // Clear existing content
+  categoriesDiv.innerHTML = '';
+  itemsDiv.innerHTML = '';
+
+  // Add categories as tabs
+  Object.entries(OBJECT_CATEGORIES).forEach(([categoryId, category]) => {
+    const categoryBtn = document.createElement('button');
+    categoryBtn.className = 'category-tab';
+    categoryBtn.innerHTML = `${category.emoji} ${category.name}`;
+    categoryBtn.addEventListener('click', () => {
+      // Remove active from all tabs
+      document.querySelectorAll('.category-tab').forEach(tab => tab.classList.remove('active'));
+      categoryBtn.classList.add('active');
+      // Show items for this category
+      showCategoryItems(categoryId);
+    });
+    categoriesDiv.appendChild(categoryBtn);
+  });
+
+  // Show first category by default
+  const firstCategory = Object.keys(OBJECT_CATEGORIES)[0];
+  categoriesDiv.firstChild.classList.add('active');
+  showCategoryItems(firstCategory);
+
+  objectModal.classList.add('active');
+  console.log('🛋️ Object selector opened');
+}
+
+// Show items for selected category
+function showCategoryItems(categoryId) {
+  const category = OBJECT_CATEGORIES[categoryId];
+  const itemsDiv = document.getElementById('object-items');
+
+  if (!category || !itemsDiv) return;
+
+  itemsDiv.innerHTML = '';
+
+  category.items.forEach(item => {
+    const itemEl = document.createElement('div');
+    itemEl.className = 'object-item';
+    itemEl.innerHTML = `
+      <span class="object-emoji">${item.emoji}</span>
+      <span class="object-name">${item.name}</span>
+    `;
+
+    itemEl.addEventListener('click', () => {
+      selectedObject = { ...item, categoryId };
+      document.getElementById('object-modal').classList.remove('active');
+      console.log('🛋️ Selected object:', item.name, '- Click on map to place');
+
+      // Change cursor to indicate placement mode
+      canvas.style.cursor = 'copy';
+    });
+
+    itemsDiv.appendChild(itemEl);
+  });
+}
+
+// Close object modal button
+const closeObjectBtn = document.getElementById('close-object-btn');
+if (closeObjectBtn) {
+  closeObjectBtn.addEventListener('click', () => {
+    document.getElementById('object-modal').classList.remove('active');
+  });
+}
+
 function getRoomEmoji(roomName) {
   const room = ROOMS[roomName];
   return room ? room.emoji : '🚪';
@@ -2219,10 +2408,75 @@ function drawFurniture() {
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2 * scale;
       ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
+    } else {
+      // Generic object rendering with emoji support
+      // Draw background rectangle
+      ctx.fillStyle = obj.color || '#999';
+      ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 2 * scale;
+      ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
+
+      // Draw emoji if available
+      if (obj.emoji) {
+        ctx.font = `${Math.max(20, screenHeight * 0.6)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#000';
+        ctx.fillText(obj.emoji, screenX + screenWidth / 2, screenY + screenHeight / 2);
+      }
     }
 
     ctx.restore();
   });
+}
+
+// Draw object placement preview
+function drawObjectPreview() {
+  if (!selectedObject) return;
+
+  // Get mouse position in world coordinates
+  const worldPos = screenToWorld(mouseX, mouseY);
+
+  // Check if mouse is within game world bounds
+  if (worldPos.x < 0 || worldPos.x > WORLD_WIDTH ||
+      worldPos.y < 0 || worldPos.y > WORLD_HEIGHT) {
+    return;
+  }
+
+  // Calculate object position (centered on cursor)
+  const objX = worldPos.x - selectedObject.width / 2;
+  const objY = worldPos.y - selectedObject.height / 2;
+
+  // Convert to screen coordinates
+  const screen = worldToScreen(objX, objY);
+  const scale = Math.max(0.01, screen.scale);
+  const screenWidth = Math.max(1, selectedObject.width * scale);
+  const screenHeight = Math.max(1, selectedObject.height * scale);
+
+  ctx.save();
+
+  // Draw semi-transparent preview
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = selectedObject.color || '#999';
+  ctx.fillRect(screen.x, screen.y, screenWidth, screenHeight);
+
+  // Draw border
+  ctx.strokeStyle = '#667eea';
+  ctx.lineWidth = 3 * scale;
+  ctx.strokeRect(screen.x, screen.y, screenWidth, screenHeight);
+
+  // Draw emoji if available
+  if (selectedObject.emoji) {
+    ctx.globalAlpha = 0.7;
+    ctx.font = `${Math.max(20, screenHeight * 0.6)}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#000';
+    ctx.fillText(selectedObject.emoji, screen.x + screenWidth / 2, screen.y + screenHeight / 2);
+  }
+
+  ctx.restore();
 }
 
 // Draw collectibles (cars, etc.)
@@ -2363,9 +2617,24 @@ function drawUI() {
   ctx.fillText('🚪', roomListBtnX + buttonSize / 2, roomListBtnY + buttonSize / 2);
   canvas.roomListBtnBounds = { x: roomListBtnX, y: roomListBtnY, width: buttonSize, height: buttonSize };
 
-  // Settings button (below room list)
+  // Object button (below room list) - Admin only
+  const objectBtnX = canvas.width - buttonSize - 15;
+  const objectBtnY = roomListBtnY + buttonSize + buttonSpacing;
+  ctx.fillStyle = 'rgba(255, 87, 34, 0.95)';
+  ctx.fillRect(objectBtnX, objectBtnY, buttonSize, buttonSize);
+  ctx.strokeStyle = '#E64A19';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(objectBtnX, objectBtnY, buttonSize, buttonSize);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 24px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🛋️', objectBtnX + buttonSize / 2, objectBtnY + buttonSize / 2);
+  canvas.objectBtnBounds = { x: objectBtnX, y: objectBtnY, width: buttonSize, height: buttonSize };
+
+  // Settings button (below object)
   const settingsBtnX = canvas.width - buttonSize - 15;
-  const settingsBtnY = roomListBtnY + buttonSize + buttonSpacing;
+  const settingsBtnY = objectBtnY + buttonSize + buttonSpacing;
   ctx.fillStyle = 'rgba(255, 152, 0, 0.95)';
   ctx.fillRect(settingsBtnX, settingsBtnY, buttonSize, buttonSize);
   ctx.strokeStyle = '#F57C00';
@@ -2635,6 +2904,11 @@ function gameLoop() {
     ctx.moveTo(screen.x, screen.y - size);
     ctx.lineTo(screen.x, screen.y + size);
     ctx.stroke();
+  }
+
+  // Draw object placement preview
+  if (selectedObject) {
+    drawObjectPreview();
   }
 
   // Draw UI overlay on top
