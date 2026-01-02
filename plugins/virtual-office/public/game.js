@@ -1303,9 +1303,13 @@ window.addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase();
   keys[key] = true;
 
-  // Log movement keys
+  // Log movement keys and prevent default behavior for arrow keys
   if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
     console.log('⌨️ Key pressed:', key);
+    // Prevent default browser behavior (scrolling, focusing) for arrow keys
+    if (key.startsWith('arrow')) {
+      e.preventDefault();
+    }
   }
 
   // Focus chat on Enter
