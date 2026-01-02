@@ -876,6 +876,11 @@ class Player {
     const playerRadius = 12;
 
     for (let obj of furniture) {
+      // Skip non-blocking objects (background decorations)
+      if (obj.isBlocking === false) {
+        continue;
+      }
+
       if (newX + playerRadius > obj.x &&
           newX - playerRadius < obj.x + obj.width &&
           newY + playerRadius > obj.y &&
@@ -981,15 +986,12 @@ class Player {
     const collisionX = this.checkCollision(newX, this.y);
     const collisionY = this.checkCollision(this.x, newY);
 
-    if (collisionX || collisionY) {
-      console.log('⚠️ COLLISION DETECTED! X:', collisionX, 'Y:', collisionY, 'at', newX.toFixed(2), newY.toFixed(2));
-    }
+    // Removed spammy collision log
 
     if (!collisionX) {
       this.x = newX;
     } else if (targetPosition) {
       // If collision while moving to target, cancel target
-      console.log('❌ Collision X - canceling target');
       targetPosition = null;
     }
 
@@ -997,7 +999,6 @@ class Player {
       this.y = newY;
     } else if (targetPosition) {
       // If collision while moving to target, cancel target
-      console.log('❌ Collision Y - canceling target');
       targetPosition = null;
     }
 
@@ -1131,6 +1132,56 @@ function loadSavedDecorations() {
     }
   } catch (error) {
     console.error('❌ Error loading saved decorations:', error);
+  }
+}
+
+// Preload custom images into cache
+function preloadCustomImages() {
+  let imageCount = 0;
+  let loadedCount = 0;
+
+  // Preload from furniture
+  furniture.forEach(obj => {
+    if (obj.isCustomImage && obj.imageData && obj.customId) {
+      if (!imageCache[obj.customId]) {
+        imageCount++;
+        const img = new Image();
+        img.onload = () => {
+          loadedCount++;
+          console.log(`🖼️ Loaded custom image (${loadedCount}/${imageCount}):`, obj.name);
+        };
+        img.onerror = () => {
+          console.error('❌ Failed to load custom image:', obj.name);
+        };
+        img.src = obj.imageData;
+        imageCache[obj.customId] = img;
+      }
+    }
+  });
+
+  // Preload from customObjects
+  Object.keys(customObjects).forEach(categoryId => {
+    customObjects[categoryId].forEach(customItem => {
+      if (customItem.imageData && customItem.customId) {
+        if (!imageCache[customItem.customId]) {
+          imageCount++;
+          const img = new Image();
+          img.onload = () => {
+            loadedCount++;
+            console.log(`🖼️ Loaded custom image (${loadedCount}/${imageCount}):`, customItem.name);
+          };
+          img.onerror = () => {
+            console.error('❌ Failed to load custom image:', customItem.name);
+          };
+          img.src = customItem.imageData;
+          imageCache[customItem.customId] = img;
+        }
+      }
+    });
+  });
+
+  if (imageCount > 0) {
+    console.log(`📸 Preloading ${imageCount} custom images...`);
   }
 }
 
@@ -1368,6 +1419,9 @@ socket.on('decorationsLoaded', (data) => {
   console.log('  - Tile floors:', Object.keys(customTileFloors).length, 'tiles');
   console.log('  - Custom objects:', Object.keys(customObjects).length, 'categories');
 
+  // Preload custom images
+  preloadCustomImages();
+
   // Initialize default furniture if none exist
   if (furniture.length === 0) {
     initializeFurniture(currentRoom);
@@ -1388,6 +1442,9 @@ socket.on('decorationsUpdated', (data) => {
   console.log('✅ Map updated! Everyone can see it now.');
   console.log('  - Updated by:', data.updatedBy);
   console.log('  - Furniture:', furniture.length, 'items');
+
+  // Preload any new custom images
+  preloadCustomImages();
 });
 
 socket.on('decorationsError', (error) => {
@@ -1514,6 +1571,31 @@ window.addEventListener('keydown', (e) => {
       showRoomSelector();
       e.preventDefault();
     }
+  }
+
+  // Toggle blocking mode on B (in edit mode)
+  if ((e.key === 'b' || e.key === 'B') && isEditingObjects && selectedObject) {
+    // Don't toggle for partitions (always blocking)
+    if (selectedObject.isPartition) {
+      console.log('🧱 Walls/Partitions are always blocking');
+      return;
+    }
+
+    // Toggle blocking state
+    selectedObject.isBlocking = !selectedObject.isBlocking;
+
+    const mode = selectedObject.isBlocking ? '🔴 BLOCKING' : '🟢 BACKGROUND';
+    console.log(`🔄 Toggled to ${mode} mode`);
+    console.log(`   - Objects will ${selectedObject.isBlocking ? 'BLOCK movement' : 'be WALKABLE (background)'}`);
+
+    e.preventDefault();
+  }
+
+  // Toggle tile/room floor mode on F (in edit mode)
+  if ((e.key === 'f' || e.key === 'F') && isEditingObjects && selectedFloorType) {
+    floorMode = floorMode === 'room' ? 'tile' : 'room';
+    console.log('🔄 Floor mode:', floorMode === 'room' ? '🏠 Room (whole room)' : '🔲 Tile (individual tiles)');
+    e.preventDefault();
   }
 });
 
@@ -2352,8 +2434,35 @@ canvas.addEventListener('click', (e) => {
         color: selectedObject.color,
         emoji: selectedObject.emoji,
         name: selectedObject.name,
-        isTemp: true
+        isTemp: true,
+        // Partitions/walls are always blocking, others default to background mode
+        isBlocking: selectedObject.isPartition ? true : (selectedObject.isBlocking !== undefined ? selectedObject.isBlocking : false)
       };
+
+      // Copy custom image properties if this is a custom image
+      if (selectedObject.isCustomImage) {
+        newFurniture.isCustomImage = true;
+        newFurniture.imageData = selectedObject.imageData;
+        newFurniture.customId = selectedObject.customId;
+      }
+
+      // Check if placing on top of current player
+      if (currentPlayer) {
+        const playerRadius = 12;
+        const objCenterX = newFurniture.x + newFurniture.width / 2;
+        const objCenterY = newFurniture.y + newFurniture.height / 2;
+        const distance = Math.sqrt(
+          Math.pow(currentPlayer.x - objCenterX, 2) +
+          Math.pow(currentPlayer.y - objCenterY, 2)
+        );
+
+        // If too close to player, don't place
+        if (distance < playerRadius + Math.max(newFurniture.width, newFurniture.height) / 2) {
+          console.warn('⚠️ Cannot place object on player! Move away first.');
+          alert('⚠️ ไม่สามารถวางของทับตัวละครได้\nกรุณาเดินออกไปก่อน');
+          return;
+        }
+      }
 
       // Add to temporary furniture array
       tempFurniture.push(newFurniture);
@@ -2767,50 +2876,50 @@ const OBJECT_CATEGORIES = {
     name: 'เฟอร์นิเจอร์',
     emoji: '🪑',
     items: [
-      { id: 'desk', name: 'โต๊ะทำงาน', emoji: '🗄️', width: 200, height: 80, color: '#8B4513' },
-      { id: 'chair', name: 'เก้าอี้', emoji: '🪑', width: 40, height: 40, color: '#654321' },
-      { id: 'sofa', name: 'โซฟา', emoji: '🛋️', width: 80, height: 60, color: '#4A4A4A' },
-      { id: 'table', name: 'โต๊ะกาแฟ', emoji: '☕', width: 100, height: 100, color: '#A0522D' }
+      { id: 'desk', name: 'โต๊ะทำงาน', emoji: '🗄️', width: 200, height: 80, color: '#8B4513', isBlocking: true },
+      { id: 'chair', name: 'เก้าอี้', emoji: '🪑', width: 40, height: 40, color: '#654321', isBlocking: true },
+      { id: 'sofa', name: 'โซฟา', emoji: '🛋️', width: 80, height: 60, color: '#4A4A4A', isBlocking: true },
+      { id: 'table', name: 'โต๊ะกาแฟ', emoji: '☕', width: 100, height: 100, color: '#A0522D', isBlocking: true }
     ]
   },
   decoration: {
     name: 'ของตกแต่ง',
     emoji: '🌿',
     items: [
-      { id: 'plant', name: 'ต้นไม้', emoji: '🌿', width: 60, height: 60, color: '#228B22' },
-      { id: 'painting', name: 'รูปภาพ', emoji: '🖼️', width: 80, height: 60, color: '#DAA520' },
-      { id: 'lamp', name: 'โคมไฟ', emoji: '💡', width: 40, height: 60, color: '#FFD700' },
-      { id: 'rug', name: 'พรม', emoji: '🟫', width: 150, height: 100, color: '#8B7355' }
+      { id: 'plant', name: 'ต้นไม้', emoji: '🌿', width: 60, height: 60, color: '#228B22', isBlocking: false },
+      { id: 'painting', name: 'รูปภาพ', emoji: '🖼️', width: 80, height: 60, color: '#DAA520', isBlocking: false },
+      { id: 'lamp', name: 'โคมไฟ', emoji: '💡', width: 40, height: 60, color: '#FFD700', isBlocking: false },
+      { id: 'rug', name: 'พรม', emoji: '🟫', width: 150, height: 100, color: '#8B7355', isBlocking: false }
     ]
   },
   electronics: {
     name: 'อุปกรณ์อิเล็กทรอนิกส์',
     emoji: '💻',
     items: [
-      { id: 'computer', name: 'คอมพิวเตอร์', emoji: '💻', width: 50, height: 40, color: '#2F4F4F' },
-      { id: 'printer', name: 'เครื่องพิมพ์', emoji: '🖨️', width: 60, height: 50, color: '#696969' },
-      { id: 'tv', name: 'ทีวี', emoji: '📺', width: 100, height: 60, color: '#000000' },
-      { id: 'phone', name: 'โทรศัพท์', emoji: '☎️', width: 30, height: 30, color: '#DC143C' }
+      { id: 'computer', name: 'คอมพิวเตอร์', emoji: '💻', width: 50, height: 40, color: '#2F4F4F', isBlocking: true },
+      { id: 'printer', name: 'เครื่องพิมพ์', emoji: '🖨️', width: 60, height: 50, color: '#696969', isBlocking: true },
+      { id: 'tv', name: 'ทีวี', emoji: '📺', width: 100, height: 60, color: '#000000', isBlocking: true },
+      { id: 'phone', name: 'โทรศัพท์', emoji: '☎️', width: 30, height: 30, color: '#DC143C', isBlocking: false }
     ]
   },
   storage: {
     name: 'ที่เก็บของ',
     emoji: '📦',
     items: [
-      { id: 'cabinet', name: 'ตู้เก็บของ', emoji: '🗄️', width: 80, height: 120, color: '#8B4513' },
-      { id: 'shelf', name: 'ชั้นวาง', emoji: '📚', width: 120, height: 80, color: '#A0522D' },
-      { id: 'drawer', name: 'ลิ้นชัก', emoji: '🗃️', width: 60, height: 50, color: '#654321' },
-      { id: 'locker', name: 'ล็อคเกอร์', emoji: '🔒', width: 60, height: 100, color: '#708090' }
+      { id: 'cabinet', name: 'ตู้เก็บของ', emoji: '🗄️', width: 80, height: 120, color: '#8B4513', isBlocking: true },
+      { id: 'shelf', name: 'ชั้นวาง', emoji: '📚', width: 120, height: 80, color: '#A0522D', isBlocking: true },
+      { id: 'drawer', name: 'ลิ้นชัก', emoji: '🗃️', width: 60, height: 50, color: '#654321', isBlocking: true },
+      { id: 'locker', name: 'ล็อคเกอร์', emoji: '🔒', width: 60, height: 100, color: '#708090', isBlocking: true }
     ]
   },
   meeting: {
     name: 'อุปกรณ์ประชุม',
     emoji: '📊',
     items: [
-      { id: 'whiteboard', name: 'ไวท์บอร์ด', emoji: '📋', width: 150, height: 100, color: '#FFFFFF' },
-      { id: 'projector', name: 'โปรเจคเตอร์', emoji: '📽️', width: 50, height: 40, color: '#2F4F4F' },
-      { id: 'conference-table', name: 'โต๊ะประชุม', emoji: '🪑', width: 200, height: 150, color: '#8B4513' },
-      { id: 'presentation-board', name: 'บอร์ดนำเสนอ', emoji: '📊', width: 100, height: 120, color: '#4682B4' }
+      { id: 'whiteboard', name: 'ไวท์บอร์ด', emoji: '📋', width: 150, height: 100, color: '#FFFFFF', isBlocking: true },
+      { id: 'projector', name: 'โปรเจคเตอร์', emoji: '📽️', width: 50, height: 40, color: '#2F4F4F', isBlocking: true },
+      { id: 'conference-table', name: 'โต๊ะประชุม', emoji: '🪑', width: 200, height: 150, color: '#8B4513', isBlocking: true },
+      { id: 'presentation-board', name: 'บอร์ดนำเสนอ', emoji: '📊', width: 100, height: 120, color: '#4682B4', isBlocking: true }
     ]
   },
   structure: {
@@ -2818,8 +2927,8 @@ const OBJECT_CATEGORIES = {
     emoji: '🚪',
     items: [
       { id: 'partition', name: 'ฉากกั้นห้อง', width: 20, height: 200, color: '#A9A9A9', isPartition: true },
-      { id: 'door', name: 'ประตู', emoji: '🚪', width: 80, height: 20, color: '#8B4513' },
-      { id: 'window', name: 'หน้าต่าง', emoji: '🪟', width: 100, height: 20, color: '#87CEEB' }
+      { id: 'door', name: 'ประตู', emoji: '🚪', width: 80, height: 20, color: '#8B4513', isBlocking: false },
+      { id: 'window', name: 'หน้าต่าง', emoji: '🪟', width: 100, height: 20, color: '#87CEEB', isBlocking: false }
     ]
   },
   floor: {
@@ -3575,6 +3684,13 @@ function drawFurniture() {
         let img = imageCache[obj.customId];
         if (!img) {
           img = new Image();
+          img.onload = () => {
+            // Force re-render when image loads
+            console.log('🖼️ Custom image loaded:', obj.name);
+          };
+          img.onerror = () => {
+            console.error('❌ Failed to load custom image:', obj.name);
+          };
           img.src = obj.imageData;
           imageCache[obj.customId] = img;
         }
@@ -3583,12 +3699,18 @@ function drawFurniture() {
         if (img.complete && img.naturalHeight !== 0) {
           ctx.drawImage(img, screenX, screenY, screenWidth, screenHeight);
         } else {
-          // Placeholder while loading
-          ctx.fillStyle = '#f0f0f0';
+          // Placeholder while loading - smaller and more visible
+          ctx.fillStyle = '#e0e0e0';
           ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
           ctx.strokeStyle = '#999';
           ctx.lineWidth = 2 * scale;
           ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
+
+          // Add loading text
+          ctx.fillStyle = '#666';
+          ctx.font = `${12 * scale}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.fillText('Loading...', screenX + screenWidth / 2, screenY + screenHeight / 2);
         }
 
         // Add border to custom images
@@ -3695,24 +3817,69 @@ function drawObjectPreview() {
   ctx.save();
 
   // Draw semi-transparent preview
-  ctx.globalAlpha = 0.5;
-  ctx.fillStyle = selectedObject.color || '#999';
-  ctx.fillRect(screen.x, screen.y, screenWidth, screenHeight);
+  ctx.globalAlpha = 0.6;
 
-  // Draw border
-  ctx.strokeStyle = '#667eea';
+  // If custom image, try to draw the image
+  if (selectedObject.isCustomImage && selectedObject.imageData) {
+    let img = imageCache[selectedObject.customId];
+    if (!img) {
+      img = new Image();
+      img.src = selectedObject.imageData;
+      imageCache[selectedObject.customId] = img;
+    }
+
+    // If image is loaded, draw it
+    if (img.complete && img.naturalHeight !== 0) {
+      ctx.drawImage(img, screen.x, screen.y, screenWidth, screenHeight);
+    } else {
+      // Placeholder while loading
+      ctx.fillStyle = '#e0e0e0';
+      ctx.fillRect(screen.x, screen.y, screenWidth, screenHeight);
+    }
+  } else {
+    // Default colored rectangle
+    ctx.fillStyle = selectedObject.color || '#999';
+    ctx.fillRect(screen.x, screen.y, screenWidth, screenHeight);
+
+    // Draw emoji if available
+    if (selectedObject.emoji) {
+      ctx.globalAlpha = 0.8;
+      ctx.font = `${Math.max(20, screenHeight * 0.6)}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#000';
+      ctx.fillText(selectedObject.emoji, screen.x + screenWidth / 2, screen.y + screenHeight / 2);
+    }
+  }
+
+  // Draw border (color indicates blocking mode)
+  ctx.globalAlpha = 1.0;
+
+  // Different colors for different modes
+  if (selectedObject.isPartition) {
+    ctx.strokeStyle = '#ff4444'; // Red for walls (always blocking)
+  } else if (selectedObject.isBlocking) {
+    ctx.strokeStyle = '#ff9800'; // Orange for blocking objects
+  } else {
+    ctx.strokeStyle = '#4caf50'; // Green for background (walkable)
+  }
+
   ctx.lineWidth = 3 * scale;
   ctx.strokeRect(screen.x, screen.y, screenWidth, screenHeight);
 
-  // Draw emoji if available
-  if (selectedObject.emoji) {
-    ctx.globalAlpha = 0.7;
-    ctx.font = `${Math.max(20, screenHeight * 0.6)}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#000';
-    ctx.fillText(selectedObject.emoji, screen.x + screenWidth / 2, screen.y + screenHeight / 2);
-  }
+  // Add mode indicator text
+  ctx.globalAlpha = 0.9;
+  ctx.font = `bold ${12 * scale}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2 * scale;
+
+  const modeText = selectedObject.isPartition ? '🧱 WALL' :
+                   (selectedObject.isBlocking ? '🔴 BLOCKING' : '🟢 BG');
+
+  ctx.strokeText(modeText, screen.x + screenWidth / 2, screen.y - 10 * scale);
+  ctx.fillText(modeText, screen.x + screenWidth / 2, screen.y - 10 * scale);
 
   ctx.restore();
 }
