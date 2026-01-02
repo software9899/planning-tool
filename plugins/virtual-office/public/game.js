@@ -267,6 +267,196 @@ class Player {
     }, chatSettings.displayTime * 1000);
   }
 
+  startJump() {
+    if (this.isJumping) return;
+
+    this.isJumping = true;
+    this.jumpProgress = 0;
+    this.jumpStartX = this.x;
+    this.jumpStartY = this.y;
+
+    // Calculate target position based on movement state
+    let targetX = this.x;
+    let targetY = this.y;
+
+    // Only move forward if currently moving (WASD pressed)
+    if (this.isMoving) {
+      // Calculate jump distance (2 cells = 64 pixels, like a mini-boost)
+      const jumpDistance = 100;
+
+      // Calculate target position based on current direction
+      switch(this.direction) {
+        case 'up':
+          targetY -= jumpDistance;
+          break;
+        case 'down':
+          targetY += jumpDistance;
+          break;
+        case 'left':
+          targetX -= jumpDistance;
+          break;
+        case 'right':
+          targetX += jumpDistance;
+          break;
+      }
+
+      // Keep target within bounds
+      targetX = Math.max(30, Math.min(WORLD_WIDTH - 30, targetX));
+      targetY = Math.max(30, Math.min(WORLD_HEIGHT - 30, targetY));
+    }
+    // If not moving, jump in place (targetX and targetY stay the same as current position)
+
+    this.jumpTargetX = targetX;
+    this.jumpTargetY = targetY;
+    this.jumpHeight = 40; // Maximum height of jump arc
+
+    const jumpType = this.isMoving ? 'forward' : 'in place';
+    console.log(`🦘 Jump started! (${jumpType})`, this.direction, 'from', this.jumpStartX, this.jumpStartY, 'to', targetX, targetY);
+  }
+
+  updateJump() {
+    if (!this.isJumping) return;
+
+    // Jump animation duration (0 to 1)
+    const jumpSpeed = 0.08; // Faster = shorter jump duration
+    this.jumpProgress += jumpSpeed;
+
+    if (this.jumpProgress >= 1) {
+      // Jump complete - check final position for collision
+      if (this.checkCollision(this.jumpTargetX, this.jumpTargetY)) {
+        // Hit obstacle at landing - cancel jump and return to start
+        console.log('🦘 Jump cancelled - obstacle at landing position');
+        this.x = this.jumpStartX;
+        this.y = this.jumpStartY;
+      } else {
+        // Safe landing
+        this.x = this.jumpTargetX;
+        this.y = this.jumpTargetY;
+        console.log('🦘 Jump complete!');
+      }
+      this.jumpProgress = 1;
+      this.isJumping = false;
+    } else {
+      // Interpolate position
+      const newX = this.jumpStartX + (this.jumpTargetX - this.jumpStartX) * this.jumpProgress;
+      const newY = this.jumpStartY + (this.jumpTargetY - this.jumpStartY) * this.jumpProgress;
+
+      // Check collision during jump
+      if (this.checkCollision(newX, newY)) {
+        // Hit obstacle mid-jump - cancel and return to start
+        console.log('🦘 Jump cancelled - hit obstacle mid-air');
+        this.x = this.jumpStartX;
+        this.y = this.jumpStartY;
+        this.isJumping = false;
+        this.jumpProgress = 0;
+      } else {
+        // Safe to continue jump
+        this.x = newX;
+        this.y = newY;
+      }
+    }
+  }
+
+  getJumpOffset() {
+    if (!this.isJumping) return 0;
+
+    // Create arc (parabola): height at 0% = 0, at 50% = max, at 100% = 0
+    // Using sine wave for smooth arc
+    const arcProgress = Math.sin(this.jumpProgress * Math.PI);
+    return -this.jumpHeight * arcProgress; // Negative to jump upward
+  }
+
+  respawn() {
+    // Respawn at lobby in safe area (away from furniture)
+    const spawnX = 1600 + 400; // Left side of lobby (safe area)
+    const spawnY = 1200 + 900; // Bottom area of lobby (safe area)
+
+    console.log('🏠 Respawning to safe position - resetting all states...');
+
+    // Reset ALL jump-related states
+    this.isJumping = false;
+    this.jumpProgress = 0;
+    this.jumpStartX = 0;
+    this.jumpStartY = 0;
+    this.jumpTargetX = 0;
+    this.jumpTargetY = 0;
+    this.jumpHeight = 0;
+
+    // Reset movement states
+    this.isMoving = false;
+    this.walkFrame = 0;
+
+    // Reset position
+    this.x = spawnX;
+    this.y = spawnY;
+    this.direction = 'down';
+
+    // Safety check: verify no collision at spawn point
+    if (this.checkCollision(spawnX, spawnY)) {
+      console.error('❌ SPAWN POINT HAS COLLISION! Moving to emergency position...');
+      // Emergency fallback position (top-left of lobby, definitely safe)
+      this.x = 1600 + 200;
+      this.y = 1200 + 200;
+    } else {
+      console.log('✅ Spawn position is safe, no collision detected');
+    }
+
+    // Reset speed (keep speed boost if exists)
+    // this.speed is already set, no need to change
+
+    // Cancel click-to-move target
+    targetPosition = null;
+
+    // Clear all key presses (important!)
+    keys = {};
+
+    console.log('🏠 Respawned at lobby!', this.x, this.y, 'All states reset.');
+
+    // Center camera on player at new position
+    this.centerCameraOnPlayer();
+
+    // Emit position update
+    socket.emit('move', {
+      x: this.x,
+      y: this.y,
+      direction: this.direction,
+      isMoving: false,
+      isJumping: false
+    });
+  }
+
+  centerCameraOnPlayer() {
+    // Center camera on player position
+    const gameWidth = canvas.width;
+    const gameHeight = canvas.height;
+    const scaleX = gameWidth / WORLD_WIDTH;
+    const scaleY = gameHeight / WORLD_HEIGHT;
+    const baseScale = Math.min(scaleX, scaleY);
+    const currentScale = baseScale * zoomLevel;
+
+    const scaledWorldWidth = WORLD_WIDTH * currentScale;
+    const scaledWorldHeight = WORLD_HEIGHT * currentScale;
+    const baseOffsetX = (gameWidth - scaledWorldWidth) / 2;
+    const baseOffsetY = (gameHeight - scaledWorldHeight) / 2;
+
+    // Calculate where player currently is on screen (without camera offset)
+    const playerScreenX = this.x * currentScale + baseOffsetX;
+    const playerScreenY = this.y * currentScale + baseOffsetY;
+
+    // Calculate where we want player to be (center of screen)
+    const targetScreenX = gameWidth / 2;
+    const targetScreenY = gameHeight / 2;
+
+    // Set camera offset to center player
+    cameraOffsetX = targetScreenX - playerScreenX;
+    cameraOffsetY = targetScreenY - playerScreenY;
+
+    // Clamp to prevent showing gray areas
+    clampCameraOffset();
+
+    console.log('📷 Camera centered on player at', this.x.toFixed(2), this.y.toFixed(2));
+  }
+
   drawCharacter(x, y, direction, isMoving, color, scale = 1) {
     const bodyWidth = 24 * scale;
     const bodyHeight = 30 * scale;
@@ -427,8 +617,36 @@ class Player {
     const screenY = screen.y;
     const scale = Math.max(0.01, screen.scale); // Ensure scale is positive
 
-    // Draw character
-    this.drawCharacter(screenX, screenY - this.height/2 * scale, this.direction, this.isMoving, this.color, scale);
+    // Apply jump offset to Y position
+    const jumpOffset = this.getJumpOffset() * scale;
+
+    // Draw character shadow when jumping
+    if (this.isJumping) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath();
+      ctx.ellipse(screenX, screenY, 15 * scale, 8 * scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw jump sparkles/motion effect
+      ctx.fillStyle = '#FFD700';
+      ctx.font = `${16 * scale}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // Sparkles appear at different positions during jump
+      if (this.jumpProgress < 0.5) {
+        // Rising sparkles
+        ctx.fillText('✨', screenX - 20 * scale, screenY + jumpOffset + 20 * scale);
+        ctx.fillText('✨', screenX + 20 * scale, screenY + jumpOffset + 20 * scale);
+      } else {
+        // Falling sparkles
+        ctx.fillText('💫', screenX - 15 * scale, screenY + jumpOffset + 25 * scale);
+        ctx.fillText('💫', screenX + 15 * scale, screenY + jumpOffset + 25 * scale);
+      }
+    }
+
+    // Draw character with jump offset
+    this.drawCharacter(screenX, screenY - this.height/2 * scale + jumpOffset, this.direction, this.isMoving, this.color, scale);
 
     // Draw selection indicator for current player
     if (isCurrentPlayer) {
@@ -439,13 +657,13 @@ class Player {
       ctx.stroke();
     }
 
-    // Draw speed boost indicator
+    // Draw speed boost indicator (adjust position for jump)
     if (this.hasSpeedBoost) {
       ctx.fillStyle = '#FF4444';
       ctx.font = `${18 * scale}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      const sparkleY = screenY - 60 * scale + Math.sin(Date.now() * 0.005) * 3 * scale;
+      const sparkleY = screenY - 60 * scale + Math.sin(Date.now() * 0.005) * 3 * scale + jumpOffset;
       ctx.fillText('🚗💨', screenX, sparkleY);
     }
 
@@ -461,9 +679,9 @@ class Player {
       ctx.fillText(this.username, screenX, screenY + 20 * scale);
     }
 
-    // Draw chat bubble if there's a message
+    // Draw chat bubble if there's a message (adjust position for jump)
     if (this.chatMessage) {
-      this.drawChatBubble(this.chatMessage, screenX, screenY, scale);
+      this.drawChatBubble(this.chatMessage, screenX, screenY + jumpOffset, scale);
     }
 
     // Draw proximity chat indicator for current player
@@ -563,6 +781,33 @@ class Player {
   }
 
   update() {
+    // Debug: log update calls every 60 frames
+    if (frameCount % 60 === 0) {
+      console.log('🔄 Update called! isJumping:', this.isJumping, 'position:', this.x.toFixed(2), this.y.toFixed(2));
+    }
+
+    // Update jump animation if jumping
+    if (this.isJumping) {
+      // Safety check: if jumpProgress is stuck at 1, force reset
+      if (this.jumpProgress >= 1) {
+        console.warn('⚠️ Jump stuck at 100% - force resetting!');
+        this.isJumping = false;
+        this.jumpProgress = 0;
+      } else {
+        this.updateJump();
+        // Emit position update during jump
+        socket.emit('move', {
+          x: this.x,
+          y: this.y,
+          direction: this.direction,
+          isMoving: false,
+          isJumping: this.isJumping,
+          jumpProgress: this.jumpProgress
+        });
+        return; // Skip regular movement while jumping
+      }
+    }
+
     let moved = false;
     const oldX = this.x;
     const oldY = this.y;
@@ -570,11 +815,20 @@ class Player {
     let newX = this.x;
     let newY = this.y;
 
+    // Debug: Log movement attempts
+    const isPressingMovementKey = keys['w'] || keys['s'] || keys['a'] || keys['d'] ||
+                                   keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright'];
+    if (isPressingMovementKey && frameCount % 60 === 0) { // Log every 60 frames
+      console.log('🎮 Movement keys pressed, isJumping:', this.isJumping, 'keys:', keys);
+    }
+
     // Priority 1: Move to target position (click-to-move)
     if (targetPosition) {
       const dx = targetPosition.x - this.x;
       const dy = targetPosition.y - this.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
+
+      console.log('🎯 Click-to-move active! Current:', this.x, this.y, 'Target:', targetPosition.x, targetPosition.y, 'Distance:', distance.toFixed(2));
 
       if (distance > 5) {
         // Move towards target smoothly
@@ -583,6 +837,8 @@ class Player {
 
         newX = this.x + moveX;
         newY = this.y + moveY;
+
+        console.log('🚶 Moving to:', newX.toFixed(2), newY.toFixed(2), 'Speed:', this.speed);
 
         // Update direction based on movement
         if (Math.abs(dx) > Math.abs(dy)) {
@@ -594,6 +850,7 @@ class Player {
         moved = true;
       } else {
         // Reached target
+        console.log('✅ Reached target!');
         targetPosition = null;
       }
     }
@@ -627,17 +884,26 @@ class Player {
     }
 
     // Check collisions
-    if (!this.checkCollision(newX, this.y)) {
+    const collisionX = this.checkCollision(newX, this.y);
+    const collisionY = this.checkCollision(this.x, newY);
+
+    if (collisionX || collisionY) {
+      console.log('⚠️ COLLISION DETECTED! X:', collisionX, 'Y:', collisionY, 'at', newX.toFixed(2), newY.toFixed(2));
+    }
+
+    if (!collisionX) {
       this.x = newX;
     } else if (targetPosition) {
       // If collision while moving to target, cancel target
+      console.log('❌ Collision X - canceling target');
       targetPosition = null;
     }
 
-    if (!this.checkCollision(this.x, newY)) {
+    if (!collisionY) {
       this.y = newY;
     } else if (targetPosition) {
       // If collision while moving to target, cancel target
+      console.log('❌ Collision Y - canceling target');
       targetPosition = null;
     }
 
@@ -843,6 +1109,12 @@ socket.on('playerMoved', (data) => {
     player.y = data.y;
     if (data.direction) player.direction = data.direction;
     if (data.isMoving !== undefined) player.isMoving = data.isMoving;
+    if (data.isJumping !== undefined) {
+      player.isJumping = data.isJumping;
+      if (data.jumpProgress !== undefined) {
+        player.jumpProgress = data.jumpProgress;
+      }
+    }
   }
 });
 
@@ -948,6 +1220,41 @@ window.addEventListener('keydown', (e) => {
   // Focus chat on Enter
   if (e.key === 'Enter') {
     chatInput.focus();
+    e.preventDefault();
+  }
+
+  // Jump on Space bar
+  if (e.key === ' ' && currentPlayer && !currentPlayer.isJumping) {
+    currentPlayer.startJump();
+    e.preventDefault();
+  }
+
+  // Respawn on H key (Home)
+  if ((e.key === 'h' || e.key === 'H') && currentPlayer) {
+    currentPlayer.respawn();
+    e.preventDefault();
+  }
+
+  // Emergency reset on Escape key (cancel jump, reset states)
+  if (e.key === 'Escape' && currentPlayer) {
+    console.log('🆘 Emergency reset triggered!');
+
+    // Reset ALL states completely
+    currentPlayer.isJumping = false;
+    currentPlayer.jumpProgress = 0;
+    currentPlayer.jumpStartX = 0;
+    currentPlayer.jumpStartY = 0;
+    currentPlayer.jumpTargetX = 0;
+    currentPlayer.jumpTargetY = 0;
+    currentPlayer.jumpHeight = 0;
+    currentPlayer.isMoving = false;
+    currentPlayer.walkFrame = 0;
+
+    // Clear targets and keys
+    targetPosition = null;
+    keys = {};
+
+    console.log('🆘 All states reset! You can move now.');
     e.preventDefault();
   }
 
@@ -1116,6 +1423,50 @@ canvas.addEventListener('mousedown', (e) => {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    // Check if clicked on UI buttons first (to prevent panning/click-to-move)
+    let clickedOnUI = false;
+
+    // Check respawn button
+    if (canvas.respawnBtnBounds) {
+      const btn = canvas.respawnBtnBounds;
+      if (x >= btn.x && x <= btn.x + btn.width &&
+          y >= btn.y && y <= btn.y + btn.height) {
+        clickedOnUI = true;
+      }
+    }
+
+    // Check settings button
+    if (canvas.settingsIconBounds && !clickedOnUI) {
+      const btn = canvas.settingsIconBounds;
+      if (x >= btn.x && x <= btn.x + btn.width &&
+          y >= btn.y && y <= btn.y + btn.height) {
+        clickedOnUI = true;
+      }
+    }
+
+    // Check bottom menu buttons
+    if (canvas.gestureBounds && !clickedOnUI) {
+      const btn = canvas.gestureBounds;
+      if (x >= btn.x && x <= btn.x + btn.width &&
+          y >= btn.y && y <= btn.y + btn.height) {
+        clickedOnUI = true;
+      }
+    }
+
+    if (canvas.roomButtonBounds && !clickedOnUI) {
+      const btn = canvas.roomButtonBounds;
+      if (x >= btn.x && x <= btn.x + btn.width &&
+          y >= btn.y && y <= btn.y + btn.height) {
+        clickedOnUI = true;
+      }
+    }
+
+    // If clicked on UI, don't do panning or click-to-move
+    if (clickedOnUI) {
+      return;
+    }
+
     const worldPos = screenToWorld(x, y);
 
     // Check if clicked on gray area (outside game world)
@@ -1285,6 +1636,33 @@ canvas.addEventListener('click', (e) => {
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
 
+  console.log('🖱️ Click at:', x, y); // Debug log
+
+  // Check if clicked on respawn button (TOP PRIORITY)
+  if (canvas.respawnBtnBounds && currentPlayer) {
+    const btn = canvas.respawnBtnBounds;
+    console.log('🏠 Respawn button bounds:', btn);
+    if (x >= btn.x && x <= btn.x + btn.width &&
+        y >= btn.y && y <= btn.y + btn.height) {
+      currentPlayer.respawn();
+      console.log('🏠 Respawn button clicked!');
+      return;
+    }
+  }
+
+  // Check if clicked on settings button
+  if (canvas.settingsIconBounds) {
+    const btn = canvas.settingsIconBounds;
+    console.log('⚙️ Settings button bounds:', btn);
+    if (x >= btn.x && x <= btn.x + btn.width &&
+        y >= btn.y && y <= btn.y + btn.height) {
+      console.log('⚙️ Settings button clicked!');
+      // TODO: Open settings modal
+      alert('Settings feature - Coming soon!');
+      return;
+    }
+  }
+
   // Check if clicked on bottom gesture
   if (canvas.gestureBounds) {
     const btn = canvas.gestureBounds;
@@ -1383,8 +1761,8 @@ canvas.addEventListener('wheel', (e) => {
   const worldX = (mouseX - offsetX) / (baseScale * zoomLevel);
   const worldY = (mouseY - offsetY) / (baseScale * zoomLevel);
 
-  // Update zoom level (smaller delta for smoother zoom)
-  const delta = e.deltaY > 0 ? -0.03 : 0.03;
+  // Update zoom level (adjusted delta for faster zoom)
+  const delta = e.deltaY > 0 ? -0.1 : 0.1;
   const oldZoom = zoomLevel;
   zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel + delta));
 
@@ -1735,13 +2113,14 @@ function drawUI() {
   const infoX = 10;
   const infoY = 10;
   const infoWidth = 200;
+  const infoHeight = 130; // Increased height for more controls
 
   // Semi-transparent background
   ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-  ctx.fillRect(infoX, infoY, infoWidth, 110);
+  ctx.fillRect(infoX, infoY, infoWidth, infoHeight);
   ctx.strokeStyle = '#667eea';
   ctx.lineWidth = 2;
-  ctx.strokeRect(infoX, infoY, infoWidth, 110);
+  ctx.strokeRect(infoX, infoY, infoWidth, infoHeight);
 
   // Room name
   const roomEmoji = getRoomEmoji(currentRoom);
@@ -1766,16 +2145,31 @@ function drawUI() {
   ctx.fillStyle = '#aaaaaa';
   ctx.font = '11px Arial';
   ctx.fillText('🎮 WASD  💬 Enter', infoX + infoPadding, infoY + infoPadding + 68);
+  ctx.fillText(`🦘 Space  🏠 H`, infoX + infoPadding, infoY + infoPadding + 85);
+  ctx.fillText(`🚪 R  🆘 ESC`, infoX + infoPadding, infoY + infoPadding + 102);
 
-  // Detect Mac for showing Cmd instead of Ctrl
-  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-  const zoomKey = isMac ? 'Cmd' : 'Ctrl';
-  ctx.fillText(`🔍 ${zoomKey}+Scroll  🚪 R`, infoX + infoPadding, infoY + infoPadding + 85);
-
-  // Top-right floating button (Settings only)
+  // Top-right floating buttons
   const buttonSize = 50;
+  const buttonSpacing = 10;
+
+  // Respawn button (Home)
+  const respawnBtnX = canvas.width - buttonSize - 15;
+  const respawnBtnY = 15;
+  ctx.fillStyle = 'rgba(76, 175, 80, 0.95)';
+  ctx.fillRect(respawnBtnX, respawnBtnY, buttonSize, buttonSize);
+  ctx.strokeStyle = '#388E3C';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(respawnBtnX, respawnBtnY, buttonSize, buttonSize);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 24px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🏠', respawnBtnX + buttonSize / 2, respawnBtnY + buttonSize / 2);
+  canvas.respawnBtnBounds = { x: respawnBtnX, y: respawnBtnY, width: buttonSize, height: buttonSize };
+
+  // Settings button (below respawn)
   const settingsBtnX = canvas.width - buttonSize - 15;
-  const settingsBtnY = 15;
+  const settingsBtnY = respawnBtnY + buttonSize + buttonSpacing;
   ctx.fillStyle = 'rgba(255, 152, 0, 0.95)';
   ctx.fillRect(settingsBtnX, settingsBtnY, buttonSize, buttonSize);
   ctx.strokeStyle = '#F57C00';
