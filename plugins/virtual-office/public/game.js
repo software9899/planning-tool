@@ -20,6 +20,10 @@ let hoveredObject = null; // Track which object is being hovered
 let draggingObject = null; // Track which object is being dragged
 let dragOffsetX = 0;
 let dragOffsetY = 0;
+let isDrawingPartition = false; // Track if drawing a partition
+let partitionStartX = 0;
+let partitionStartY = 0;
+let justFinishedPartition = false; // Prevent click event after partition drawing
 let collectibles = []; // Cars and other collectible items
 let animationFrame = 0;
 let chatPanelOpen = false; // Track if chat panel is open
@@ -1680,7 +1684,7 @@ micBtn.addEventListener('touchend', (e) => {
   stopRecording();
 });
 
-// Canvas mousedown for dragging objects
+// Canvas mousedown for dragging objects or drawing partitions
 canvas.addEventListener('mousedown', (e) => {
   // Only handle dragging in edit mode
   if (!isEditingObjects) return;
@@ -1690,9 +1694,21 @@ canvas.addEventListener('mousedown', (e) => {
   const y = e.clientY - rect.top;
   const worldPos = screenToWorld(x, y);
 
-  // Check if mousedown on existing temp object to start dragging
   if (worldPos.x >= 0 && worldPos.x <= WORLD_WIDTH &&
       worldPos.y >= 0 && worldPos.y <= WORLD_HEIGHT) {
+
+    // Check if we're placing a partition - start drawing mode
+    if (selectedObject && selectedObject.isPartition) {
+      isDrawingPartition = true;
+      partitionStartX = worldPos.x;
+      partitionStartY = worldPos.y;
+      canvas.style.cursor = 'crosshair';
+      console.log('🧱 Started drawing partition from:', worldPos.x, worldPos.y);
+      e.preventDefault();
+      return;
+    }
+
+    // Otherwise, check if clicking on existing object to drag it
     const clickedObject = getTempObjectAtPosition(worldPos.x, worldPos.y);
     if (clickedObject) {
       // Start dragging this object
@@ -1701,7 +1717,7 @@ canvas.addEventListener('mousedown', (e) => {
       dragOffsetY = worldPos.y - clickedObject.y;
       canvas.style.cursor = 'grabbing';
       console.log('🖱️ Started dragging object:', clickedObject.name);
-      e.preventDefault(); // Prevent click event from firing
+      e.preventDefault();
     }
   }
 });
@@ -1789,7 +1805,7 @@ canvas.addEventListener('click', (e) => {
   }
 
   // Edit mode - place new objects (dragging is handled in mousedown)
-  if (isEditingObjects && selectedObject && !clickedOnGrayArea) {
+  if (isEditingObjects && selectedObject && !clickedOnGrayArea && !justFinishedPartition) {
     const worldPos = screenToWorld(x, y);
 
     // Only place if clicked within game world bounds
@@ -1834,18 +1850,63 @@ canvas.addEventListener('click', (e) => {
   }
 });
 
-// Mouse up to stop dragging
+// Mouse up to stop dragging or finish drawing partition
 canvas.addEventListener('mouseup', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const worldPos = screenToWorld(x, y);
+
+  // Finish drawing partition
+  if (isDrawingPartition && selectedObject) {
+    const endX = worldPos.x;
+    const endY = worldPos.y;
+
+    // Calculate partition dimensions from start to end point
+    const dx = endX - partitionStartX;
+    const dy = endY - partitionStartY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Only create if drag distance is significant (at least 20 pixels)
+    if (distance > 20) {
+      const angle = Math.atan2(dy, dx);
+      const isHorizontal = Math.abs(Math.cos(angle)) > Math.abs(Math.sin(angle));
+
+      const newPartition = {
+        x: Math.min(partitionStartX, endX),
+        y: Math.min(partitionStartY, endY),
+        width: isHorizontal ? Math.abs(dx) : selectedObject.width,
+        height: isHorizontal ? selectedObject.width : Math.abs(dy), // width becomes thickness
+        type: selectedObject.id,
+        color: selectedObject.color,
+        name: selectedObject.name,
+        isTemp: true,
+        isPartition: true
+        // No emoji for partitions
+      };
+
+      tempFurniture.push(newPartition);
+      console.log('🧱 Created partition:', newPartition);
+    }
+
+    isDrawingPartition = false;
+    justFinishedPartition = true; // Prevent click event from firing
+    canvas.style.cursor = 'crosshair';
+
+    // Reset flag after a short delay
+    setTimeout(() => {
+      justFinishedPartition = false;
+    }, 100);
+
+    return;
+  }
+
+  // Stop dragging object
   if (draggingObject) {
     console.log('🖱️ Stopped dragging object');
     draggingObject = null;
 
     // Update cursor based on what's under the mouse
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const worldPos = screenToWorld(x, y);
-
     if (isEditingObjects) {
       const objUnderMouse = getTempObjectAtPosition(worldPos.x, worldPos.y);
       if (objUnderMouse) {
@@ -2200,6 +2261,15 @@ const OBJECT_CATEGORIES = {
       { id: 'conference-table', name: 'โต๊ะประชุม', emoji: '🪑', width: 200, height: 150, color: '#8B4513' },
       { id: 'presentation-board', name: 'บอร์ดนำเสนอ', emoji: '📊', width: 100, height: 120, color: '#4682B4' }
     ]
+  },
+  structure: {
+    name: 'โครงสร้างห้อง',
+    emoji: '🚪',
+    items: [
+      { id: 'partition', name: 'ฉากกั้นห้อง', width: 20, height: 200, color: '#A9A9A9', isPartition: true },
+      { id: 'door', name: 'ประตู', emoji: '🚪', width: 80, height: 20, color: '#8B4513' },
+      { id: 'window', name: 'หน้าต่าง', emoji: '🪟', width: 100, height: 20, color: '#87CEEB' }
+    ]
   }
 };
 
@@ -2259,7 +2329,7 @@ function showCategoryItems(categoryId) {
     const itemEl = document.createElement('div');
     itemEl.className = 'object-item';
     itemEl.innerHTML = `
-      <span class="object-emoji">${item.emoji}</span>
+      ${item.emoji ? `<span class="object-emoji">${item.emoji}</span>` : '<span class="object-emoji">━</span>'}
       <span class="object-name">${item.name}</span>
     `;
 
@@ -2584,6 +2654,11 @@ function drawFurniture() {
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2 * scale;
       ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
+    } else if (obj.isPartition) {
+      // Render partitions/walls as simple thick lines
+      ctx.fillStyle = obj.color || '#A9A9A9';
+      ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
+      // No border, no emoji - just a solid line
     } else {
       // Generic object rendering with emoji support
       // Draw background rectangle
@@ -2635,7 +2710,31 @@ function drawFurniture() {
 
 // Draw object placement preview
 function drawObjectPreview() {
+  // Draw partition line preview while drawing
+  if (isDrawingPartition) {
+    const worldPos = screenToWorld(mouseX, mouseY);
+    const startScreen = worldToScreen(partitionStartX, partitionStartY);
+    const endScreen = worldToScreen(worldPos.x, worldPos.y);
+    const scale = Math.max(0.01, startScreen.scale);
+
+    ctx.save();
+    ctx.strokeStyle = '#667eea';
+    ctx.lineWidth = 8 * scale;
+    ctx.setLineDash([10 * scale, 5 * scale]);
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(startScreen.x, startScreen.y);
+    ctx.lineTo(endScreen.x, endScreen.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    return;
+  }
+
   if (!selectedObject) return;
+
+  // Don't show preview for partitions (they use line drawing mode)
+  if (selectedObject.isPartition) return;
 
   // Get mouse position in world coordinates
   const worldPos = screenToWorld(mouseX, mouseY);
