@@ -887,11 +887,6 @@ class Player {
   }
 
   update() {
-    // Debug: log update calls every 60 frames
-    if (frameCount % 60 === 0) {
-      console.log('🔄 Update called! isJumping:', this.isJumping, 'position:', this.x.toFixed(2), this.y.toFixed(2));
-    }
-
     // Update jump animation if jumping
     if (this.isJumping) {
       // Safety check: if jumpProgress is stuck at 1, force reset
@@ -920,13 +915,6 @@ class Player {
     const oldDirection = this.direction;
     let newX = this.x;
     let newY = this.y;
-
-    // Debug: Log movement attempts
-    const isPressingMovementKey = keys['w'] || keys['s'] || keys['a'] || keys['d'] ||
-                                   keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright'];
-    if (isPressingMovementKey && frameCount % 60 === 0) { // Log every 60 frames
-      console.log('🎮 Movement keys pressed, isJumping:', this.isJumping, 'keys:', keys);
-    }
 
     // Priority 1: Move to target position (click-to-move)
     if (targetPosition) {
@@ -1146,15 +1134,22 @@ function loadSavedDecorations() {
   }
 }
 
-// Save furniture and room colors to localStorage
+// Save furniture and room colors to SERVER (sync for everyone)
 function saveDecorations() {
   try {
-    localStorage.setItem('virtualOfficeFurniture', JSON.stringify(furniture));
-    localStorage.setItem('virtualOfficeRoomColors', JSON.stringify(customRoomColors));
-    localStorage.setItem('virtualOfficeCustomObjects', JSON.stringify(customObjects));
-    localStorage.setItem('virtualOfficeFloorTypes', JSON.stringify(customRoomFloorTypes));
-    localStorage.setItem('virtualOfficeTileFloors', JSON.stringify(customTileFloors));
-    console.log('💾 Saved decorations to localStorage:');
+    const decorationData = {
+      room: currentRoom,
+      furniture: furniture,
+      customRoomColors: customRoomColors,
+      customRoomFloorTypes: customRoomFloorTypes,
+      customTileFloors: customTileFloors,
+      customObjects: customObjects
+    };
+
+    // Send to server for sync
+    socket.emit('saveDecorations', decorationData);
+
+    console.log('💾 Saving decorations to server (will sync to everyone):');
     console.log('  - Furniture:', furniture.length, 'items');
     console.log('  - Room colors:', Object.keys(customRoomColors).length, 'rooms');
     console.log('  - Floor types:', Object.keys(customRoomFloorTypes).length, 'rooms');
@@ -1216,13 +1211,9 @@ socket.on('init', (data) => {
   console.log('👥 Other players:', otherPlayers.size);
   updateOnlinePlayersList();
 
-  // Initialize furniture only if no saved furniture exists
-  if (furniture.length === 0) {
-    initializeFurniture(currentRoom);
-    console.log('🪑 Default furniture initialized:', furniture.length, 'items');
-  } else {
-    console.log('🪑 Using saved furniture:', furniture.length, 'items');
-  }
+  // Request decorations from server (synced for everyone)
+  socket.emit('getDecorations', currentRoom);
+  console.log('📡 Requesting decorations from server...');
 
   // Switch to game screen
   loginScreen.classList.remove('active');
@@ -1357,6 +1348,51 @@ socket.on('voiceChat', (message) => {
   });
 
   console.log(`🔊 Playing voice message from ${message.username}`);
+});
+
+// Decoration sync events
+socket.on('decorationsLoaded', (data) => {
+  console.log('📦 Decorations loaded from server:', data);
+
+  // Apply decorations from server
+  furniture = data.furniture || [];
+  customRoomColors = data.customRoomColors || {};
+  customRoomFloorTypes = data.customRoomFloorTypes || {};
+  customTileFloors = data.customTileFloors || {};
+  customObjects = data.customObjects || {};
+
+  console.log('✅ Applied decorations:');
+  console.log('  - Furniture:', furniture.length, 'items');
+  console.log('  - Room colors:', Object.keys(customRoomColors).length, 'rooms');
+  console.log('  - Floor types:', Object.keys(customRoomFloorTypes).length, 'rooms');
+  console.log('  - Tile floors:', Object.keys(customTileFloors).length, 'tiles');
+  console.log('  - Custom objects:', Object.keys(customObjects).length, 'categories');
+
+  // Initialize default furniture if none exist
+  if (furniture.length === 0) {
+    initializeFurniture(currentRoom);
+    console.log('🪑 Initialized default furniture');
+  }
+});
+
+socket.on('decorationsUpdated', (data) => {
+  console.log('🔄 Decorations updated by:', data.updatedBy);
+
+  // Apply updated decorations
+  furniture = data.furniture || [];
+  customRoomColors = data.customRoomColors || {};
+  customRoomFloorTypes = data.customRoomFloorTypes || {};
+  customTileFloors = data.customTileFloors || {};
+  customObjects = data.customObjects || {};
+
+  console.log('✅ Map updated! Everyone can see it now.');
+  console.log('  - Updated by:', data.updatedBy);
+  console.log('  - Furniture:', furniture.length, 'items');
+});
+
+socket.on('decorationsError', (error) => {
+  console.error('❌ Decoration sync error:', error.message);
+  alert('⚠️ Failed to sync decorations: ' + error.message);
 });
 
 socket.on('roomChanged', (data) => {
@@ -1609,9 +1645,9 @@ async function sendMessage() {
     currentPlayer.showChatBubble(finalMessage);
   }
 
-  // Clear input and blur to allow WASD movement
+  // Clear input and keep focus for quick consecutive messages
   chatInput.value = '';
-  chatInput.blur();
+  chatInput.focus();
 }
 
 chatInput.addEventListener('keypress', (e) => {
@@ -1941,11 +1977,22 @@ async function startRecording() {
     console.log('📍 URL:', window.location.href);
     console.log('🌐 Protocol:', window.location.protocol);
     console.log('🖥️ Browser:', navigator.userAgent);
+    console.log('🔍 Checking APIs:');
+    console.log('  - navigator exists:', typeof navigator !== 'undefined');
+    console.log('  - navigator.mediaDevices exists:', typeof navigator.mediaDevices !== 'undefined');
+    console.log('  - navigator.mediaDevices value:', navigator.mediaDevices);
+    console.log('  - getUserMedia exists:', navigator.mediaDevices ? typeof navigator.mediaDevices.getUserMedia !== 'undefined' : 'N/A');
+    console.log('  - getUserMedia value:', navigator.mediaDevices ? navigator.mediaDevices.getUserMedia : 'N/A');
 
     // Check if getUserMedia is available
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.error('❌ getUserMedia NOT available!');
+      console.error('  - navigator.mediaDevices:', navigator.mediaDevices);
+      console.error('  - getUserMedia:', navigator.mediaDevices?.getUserMedia);
       throw new Error('getUserMedia is not supported in this browser');
     }
+
+    console.log('✅ getUserMedia is available, requesting permission...');
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 

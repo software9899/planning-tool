@@ -24,6 +24,9 @@ app.use(express.static(path.join(__dirname, '../public')));
 const connectDB = require('./database');
 connectDB();
 
+// Models
+const RoomDecoration = require('./models/RoomDecoration');
+
 // Game state
 const rooms = new Map();
 const players = new Map();
@@ -308,6 +311,79 @@ io.on('connection', (socket) => {
 
       // Disconnect the socket
       socket.disconnect();
+    }
+  });
+
+  // Get room decorations
+  socket.on('getDecorations', async (roomName) => {
+    try {
+      let decoration = await RoomDecoration.findOne({ room: roomName || 'lobby' });
+
+      if (!decoration) {
+        // Create default decoration if not exists
+        decoration = await RoomDecoration.create({
+          room: roomName || 'lobby',
+          furniture: [],
+          customRoomColors: {},
+          customRoomFloorTypes: {},
+          customTileFloors: {},
+          customObjects: {}
+        });
+      }
+
+      socket.emit('decorationsLoaded', {
+        furniture: decoration.furniture,
+        customRoomColors: decoration.customRoomColors,
+        customRoomFloorTypes: decoration.customRoomFloorTypes,
+        customTileFloors: decoration.customTileFloors,
+        customObjects: decoration.customObjects
+      });
+
+      console.log(`📦 Sent decorations for ${roomName} to ${socket.id}`);
+    } catch (error) {
+      console.error('❌ Error loading decorations:', error);
+      socket.emit('decorationsError', { message: 'Failed to load decorations' });
+    }
+  });
+
+  // Save room decorations
+  socket.on('saveDecorations', async (data) => {
+    try {
+      const player = players.get(socket.id);
+      const roomName = data.room || (player ? player.room : 'lobby');
+
+      const decoration = await RoomDecoration.findOneAndUpdate(
+        { room: roomName },
+        {
+          furniture: data.furniture || [],
+          customRoomColors: data.customRoomColors || {},
+          customRoomFloorTypes: data.customRoomFloorTypes || {},
+          customTileFloors: data.customTileFloors || {},
+          customObjects: data.customObjects || {},
+          lastUpdatedBy: player ? player.username : 'unknown',
+          updatedAt: new Date()
+        },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true
+        }
+      );
+
+      // Broadcast to all players in the same room
+      io.to(roomName).emit('decorationsUpdated', {
+        furniture: decoration.furniture,
+        customRoomColors: decoration.customRoomColors,
+        customRoomFloorTypes: decoration.customRoomFloorTypes,
+        customTileFloors: decoration.customTileFloors,
+        customObjects: decoration.customObjects,
+        updatedBy: player ? player.username : 'unknown'
+      });
+
+      console.log(`💾 Saved decorations for ${roomName} by ${player ? player.username : 'unknown'}`);
+    } catch (error) {
+      console.error('❌ Error saving decorations:', error);
+      socket.emit('decorationsError', { message: 'Failed to save decorations' });
     }
   });
 

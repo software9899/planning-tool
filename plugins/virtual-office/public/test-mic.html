@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎤 Microphone Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 2px solid #bee5eb;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .details {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Microphone Access Test</h1>
+
+        <div class="test-section">
+            <h2>📊 Browser Information</h2>
+            <div id="browser-info" class="details">Loading...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔍 API Detection</h2>
+            <div id="api-check" class="details">Checking...</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🎤 Microphone Test</h2>
+            <button id="test-btn" onclick="testMicrophone()">🎤 Test Microphone Access</button>
+            <div id="mic-status"></div>
+            <div id="mic-details" class="details" style="display:none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Troubleshooting</h2>
+            <div id="troubleshooting"></div>
+        </div>
+    </div>
+
+    <script>
+        // Display Browser Info
+        function displayBrowserInfo() {
+            const info = {
+                'User Agent': navigator.userAgent,
+                'Platform': navigator.platform,
+                'Language': navigator.language,
+                'Online': navigator.onLine,
+                'Cookies Enabled': navigator.cookieEnabled,
+                'Current URL': window.location.href,
+                'Protocol': window.location.protocol,
+                'Hostname': window.location.hostname,
+                'Port': window.location.port || '(default)',
+            };
+
+            let html = '';
+            for (const [key, value] of Object.entries(info)) {
+                html += `${key}: ${value}\n`;
+            }
+
+            document.getElementById('browser-info').textContent = html;
+        }
+
+        // Check API Availability
+        function checkAPIs() {
+            const checks = {
+                'navigator': typeof navigator !== 'undefined' ? '✅ Available' : '❌ Not Available',
+                'navigator.mediaDevices': typeof navigator.mediaDevices !== 'undefined' ? '✅ Available' : '❌ Not Available',
+                'navigator.mediaDevices.getUserMedia':
+                    (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function')
+                        ? '✅ Available'
+                        : '❌ Not Available',
+                'MediaRecorder': typeof MediaRecorder !== 'undefined' ? '✅ Available' : '❌ Not Available',
+                'AudioContext': (typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined')
+                    ? '✅ Available'
+                    : '❌ Not Available',
+            };
+
+            let html = '';
+            let allGood = true;
+            for (const [key, value] of Object.entries(checks)) {
+                html += `${key}: ${value}\n`;
+                if (value.includes('❌')) {
+                    allGood = false;
+                }
+            }
+
+            const apiCheckDiv = document.getElementById('api-check');
+            apiCheckDiv.textContent = html;
+            apiCheckDiv.className = allGood ? 'details success' : 'details error';
+
+            // Show troubleshooting if issues found
+            if (!allGood) {
+                showTroubleshooting('api-missing');
+            }
+        }
+
+        // Test Microphone
+        async function testMicrophone() {
+            const statusDiv = document.getElementById('mic-status');
+            const detailsDiv = document.getElementById('mic-details');
+            const testBtn = document.getElementById('test-btn');
+
+            statusDiv.innerHTML = '<div class="status info">🔄 Testing microphone access...</div>';
+            detailsDiv.style.display = 'none';
+            testBtn.disabled = true;
+
+            try {
+                // Check if API exists
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('getUserMedia API is not available in this browser');
+                }
+
+                console.log('🎤 Requesting microphone access...');
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // Get audio track info
+                const audioTracks = stream.getAudioTracks();
+                let details = 'Stream Details:\n';
+                details += `Active: ${stream.active}\n`;
+                details += `ID: ${stream.id}\n\n`;
+                details += `Audio Tracks: ${audioTracks.length}\n`;
+
+                audioTracks.forEach((track, index) => {
+                    details += `\nTrack ${index + 1}:\n`;
+                    details += `  Label: ${track.label}\n`;
+                    details += `  ID: ${track.id}\n`;
+                    details += `  Enabled: ${track.enabled}\n`;
+                    details += `  Muted: ${track.muted}\n`;
+                    details += `  ReadyState: ${track.readyState}\n`;
+
+                    const settings = track.getSettings();
+                    details += `  Settings:\n`;
+                    for (const [key, value] of Object.entries(settings)) {
+                        details += `    ${key}: ${value}\n`;
+                    }
+                });
+
+                // Stop the stream
+                stream.getTracks().forEach(track => track.stop());
+
+                statusDiv.innerHTML = '<div class="status success">✅ SUCCESS! Microphone access granted!</div>';
+                detailsDiv.textContent = details;
+                detailsDiv.style.display = 'block';
+                detailsDiv.className = 'details success';
+
+            } catch (error) {
+                console.error('❌ Microphone error:', error);
+
+                let errorMsg = `Error Type: ${error.name}\n`;
+                errorMsg += `Error Message: ${error.message}\n`;
+                errorMsg += `Stack: ${error.stack}\n`;
+
+                statusDiv.innerHTML = `<div class="status error">❌ FAILED: ${error.message}</div>`;
+                detailsDiv.textContent = errorMsg;
+                detailsDiv.style.display = 'block';
+                detailsDiv.className = 'details error';
+
+                // Show specific troubleshooting
+                showTroubleshooting(error.name);
+            } finally {
+                testBtn.disabled = false;
+            }
+        }
+
+        // Show Troubleshooting
+        function showTroubleshooting(errorType) {
+            const troubleshootingDiv = document.getElementById('troubleshooting');
+            let html = '';
+
+            if (errorType === 'api-missing') {
+                html = `
+                    <div class="status error">
+                        <strong>⚠️ getUserMedia API Not Available</strong>
+                        <p>Possible causes:</p>
+                        <ul>
+                            <li>❌ Using very old browser version</li>
+                            <li>❌ Browser doesn't support Web APIs</li>
+                            <li>❌ Security settings blocking APIs</li>
+                        </ul>
+                        <p><strong>Solutions:</strong></p>
+                        <ul>
+                            <li>✅ Update Chrome to latest version</li>
+                            <li>✅ Try Safari or Firefox</li>
+                            <li>✅ Check if using Incognito/Private mode with restrictions</li>
+                        </ul>
+                    </div>
+                `;
+            } else if (errorType === 'NotAllowedError' || errorType === 'PermissionDeniedError') {
+                html = `
+                    <div class="status error">
+                        <strong>⚠️ Permission Denied</strong>
+                        <p><strong>Solutions:</strong></p>
+                        <ol>
+                            <li>Click 🔒 or ⓘ in address bar</li>
+                            <li>Click "Site settings"</li>
+                            <li>Set Microphone to "Allow"</li>
+                            <li>Refresh page (F5)</li>
+                        </ol>
+                        <p>Or go to: <code>chrome://settings/content/microphone</code></p>
+                    </div>
+                `;
+            } else if (errorType === 'NotFoundError') {
+                html = `
+                    <div class="status error">
+                        <strong>⚠️ No Microphone Found</strong>
+                        <p><strong>Solutions:</strong></p>
+                        <ul>
+                            <li>✅ Check if microphone is plugged in</li>
+                            <li>✅ Check System Settings → Privacy → Microphone</li>
+                            <li>✅ Try different microphone</li>
+                            <li>✅ Restart browser</li>
+                        </ul>
+                    </div>
+                `;
+            }
+
+            troubleshootingDiv.innerHTML = html;
+        }
+
+        // Run checks on load
+        displayBrowserInfo();
+        checkAPIs();
+    </script>
+</body>
+</html>
