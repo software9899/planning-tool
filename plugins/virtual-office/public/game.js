@@ -238,7 +238,8 @@ let chatHistory = JSON.parse(localStorage.getItem('virtualOfficeChatHistory') ||
 let chatSettings = JSON.parse(localStorage.getItem('virtualOfficeChatSettings') || JSON.stringify({
   fontSize: 18,
   bubbleWidth: 250,
-  displayTime: 5
+  displayTime: 5,
+  showNames: false
 }));
 
 // Chat messages for sidebar (LINE-style)
@@ -1565,6 +1566,20 @@ if (savedAiKey) {
     aiKeyInput.value = savedAiKey;
   }
   console.log('🔑 AI API Key loaded');
+}
+
+// Show names checkbox
+const showNamesCheckbox = document.getElementById('show-names-checkbox');
+if (showNamesCheckbox) {
+  // Load saved setting
+  showNamesCheckbox.checked = chatSettings.showNames || false;
+
+  // Save when changed
+  showNamesCheckbox.addEventListener('change', (e) => {
+    chatSettings.showNames = e.target.checked;
+    localStorage.setItem('virtualOfficeChatSettings', JSON.stringify(chatSettings));
+    console.log('👤 Show names:', chatSettings.showNames ? 'ON' : 'OFF');
+  });
 }
 
 // AI Grammar Correction Function
@@ -3818,13 +3833,14 @@ function gameLoop() {
       clampCameraOffset();
     }
 
-    const showCurrentPlayerName = hoveredPlayer && hoveredPlayer.id === currentPlayer.id;
-    currentPlayer.draw(true, showCurrentPlayerName);
+    // Never show current player's own name
+    currentPlayer.draw(true, false);
   }
 
   // Draw other players
   otherPlayers.forEach(player => {
-    const showName = hoveredPlayer && hoveredPlayer.id === player.id;
+    // Show name if: hovered OR showNames setting is enabled
+    const showName = (hoveredPlayer && hoveredPlayer.id === player.id) || chatSettings.showNames;
     player.draw(false, showName);
 
     // Draw proximity indicator if in proximity chat mode
