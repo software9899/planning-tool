@@ -24,6 +24,9 @@ let isDrawingPartition = false; // Track if drawing a partition
 let partitionStartX = 0;
 let partitionStartY = 0;
 let justFinishedPartition = false; // Prevent click event after partition drawing
+let customRoomColors = {}; // Store custom floor colors for rooms
+let tempCustomRoomColors = {}; // Temporary custom room colors during editing
+let selectedFloorColor = null; // Currently selected color for floor painting
 let collectibles = []; // Cars and other collectible items
 let animationFrame = 0;
 let chatPanelOpen = false; // Track if chat panel is open
@@ -1804,6 +1807,19 @@ canvas.addEventListener('click', (e) => {
     }
   }
 
+  // Floor color painting mode
+  if (isEditingObjects && selectedFloorColor && !clickedOnGrayArea) {
+    const worldPos = screenToWorld(x, y);
+
+    // Find which room was clicked
+    const clickedRoom = detectRoom(worldPos.x, worldPos.y);
+    if (clickedRoom && clickedRoom.id !== 'unknown') {
+      tempCustomRoomColors[clickedRoom.id] = selectedFloorColor;
+      console.log('🎨 Changed', clickedRoom.name, 'floor to', selectedFloorColor);
+    }
+    return;
+  }
+
   // Edit mode - place new objects (dragging is handled in mousedown)
   if (isEditingObjects && selectedObject && !clickedOnGrayArea && !justFinishedPartition) {
     const worldPos = screenToWorld(x, y);
@@ -2268,7 +2284,8 @@ const OBJECT_CATEGORIES = {
     items: [
       { id: 'partition', name: 'ฉากกั้นห้อง', width: 20, height: 200, color: '#A9A9A9', isPartition: true },
       { id: 'door', name: 'ประตู', emoji: '🚪', width: 80, height: 20, color: '#8B4513' },
-      { id: 'window', name: 'หน้าต่าง', emoji: '🪟', width: 100, height: 20, color: '#87CEEB' }
+      { id: 'window', name: 'หน้าต่าง', emoji: '🪟', width: 100, height: 20, color: '#87CEEB' },
+      { id: 'floor-color', name: 'สีพื้นห้อง', emoji: '🎨', isFloorColor: true }
     ]
   }
 };
@@ -2287,6 +2304,8 @@ function showObjectSelector() {
   isEditingObjects = true;
   // Copy current furniture to temp for editing
   tempFurniture = JSON.parse(JSON.stringify(furniture));
+  // Copy current room colors to temp for editing
+  tempCustomRoomColors = JSON.parse(JSON.stringify(customRoomColors));
 
   // Clear existing content
   categoriesDiv.innerHTML = '';
@@ -2339,7 +2358,23 @@ function showCategoryItems(categoryId) {
     }
 
     itemEl.addEventListener('click', () => {
+      // Special handling for floor color item
+      if (item.isFloorColor) {
+        selectedObject = { ...item, categoryId };
+        selectedFloorColor = null;
+        console.log('🎨 Selected floor color mode');
+
+        // Remove selected class from all items
+        document.querySelectorAll('.object-item').forEach(el => el.classList.remove('selected'));
+        itemEl.classList.add('selected');
+
+        // Show color palette
+        showColorPalette();
+        return;
+      }
+
       selectedObject = { ...item, categoryId };
+      selectedFloorColor = null; // Clear floor color mode
       console.log('🛋️ Selected object:', item.name, '- Click on map to place');
 
       // Remove selected class from all items
@@ -2357,6 +2392,63 @@ function showCategoryItems(categoryId) {
   });
 }
 
+// Show color palette for floor painting
+function showColorPalette() {
+  const itemsDiv = document.getElementById('object-items');
+  itemsDiv.innerHTML = '<div style="padding: 10px; text-align: center; color: #666;">คลิกที่ห้องเพื่อเปลี่ยนสี</div>';
+
+  const colors = [
+    { name: 'ฟ้าอ่อน', color: '#e8f4f8' },
+    { name: 'เขียวอ่อน', color: '#e8f4e8' },
+    { name: 'ครีม', color: '#f5eedb' },
+    { name: 'ชมพูอ่อน', color: '#ffe8e8' },
+    { name: 'ม่วงอ่อน', color: '#f0e8f5' },
+    { name: 'เหลืองอ่อน', color: '#fffbe8' },
+    { name: 'ส้มอ่อน', color: '#fff5e8' },
+    { name: 'เทา', color: '#f5f5f5' },
+    { name: 'ขาว', color: '#ffffff' }
+  ];
+
+  colors.forEach(colorOption => {
+    const colorEl = document.createElement('div');
+    colorEl.className = 'color-option';
+    colorEl.style.cssText = `
+      background: ${colorOption.color};
+      border: 3px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+      font-size: 12px;
+      font-weight: bold;
+    `;
+    colorEl.textContent = colorOption.name;
+
+    colorEl.addEventListener('mouseenter', () => {
+      colorEl.style.transform = 'scale(1.05)';
+      colorEl.style.borderColor = '#667eea';
+    });
+
+    colorEl.addEventListener('mouseleave', () => {
+      colorEl.style.transform = 'scale(1)';
+      colorEl.style.borderColor = selectedFloorColor === colorOption.color ? '#667eea' : '#ddd';
+    });
+
+    colorEl.addEventListener('click', () => {
+      selectedFloorColor = colorOption.color;
+      document.querySelectorAll('.color-option').forEach(el => {
+        el.style.borderColor = '#ddd';
+      });
+      colorEl.style.borderColor = '#667eea';
+      canvas.style.cursor = 'copy';
+      console.log('🎨 Selected floor color:', colorOption.name);
+    });
+
+    itemsDiv.appendChild(colorEl);
+  });
+}
+
 // Close object sidebar button
 const closeSidebarBtn = document.getElementById('close-sidebar-btn');
 if (closeSidebarBtn) {
@@ -2365,7 +2457,9 @@ if (closeSidebarBtn) {
     // Exit edit mode without saving (same as cancel)
     isEditingObjects = false;
     tempFurniture = [];
+    tempCustomRoomColors = {};
     selectedObject = null;
+    selectedFloorColor = null;
     hoveredObject = null;
     draggingObject = null;
     canvas.style.cursor = 'crosshair';
@@ -2379,13 +2473,17 @@ if (saveObjectsBtn) {
   saveObjectsBtn.addEventListener('click', () => {
     // Apply temp furniture to permanent furniture
     furniture = JSON.parse(JSON.stringify(tempFurniture));
+    // Apply temp room colors to permanent room colors
+    customRoomColors = JSON.parse(JSON.stringify(tempCustomRoomColors));
     console.log('💾 Saved', furniture.length, 'objects');
 
     // Close sidebar and exit edit mode
     document.getElementById('object-sidebar').classList.remove('active');
     isEditingObjects = false;
     tempFurniture = [];
+    tempCustomRoomColors = {};
     selectedObject = null;
+    selectedFloorColor = null;
     hoveredObject = null;
     draggingObject = null;
     canvas.style.cursor = 'crosshair';
@@ -2406,7 +2504,9 @@ if (cancelObjectsBtn) {
     document.getElementById('object-sidebar').classList.remove('active');
     isEditingObjects = false;
     tempFurniture = [];
+    tempCustomRoomColors = {};
     selectedObject = null;
+    selectedFloorColor = null;
     hoveredObject = null;
     draggingObject = null;
     canvas.style.cursor = 'crosshair';
@@ -3236,30 +3336,34 @@ function drawFloor() {
 
   // Define zones: 3x3 grid, each zone is 1600x1200
   const zones = [
-    // Row 1 (y=0): Meeting-2, Meeting-1, Huddle
-    { x: 0, y: 0, w: 1600, h: 1200, color: '#e8f4e8' },      // Meeting Room 2 (light green)
-    { x: 1600, y: 0, w: 1600, h: 1200, color: '#e8f4e8' },   // Meeting Room 1 (light green)
-    { x: 3200, y: 0, w: 1600, h: 1200, color: '#fff5e8' },   // Huddle (peach)
+    // Row 1 (y=0): Lobby, Workspace-1, Workspace-2
+    { x: 0, y: 0, w: 1600, h: 1200, color: '#e8f4f8', roomId: 'lobby' },
+    { x: 1600, y: 0, w: 1600, h: 1200, color: '#f5eedb', roomId: 'workspace-1' },
+    { x: 3200, y: 0, w: 1600, h: 1200, color: '#f5eedb', roomId: 'workspace-2' },
 
-    // Row 2 (y=1200): Workspace-1, Lobby, Workspace-2
-    { x: 0, y: 1200, w: 1600, h: 1200, color: '#f5eedb' },   // Workspace 1 (beige)
-    { x: 1600, y: 1200, w: 1600, h: 1200, color: '#e8f4f8' }, // Lobby (light blue)
-    { x: 3200, y: 1200, w: 1600, h: 1200, color: '#f5eedb' }, // Workspace 2 (beige)
+    // Row 2 (y=1200): Meeting-1, Meeting-2, Huddle
+    { x: 0, y: 1200, w: 1600, h: 1200, color: '#e8f4e8', roomId: 'meeting-room-1' },
+    { x: 1600, y: 1200, w: 1600, h: 1200, color: '#e8f4e8', roomId: 'meeting-room-2' },
+    { x: 3200, y: 1200, w: 1600, h: 1200, color: '#fff5e8', roomId: 'huddle-room' },
 
     // Row 3 (y=2400): Lounge, Kitchen, Game Room
-    { x: 0, y: 2400, w: 1600, h: 1200, color: '#f0e8f5' },   // Lounge (lavender)
-    { x: 1600, y: 2400, w: 1600, h: 1200, color: '#fffbe8' }, // Kitchen (light yellow)
-    { x: 3200, y: 2400, w: 1600, h: 1200, color: '#ffe8e8' }  // Game Room (light pink)
+    { x: 0, y: 2400, w: 1600, h: 1200, color: '#f0e8f5', roomId: 'lounge' },
+    { x: 1600, y: 2400, w: 1600, h: 1200, color: '#fffbe8', roomId: 'kitchen' },
+    { x: 3200, y: 2400, w: 1600, h: 1200, color: '#ffe8e8', roomId: 'game-room' }
   ];
 
-  // Draw each zone as a solid color
+  // Draw each zone as a solid color (use custom color if set)
   zones.forEach(zone => {
     const screenX = zone.x * scale + offsetX;
     const screenY = zone.y * scale + offsetY;
     const screenW = zone.w * scale;
     const screenH = zone.h * scale;
 
-    ctx.fillStyle = zone.color;
+    // Use custom color if available, otherwise use default
+    // Use temp colors during editing, permanent colors otherwise
+    const colorSource = isEditingObjects ? tempCustomRoomColors : customRoomColors;
+    const fillColor = colorSource[zone.roomId] || zone.color;
+    ctx.fillStyle = fillColor;
     ctx.fillRect(screenX, screenY, screenW, screenH);
 
     // Optional: Add subtle border between zones
