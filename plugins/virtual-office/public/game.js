@@ -27,6 +27,16 @@ let justFinishedPartition = false; // Prevent click event after partition drawin
 let customRoomColors = {}; // Store custom floor colors for rooms
 let tempCustomRoomColors = {}; // Temporary custom room colors during editing
 let selectedFloorColor = null; // Currently selected color for floor painting
+let customRoomFloorTypes = {}; // Store floor types for rooms (grass, sand, etc.)
+let tempCustomRoomFloorTypes = {}; // Temporary floor types during editing
+let selectedFloorType = null; // Currently selected floor type
+let floorMode = 'room'; // 'room' or 'tile' - determines if painting whole room or individual tiles
+let customTileFloors = {}; // Store floor types for individual tiles {tileId: floorPattern}
+let tempCustomTileFloors = {}; // Temporary tile floors during editing
+const TILE_SIZE = 100; // Size of each floor tile in world coordinates
+let hoveredFloor = null; // Track hovered floor for deletion {type: 'room'|'tile', id: string}
+let customObjects = {}; // Store custom uploaded images for each category
+let imageCache = {}; // Cache for loaded images
 let collectibles = []; // Cars and other collectible items
 let animationFrame = 0;
 let chatPanelOpen = false; // Track if chat panel is open
@@ -993,8 +1003,63 @@ function getUserId() {
   return userId;
 }
 
+// Load saved furniture and room colors from localStorage
+function loadSavedDecorations() {
+  try {
+    const savedFurniture = localStorage.getItem('virtualOfficeFurniture');
+    const savedColors = localStorage.getItem('virtualOfficeRoomColors');
+    const savedCustomObjects = localStorage.getItem('virtualOfficeCustomObjects');
+    const savedFloorTypes = localStorage.getItem('virtualOfficeFloorTypes');
+    const savedTileFloors = localStorage.getItem('virtualOfficeTileFloors');
+
+    if (savedFurniture) {
+      furniture = JSON.parse(savedFurniture);
+      console.log('🛋️ Loaded', furniture.length, 'saved objects');
+    }
+
+    if (savedColors) {
+      customRoomColors = JSON.parse(savedColors);
+      console.log('🎨 Loaded saved room colors');
+    }
+
+    if (savedCustomObjects) {
+      customObjects = JSON.parse(savedCustomObjects);
+      console.log('📸 Loaded saved custom images');
+    }
+
+    if (savedFloorTypes) {
+      customRoomFloorTypes = JSON.parse(savedFloorTypes);
+      console.log('🟫 Loaded saved floor types');
+    }
+
+    if (savedTileFloors) {
+      customTileFloors = JSON.parse(savedTileFloors);
+      console.log('🔲 Loaded saved tile floors');
+    }
+  } catch (error) {
+    console.error('❌ Error loading saved decorations:', error);
+  }
+}
+
+// Save furniture and room colors to localStorage
+function saveDecorations() {
+  try {
+    localStorage.setItem('virtualOfficeFurniture', JSON.stringify(furniture));
+    localStorage.setItem('virtualOfficeRoomColors', JSON.stringify(customRoomColors));
+    localStorage.setItem('virtualOfficeCustomObjects', JSON.stringify(customObjects));
+    localStorage.setItem('virtualOfficeFloorTypes', JSON.stringify(customRoomFloorTypes));
+    localStorage.setItem('virtualOfficeTileFloors', JSON.stringify(customTileFloors));
+    console.log('💾 Saved decorations to localStorage');
+  } catch (error) {
+    console.error('❌ Error saving decorations:', error);
+  }
+}
+
 // Check for saved login on page load
 window.addEventListener('DOMContentLoaded', () => {
+  // Load saved decorations first
+  loadSavedDecorations();
+
   const savedUsername = localStorage.getItem('virtualOfficeUsername');
   const savedRoom = localStorage.getItem('virtualOfficeRoom');
 
@@ -1261,7 +1326,7 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   }
 
-  // Remove object on R (in edit mode) OR open room selector
+  // Remove object/floor on R (in edit mode) OR open room selector
   if (e.key === 'r' || e.key === 'R') {
     // If in edit mode and hovering over an object, remove it
     if (isEditingObjects && hoveredObject) {
@@ -1272,7 +1337,21 @@ window.addEventListener('keydown', (e) => {
         hoveredObject = null;
       }
       e.preventDefault();
-    } else if (!isEditingObjects) {
+    }
+    // If in edit mode and hovering over a floor, remove it
+    else if (isEditingObjects && hoveredFloor) {
+      if (hoveredFloor.type === 'tile') {
+        delete tempCustomTileFloors[hoveredFloor.id];
+        console.log('🗑️ Removed tile floor:', hoveredFloor.id);
+      } else if (hoveredFloor.type === 'room') {
+        delete tempCustomRoomFloorTypes[hoveredFloor.id];
+        delete tempCustomRoomColors[hoveredFloor.id];
+        console.log('🗑️ Removed room floor:', hoveredFloor.id);
+      }
+      hoveredFloor = null;
+      e.preventDefault();
+    }
+    else if (!isEditingObjects) {
       // Otherwise, open room selector
       showRoomSelector();
       e.preventDefault();
@@ -1820,6 +1899,28 @@ canvas.addEventListener('click', (e) => {
     return;
   }
 
+  // Floor type painting mode
+  if (isEditingObjects && selectedFloorType && !clickedOnGrayArea) {
+    const worldPos = screenToWorld(x, y);
+
+    if (floorMode === 'room') {
+      // Room mode: paint entire room
+      const clickedRoom = detectRoom(worldPos.x, worldPos.y);
+      if (clickedRoom && clickedRoom.id !== 'unknown') {
+        tempCustomRoomFloorTypes[clickedRoom.id] = selectedFloorType;
+        console.log('🟫 Changed', clickedRoom.name, 'floor type to', selectedFloorType);
+      }
+    } else {
+      // Tile mode: paint individual tile
+      const tileX = Math.floor(worldPos.x / TILE_SIZE);
+      const tileY = Math.floor(worldPos.y / TILE_SIZE);
+      const tileId = `${tileX}_${tileY}`;
+      tempCustomTileFloors[tileId] = selectedFloorType;
+      console.log('🔲 Changed tile', tileId, 'to', selectedFloorType);
+    }
+    return;
+  }
+
   // Edit mode - place new objects (dragging is handled in mousedown)
   if (isEditingObjects && selectedObject && !clickedOnGrayArea && !justFinishedPartition) {
     const worldPos = screenToWorld(x, y);
@@ -1958,8 +2059,28 @@ canvas.addEventListener('mousemove', (e) => {
     hoveredObject = getTempObjectAtPosition(worldPos.x, worldPos.y);
     if (hoveredObject) {
       canvas.style.cursor = 'grab'; // Show grab cursor when hovering
+      hoveredFloor = null; // Clear floor hover when over object
       return;
-    } else if (selectedObject) {
+    }
+
+    // Check if hovering over floor tiles for deletion
+    hoveredFloor = null;
+
+    // Check tile floors first (more specific)
+    const tileX = Math.floor(worldPos.x / TILE_SIZE);
+    const tileY = Math.floor(worldPos.y / TILE_SIZE);
+    const tileId = `${tileX}_${tileY}`;
+    if (tempCustomTileFloors[tileId]) {
+      hoveredFloor = { type: 'tile', id: tileId };
+    } else {
+      // Check room floors
+      const room = detectRoom(worldPos.x, worldPos.y);
+      if (room && room.id !== 'unknown' && (tempCustomRoomFloorTypes[room.id] || tempCustomRoomColors[room.id])) {
+        hoveredFloor = { type: 'room', id: room.id };
+      }
+    }
+
+    if (selectedObject) {
       canvas.style.cursor = 'crosshair'; // Crosshair for placing new objects
     } else {
       canvas.style.cursor = 'default';
@@ -2284,8 +2405,23 @@ const OBJECT_CATEGORIES = {
     items: [
       { id: 'partition', name: 'ฉากกั้นห้อง', width: 20, height: 200, color: '#A9A9A9', isPartition: true },
       { id: 'door', name: 'ประตู', emoji: '🚪', width: 80, height: 20, color: '#8B4513' },
-      { id: 'window', name: 'หน้าต่าง', emoji: '🪟', width: 100, height: 20, color: '#87CEEB' },
-      { id: 'floor-color', name: 'สีพื้นห้อง', emoji: '🎨', isFloorColor: true }
+      { id: 'window', name: 'หน้าต่าง', emoji: '🪟', width: 100, height: 20, color: '#87CEEB' }
+    ]
+  },
+  floor: {
+    name: 'พื้น',
+    emoji: '🟫',
+    items: [
+      { id: 'floor-color', name: 'สีพื้นห้อง', emoji: '🎨', isFloorColor: true },
+      { id: 'grass', name: 'สนามหญ้า', emoji: '🌱', isFloorType: true, floorPattern: 'grass' },
+      { id: 'river', name: 'แม่น้ำ', emoji: '💧', isFloorType: true, floorPattern: 'river' },
+      { id: 'sand', name: 'ทราย', emoji: '🏖️', isFloorType: true, floorPattern: 'sand' },
+      { id: 'dirt', name: 'ดิน', emoji: '🟤', isFloorType: true, floorPattern: 'dirt' },
+      { id: 'road', name: 'พื้นถนน', emoji: '🛣️', isFloorType: true, floorPattern: 'road' },
+      { id: 'artificial-grass', name: 'หญ้าเทียม', emoji: '🟢', isFloorType: true, floorPattern: 'artificial-grass' },
+      { id: 'wood', name: 'ไม้', emoji: '🪵', isFloorType: true, floorPattern: 'wood' },
+      { id: 'tile', name: 'กระเบื้อง', emoji: '⬜', isFloorType: true, floorPattern: 'tile' },
+      { id: 'carpet', name: 'พรม', emoji: '🟥', isFloorType: true, floorPattern: 'carpet' }
     ]
   }
 };
@@ -2306,6 +2442,10 @@ function showObjectSelector() {
   tempFurniture = JSON.parse(JSON.stringify(furniture));
   // Copy current room colors to temp for editing
   tempCustomRoomColors = JSON.parse(JSON.stringify(customRoomColors));
+  // Copy current floor types to temp for editing
+  tempCustomRoomFloorTypes = JSON.parse(JSON.stringify(customRoomFloorTypes));
+  // Copy current tile floors to temp for editing
+  tempCustomTileFloors = JSON.parse(JSON.stringify(customTileFloors));
 
   // Clear existing content
   categoriesDiv.innerHTML = '';
@@ -2335,6 +2475,75 @@ function showObjectSelector() {
   console.log('🛋️ Object sidebar opened - Edit mode active');
 }
 
+// Handle image upload for custom objects
+function handleImageUpload(categoryId) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+
+  input.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Check file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('ไฟล์รูปภาพใหญ่เกินไป (สูงสุด 2MB)');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const imageData = event.target.result;
+
+      // Create an image to get dimensions
+      const img = new Image();
+      img.onload = () => {
+        // Prompt for name
+        const customName = prompt('ตั้งชื่อวัตถุนี้:', file.name.replace(/\.[^/.]+$/, ''));
+        if (!customName) return;
+
+        // Prompt for size
+        const widthStr = prompt('ความกว้าง (px):', '100');
+        const heightStr = prompt('ความสูง (px):', '100');
+
+        const width = parseInt(widthStr) || 100;
+        const height = parseInt(heightStr) || 100;
+
+        // Create custom object
+        const customId = `custom_${categoryId}_${Date.now()}`;
+        const customItem = {
+          customId: customId,
+          id: customId,
+          name: customName,
+          imageData: imageData,
+          width: width,
+          height: height,
+          isCustomImage: true
+        };
+
+        // Add to customObjects
+        if (!customObjects[categoryId]) {
+          customObjects[categoryId] = [];
+        }
+        customObjects[categoryId].push(customItem);
+
+        // Save immediately
+        saveDecorations();
+
+        // Refresh the category items
+        showCategoryItems(categoryId);
+
+        console.log('✅ Added custom image:', customName);
+      };
+      img.src = imageData;
+    };
+
+    reader.readAsDataURL(file);
+  });
+
+  input.click();
+}
+
 // Show items for selected category
 function showCategoryItems(categoryId) {
   const category = OBJECT_CATEGORIES[categoryId];
@@ -2344,6 +2553,81 @@ function showCategoryItems(categoryId) {
 
   itemsDiv.innerHTML = '';
 
+  // Add upload image button at the top
+  const uploadBtn = document.createElement('button');
+  uploadBtn.className = 'upload-image-btn';
+  uploadBtn.innerHTML = '📸 อัพโหลดรูปภาพ';
+  uploadBtn.style.cssText = `
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s;
+  `;
+  uploadBtn.addEventListener('mouseenter', () => {
+    uploadBtn.style.transform = 'scale(1.02)';
+  });
+  uploadBtn.addEventListener('mouseleave', () => {
+    uploadBtn.style.transform = 'scale(1)';
+  });
+  uploadBtn.addEventListener('click', () => {
+    handleImageUpload(categoryId);
+  });
+  itemsDiv.appendChild(uploadBtn);
+
+  // Show custom uploaded images for this category first
+  if (customObjects[categoryId]) {
+    customObjects[categoryId].forEach((customItem, index) => {
+      const itemEl = document.createElement('div');
+      itemEl.className = 'object-item custom-object';
+      itemEl.innerHTML = `
+        <img src="${customItem.imageData}" alt="${customItem.name}" style="width: 40px; height: 40px; object-fit: contain;">
+        <span class="object-name">${customItem.name}</span>
+        <button class="delete-custom-btn" title="ลบ">🗑️</button>
+      `;
+
+      // Check if this item is currently selected
+      if (selectedObject && selectedObject.customId === customItem.customId) {
+        itemEl.classList.add('selected');
+      }
+
+      // Delete button handler
+      const deleteBtn = itemEl.querySelector('.delete-custom-btn');
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (confirm('ต้องการลบรูปภาพนี้?')) {
+          customObjects[categoryId].splice(index, 1);
+          if (customObjects[categoryId].length === 0) {
+            delete customObjects[categoryId];
+          }
+          showCategoryItems(categoryId); // Refresh the list
+          saveDecorations(); // Save immediately
+        }
+      });
+
+      itemEl.addEventListener('click', () => {
+        selectedObject = { ...customItem, categoryId, isCustomImage: true };
+        selectedFloorColor = null;
+        console.log('🖼️ Selected custom image:', customItem.name);
+
+        // Remove selected class from all items
+        document.querySelectorAll('.object-item').forEach(el => el.classList.remove('selected'));
+        itemEl.classList.add('selected');
+
+        canvas.style.cursor = 'copy';
+      });
+
+      itemsDiv.appendChild(itemEl);
+    });
+  }
+
+  // Show default category items
   category.items.forEach(item => {
     const itemEl = document.createElement('div');
     itemEl.className = 'object-item';
@@ -2362,6 +2646,7 @@ function showCategoryItems(categoryId) {
       if (item.isFloorColor) {
         selectedObject = { ...item, categoryId };
         selectedFloorColor = null;
+        selectedFloorType = null;
         console.log('🎨 Selected floor color mode');
 
         // Remove selected class from all items
@@ -2373,8 +2658,99 @@ function showCategoryItems(categoryId) {
         return;
       }
 
+      // Special handling for floor type item
+      if (item.isFloorType) {
+        selectedObject = { ...item, categoryId };
+        selectedFloorColor = null;
+        selectedFloorType = item.floorPattern;
+        console.log('🟫 Selected floor type:', item.name);
+
+        // Remove selected class from all items
+        document.querySelectorAll('.object-item').forEach(el => el.classList.remove('selected'));
+        itemEl.classList.add('selected');
+
+        // Clear items div and show mode toggle
+        const itemsDiv = document.getElementById('object-items');
+        itemsDiv.innerHTML = '';
+
+        // Add mode toggle buttons
+        const modeToggleDiv = document.createElement('div');
+        modeToggleDiv.style.cssText = `
+          display: flex;
+          gap: 10px;
+          padding: 15px;
+          background: #f5f5f5;
+          border-radius: 8px;
+          margin-bottom: 15px;
+        `;
+
+        const roomModeBtn = document.createElement('button');
+        roomModeBtn.className = 'floor-mode-btn' + (floorMode === 'room' ? ' active' : '');
+        roomModeBtn.innerHTML = '🏠 ทั้งห้อง';
+        roomModeBtn.style.cssText = `
+          flex: 1;
+          padding: 10px;
+          border: 2px solid #ddd;
+          border-radius: 6px;
+          background: ${floorMode === 'room' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white'};
+          color: ${floorMode === 'room' ? 'white' : '#333'};
+          font-weight: bold;
+          cursor: pointer;
+          transition: all 0.3s;
+        `;
+        roomModeBtn.addEventListener('click', () => {
+          floorMode = 'room';
+          showCategoryItems(categoryId);
+        });
+
+        const tileModeBtn = document.createElement('button');
+        tileModeBtn.className = 'floor-mode-btn' + (floorMode === 'tile' ? ' active' : '');
+        tileModeBtn.innerHTML = '🔲 ช่อง';
+        tileModeBtn.style.cssText = `
+          flex: 1;
+          padding: 10px;
+          border: 2px solid #ddd;
+          border-radius: 6px;
+          background: ${floorMode === 'tile' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white'};
+          color: ${floorMode === 'tile' ? 'white' : '#333'};
+          font-weight: bold;
+          cursor: pointer;
+          transition: all 0.3s;
+        `;
+        tileModeBtn.addEventListener('click', () => {
+          floorMode = 'tile';
+          showCategoryItems(categoryId);
+        });
+
+        modeToggleDiv.appendChild(roomModeBtn);
+        modeToggleDiv.appendChild(tileModeBtn);
+        itemsDiv.appendChild(modeToggleDiv);
+
+        // Add instruction text
+        const instructionText = floorMode === 'room'
+          ? 'คลิกที่ห้องเพื่อใส่พื้นทั้งห้อง' + item.emoji
+          : 'คลิกที่ช่องเพื่อใส่พื้นช่องนั้น' + item.emoji;
+        const instructionDiv = document.createElement('div');
+        instructionDiv.style.cssText = 'padding: 10px; text-align: center; color: #666; font-size: 14px;';
+        instructionDiv.textContent = instructionText;
+        itemsDiv.appendChild(instructionDiv);
+
+        // Re-add the selected floor type item
+        const selectedItemEl = document.createElement('div');
+        selectedItemEl.className = 'object-item selected';
+        selectedItemEl.innerHTML = `
+          ${item.emoji ? `<span class="object-emoji">${item.emoji}</span>` : ''}
+          <span class="object-name">${item.name}</span>
+        `;
+        itemsDiv.appendChild(selectedItemEl);
+
+        canvas.style.cursor = 'crosshair';
+        return;
+      }
+
       selectedObject = { ...item, categoryId };
       selectedFloorColor = null; // Clear floor color mode
+      selectedFloorType = null; // Clear floor type mode
       console.log('🛋️ Selected object:', item.name, '- Click on map to place');
 
       // Remove selected class from all items
@@ -2458,8 +2834,12 @@ if (closeSidebarBtn) {
     isEditingObjects = false;
     tempFurniture = [];
     tempCustomRoomColors = {};
+    tempCustomRoomFloorTypes = {};
+    tempCustomTileFloors = {};
     selectedObject = null;
     selectedFloorColor = null;
+    selectedFloorType = null;
+    floorMode = 'room';
     hoveredObject = null;
     draggingObject = null;
     canvas.style.cursor = 'crosshair';
@@ -2475,15 +2855,26 @@ if (saveObjectsBtn) {
     furniture = JSON.parse(JSON.stringify(tempFurniture));
     // Apply temp room colors to permanent room colors
     customRoomColors = JSON.parse(JSON.stringify(tempCustomRoomColors));
+    // Apply temp floor types to permanent floor types
+    customRoomFloorTypes = JSON.parse(JSON.stringify(tempCustomRoomFloorTypes));
+    // Apply temp tile floors to permanent tile floors
+    customTileFloors = JSON.parse(JSON.stringify(tempCustomTileFloors));
     console.log('💾 Saved', furniture.length, 'objects');
+
+    // Save to localStorage
+    saveDecorations();
 
     // Close sidebar and exit edit mode
     document.getElementById('object-sidebar').classList.remove('active');
     isEditingObjects = false;
     tempFurniture = [];
     tempCustomRoomColors = {};
+    tempCustomRoomFloorTypes = {};
+    tempCustomTileFloors = {};
     selectedObject = null;
     selectedFloorColor = null;
+    selectedFloorType = null;
+    floorMode = 'room';
     hoveredObject = null;
     draggingObject = null;
     canvas.style.cursor = 'crosshair';
@@ -2505,8 +2896,12 @@ if (cancelObjectsBtn) {
     isEditingObjects = false;
     tempFurniture = [];
     tempCustomRoomColors = {};
+    tempCustomRoomFloorTypes = {};
+    tempCustomTileFloors = {};
     selectedObject = null;
     selectedFloorColor = null;
+    selectedFloorType = null;
+    floorMode = 'room';
     hoveredObject = null;
     draggingObject = null;
     canvas.style.cursor = 'crosshair';
@@ -2760,21 +3155,49 @@ function drawFurniture() {
       ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
       // No border, no emoji - just a solid line
     } else {
-      // Generic object rendering with emoji support
-      // Draw background rectangle
-      ctx.fillStyle = obj.color || '#999';
-      ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 2 * scale;
-      ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
+      // Check if this is a custom image object
+      if (obj.isCustomImage && obj.imageData) {
+        // Use cached image or create new one
+        let img = imageCache[obj.customId];
+        if (!img) {
+          img = new Image();
+          img.src = obj.imageData;
+          imageCache[obj.customId] = img;
+        }
 
-      // Draw emoji if available
-      if (obj.emoji) {
-        ctx.font = `${Math.max(20, screenHeight * 0.6)}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#000';
-        ctx.fillText(obj.emoji, screenX + screenWidth / 2, screenY + screenHeight / 2);
+        // If image is loaded, draw it
+        if (img.complete && img.naturalHeight !== 0) {
+          ctx.drawImage(img, screenX, screenY, screenWidth, screenHeight);
+        } else {
+          // Placeholder while loading
+          ctx.fillStyle = '#f0f0f0';
+          ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
+          ctx.strokeStyle = '#999';
+          ctx.lineWidth = 2 * scale;
+          ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
+        }
+
+        // Add border to custom images
+        ctx.strokeStyle = '#666';
+        ctx.lineWidth = 2 * scale;
+        ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
+      } else {
+        // Generic object rendering with emoji support
+        // Draw background rectangle
+        ctx.fillStyle = obj.color || '#999';
+        ctx.fillRect(screenX, screenY, screenWidth, screenHeight);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2 * scale;
+        ctx.strokeRect(screenX, screenY, screenWidth, screenHeight);
+
+        // Draw emoji if available
+        if (obj.emoji) {
+          ctx.font = `${Math.max(20, screenHeight * 0.6)}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#000';
+          ctx.fillText(obj.emoji, screenX + screenWidth / 2, screenY + screenHeight / 2);
+        }
       }
     }
 
@@ -3319,6 +3742,141 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 
+// Draw floor pattern based on type
+function drawFloorPattern(pattern, x, y, w, h, ctx) {
+  switch (pattern) {
+    case 'grass':
+      // Green grass with darker green patches
+      ctx.fillStyle = '#4a7c2e';
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#5a9c3e';
+      for (let i = 0; i < 50; i++) {
+        const px = x + Math.random() * w;
+        const py = y + Math.random() * h;
+        ctx.fillRect(px, py, 3, 3);
+      }
+      break;
+
+    case 'river':
+      // Blue water with wavy pattern
+      ctx.fillStyle = '#3b8fd8';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = '#2a6fa8';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x, y + (h / 5) * i);
+        for (let j = 0; j < w; j += 20) {
+          ctx.lineTo(x + j, y + (h / 5) * i + Math.sin(j / 30) * 5);
+        }
+        ctx.stroke();
+      }
+      break;
+
+    case 'sand':
+      // Beige sand with speckles
+      ctx.fillStyle = '#e8d4a2';
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#d4c090';
+      for (let i = 0; i < 80; i++) {
+        const px = x + Math.random() * w;
+        const py = y + Math.random() * h;
+        ctx.fillRect(px, py, 2, 2);
+      }
+      break;
+
+    case 'dirt':
+      // Brown dirt
+      ctx.fillStyle = '#8b6f47';
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#7a5f3a';
+      for (let i = 0; i < 60; i++) {
+        const px = x + Math.random() * w;
+        const py = y + Math.random() * h;
+        ctx.fillRect(px, py, 4, 4);
+      }
+      break;
+
+    case 'road':
+      // Gray asphalt with dashed white line
+      ctx.fillStyle = '#4a4a4a';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([20, 15]);
+      ctx.beginPath();
+      ctx.moveTo(x, y + h / 2);
+      ctx.lineTo(x + w, y + h / 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      break;
+
+    case 'artificial-grass':
+      // Bright green artificial grass
+      ctx.fillStyle = '#3cb371';
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#2e8b57';
+      for (let i = 0; i < 40; i++) {
+        const px = x + Math.random() * w;
+        const py = y + Math.random() * h;
+        ctx.fillRect(px, py, 3, 3);
+      }
+      break;
+
+    case 'wood':
+      // Wood planks
+      ctx.fillStyle = '#8b4513';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = '#654321';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < h; i += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, y + i);
+        ctx.lineTo(x + w, y + i);
+        ctx.stroke();
+      }
+      break;
+
+    case 'tile':
+      // White tiles with grid
+      ctx.fillStyle = '#f5f5f5';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = '#cccccc';
+      ctx.lineWidth = 1;
+      const tileSize = 50;
+      for (let i = 0; i < w; i += tileSize) {
+        ctx.beginPath();
+        ctx.moveTo(x + i, y);
+        ctx.lineTo(x + i, y + h);
+        ctx.stroke();
+      }
+      for (let i = 0; i < h; i += tileSize) {
+        ctx.beginPath();
+        ctx.moveTo(x, y + i);
+        ctx.lineTo(x + w, y + i);
+        ctx.stroke();
+      }
+      break;
+
+    case 'carpet':
+      // Red carpet with pattern
+      ctx.fillStyle = '#b22222';
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = '#8b0000';
+      for (let i = 0; i < w; i += 30) {
+        for (let j = 0; j < h; j += 30) {
+          ctx.fillRect(x + i, y + j, 3, 3);
+        }
+      }
+      break;
+
+    default:
+      // Default solid color
+      ctx.fillStyle = '#cccccc';
+      ctx.fillRect(x, y, w, h);
+  }
+}
+
 function drawFloor() {
   const gameWidth = canvas.width;
   const gameHeight = canvas.height;
@@ -3352,24 +3910,71 @@ function drawFloor() {
     { x: 3200, y: 2400, w: 1600, h: 1200, color: '#ffe8e8', roomId: 'game-room' }
   ];
 
-  // Draw each zone as a solid color (use custom color if set)
+  // Draw each zone with custom floor type or color
   zones.forEach(zone => {
     const screenX = zone.x * scale + offsetX;
     const screenY = zone.y * scale + offsetY;
     const screenW = zone.w * scale;
     const screenH = zone.h * scale;
 
-    // Use custom color if available, otherwise use default
-    // Use temp colors during editing, permanent colors otherwise
-    const colorSource = isEditingObjects ? tempCustomRoomColors : customRoomColors;
-    const fillColor = colorSource[zone.roomId] || zone.color;
-    ctx.fillStyle = fillColor;
-    ctx.fillRect(screenX, screenY, screenW, screenH);
+    // Check for floor type first (takes precedence over color)
+    const floorTypeSource = isEditingObjects ? tempCustomRoomFloorTypes : customRoomFloorTypes;
+    const floorType = floorTypeSource[zone.roomId];
 
-    // Optional: Add subtle border between zones
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(screenX, screenY, screenW, screenH);
+    if (floorType) {
+      // Draw floor pattern
+      drawFloorPattern(floorType, screenX, screenY, screenW, screenH, ctx);
+    } else {
+      // Use custom color if available, otherwise use default
+      const colorSource = isEditingObjects ? tempCustomRoomColors : customRoomColors;
+      const fillColor = colorSource[zone.roomId] || zone.color;
+      ctx.fillStyle = fillColor;
+      ctx.fillRect(screenX, screenY, screenW, screenH);
+    }
+
+    // Highlight hovered room floor in edit mode
+    if (isEditingObjects && hoveredFloor && hoveredFloor.type === 'room' && hoveredFloor.id === zone.roomId) {
+      ctx.fillStyle = 'rgba(255, 69, 0, 0.3)'; // Orange overlay for deletion
+      ctx.fillRect(screenX, screenY, screenW, screenH);
+      ctx.strokeStyle = 'rgba(255, 69, 0, 0.8)';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(screenX, screenY, screenW, screenH);
+    } else {
+      // Optional: Add subtle border between zones
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(screenX, screenY, screenW, screenH);
+    }
+  });
+
+  // Draw individual tile floors on top of room floors
+  const tileFloorSource = isEditingObjects ? tempCustomTileFloors : customTileFloors;
+  Object.entries(tileFloorSource).forEach(([tileId, pattern]) => {
+    const [tileX, tileY] = tileId.split('_').map(Number);
+    const worldX = tileX * TILE_SIZE;
+    const worldY = tileY * TILE_SIZE;
+
+    const screenX = worldX * scale + offsetX;
+    const screenY = worldY * scale + offsetY;
+    const screenW = TILE_SIZE * scale;
+    const screenH = TILE_SIZE * scale;
+
+    // Draw tile pattern
+    drawFloorPattern(pattern, screenX, screenY, screenW, screenH, ctx);
+
+    // Highlight hovered tile floor in edit mode
+    if (isEditingObjects && hoveredFloor && hoveredFloor.type === 'tile' && hoveredFloor.id === tileId) {
+      ctx.fillStyle = 'rgba(255, 69, 0, 0.3)'; // Orange overlay for deletion
+      ctx.fillRect(screenX, screenY, screenW, screenH);
+      ctx.strokeStyle = 'rgba(255, 69, 0, 0.8)';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(screenX, screenY, screenW, screenH);
+    } else if (isEditingObjects) {
+      // Add border to show tile boundary (only in edit mode)
+      ctx.strokeStyle = 'rgba(102, 126, 234, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(screenX, screenY, screenW, screenH);
+    }
   });
 }
 

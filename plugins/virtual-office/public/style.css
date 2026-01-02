@@ -780,3 +780,35 @@ body {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
 }
+
+/* Custom uploaded objects */
+.custom-object {
+  position: relative;
+}
+
+.delete-custom-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  display: none;
+  font-size: 12px;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.custom-object:hover .delete-custom-btn {
+  display: flex;
+}
+
+.delete-custom-btn:hover {
+  background: #d32f2f;
+  transform: scale(1.1);
+}
