@@ -1769,11 +1769,8 @@ canvas.addEventListener('click', (e) => {
 
       console.log('🛋️ Placed object:', selectedObject.name, 'at', newFurniture.x, newFurniture.y);
 
-      // Clear selected object
-      selectedObject = null;
-
-      // Change cursor back to normal
-      canvas.style.cursor = 'crosshair';
+      // DON'T clear selected object - keep it selected for continuous placement
+      // selectedObject stays selected so user can place multiple copies
 
       // TODO: Emit to server for multiplayer sync
       // socket.emit('placeObject', newFurniture);
@@ -2123,13 +2120,13 @@ const OBJECT_CATEGORIES = {
 
 let selectedObject = null;
 
-// Show object selector modal
+// Show object selector sidebar
 function showObjectSelector() {
-  const objectModal = document.getElementById('object-modal');
+  const objectSidebar = document.getElementById('object-sidebar');
   const categoriesDiv = document.getElementById('object-categories');
   const itemsDiv = document.getElementById('object-items');
 
-  if (!objectModal || !categoriesDiv || !itemsDiv) return;
+  if (!objectSidebar || !categoriesDiv || !itemsDiv) return;
 
   // Clear existing content
   categoriesDiv.innerHTML = '';
@@ -2155,8 +2152,8 @@ function showObjectSelector() {
   categoriesDiv.firstChild.classList.add('active');
   showCategoryItems(firstCategory);
 
-  objectModal.classList.add('active');
-  console.log('🛋️ Object selector opened');
+  objectSidebar.classList.add('active');
+  console.log('🛋️ Object sidebar opened');
 }
 
 // Show items for selected category
@@ -2176,24 +2173,39 @@ function showCategoryItems(categoryId) {
       <span class="object-name">${item.name}</span>
     `;
 
+    // Check if this item is currently selected
+    if (selectedObject && selectedObject.id === item.id) {
+      itemEl.classList.add('selected');
+    }
+
     itemEl.addEventListener('click', () => {
       selectedObject = { ...item, categoryId };
-      document.getElementById('object-modal').classList.remove('active');
       console.log('🛋️ Selected object:', item.name, '- Click on map to place');
+
+      // Remove selected class from all items
+      document.querySelectorAll('.object-item').forEach(el => el.classList.remove('selected'));
+      // Add selected class to clicked item
+      itemEl.classList.add('selected');
 
       // Change cursor to indicate placement mode
       canvas.style.cursor = 'copy';
+
+      // Sidebar stays open - no closing!
     });
 
     itemsDiv.appendChild(itemEl);
   });
 }
 
-// Close object modal button
-const closeObjectBtn = document.getElementById('close-object-btn');
-if (closeObjectBtn) {
-  closeObjectBtn.addEventListener('click', () => {
-    document.getElementById('object-modal').classList.remove('active');
+// Close object sidebar button
+const closeSidebarBtn = document.getElementById('close-sidebar-btn');
+if (closeSidebarBtn) {
+  closeSidebarBtn.addEventListener('click', () => {
+    document.getElementById('object-sidebar').classList.remove('active');
+    // Clear selected object when closing sidebar
+    selectedObject = null;
+    canvas.style.cursor = 'crosshair';
+    console.log('🛋️ Object sidebar closed');
   });
 }
 
