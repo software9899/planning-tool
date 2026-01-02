@@ -72,14 +72,14 @@
 
       <div id="settings-modal" class="modal">
         <div class="modal-content">
-          <h2>⚙️ ตั้งค่าแชท</h2>
+          <h2>⚙️ ตั้งค่า</h2>
           <div class="settings-group">
             <label>ขนาดตัวอักษร: <span id="font-size-value">18</span>px</label>
             <input type="range" id="font-size-slider" min="14" max="28" value="18" step="2">
           </div>
           <div class="settings-group">
-            <label>ความกว้างกรอบ: <span id="bubble-width-value">250</span>px</label>
-            <input type="range" id="bubble-width-slider" min="150" max="400" value="250" step="10">
+            <label>การซูม: <span id="zoom-value">100</span>%</label>
+            <input type="range" id="zoom-slider" min="70" max="400" value="100" step="10">
           </div>
           <div class="settings-group">
             <label>เวลาแสดง: <span id="display-time-value">5</span> วินาที</label>
@@ -93,9 +93,11 @@
 
   <div id="room-modal" class="modal">
     <div class="modal-content">
-      <h2>เลือกห้อง</h2>
+      <div class="modal-header">
+        <h2>🚪 เลือกห้อง</h2>
+        <button id="close-modal-btn" class="close-btn">✕</button>
+      </div>
       <div id="rooms-list"></div>
-      <button id="close-modal-btn">ปิด</button>
     </div>
   </div>
 

@@ -24,8 +24,8 @@ let mouseY = 0;
 let hoveredPlayer = null;
 let targetPosition = null; // For click-to-move
 let zoomLevel = 2.0; // Zoom level (1.0 = normal, > 1.0 = zoomed in, < 1.0 = zoomed out)
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 15.0;
+const MIN_ZOOM = 0.7;  // 70%
+const MAX_ZOOM = 4.0;   // 400%
 let cameraOffsetX = 0; // Camera offset for panning/zoom
 let cameraOffsetY = 0;
 
@@ -357,11 +357,11 @@ class Player {
   }
 
   respawn() {
-    // Respawn at lobby in safe area (away from furniture)
-    const spawnX = 1600 + 400; // Left side of lobby (safe area)
-    const spawnY = 1200 + 900; // Bottom area of lobby (safe area)
+    // Respawn at lobby center (Lobby is at x: 0-1600, y: 0-1200)
+    const spawnX = 800;  // Center of lobby X (0 + 800)
+    const spawnY = 600;  // Center of lobby Y (0 + 600)
 
-    console.log('🏠 Respawning to safe position - resetting all states...');
+    console.log('🏠 Respawning to lobby center - resetting all states...');
 
     // Reset ALL jump-related states
     this.isJumping = false;
@@ -1248,10 +1248,9 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   }
 
-  // Open room list on R
+  // Open room selector on R
   if (e.key === 'r' || e.key === 'R') {
-    socket.emit('getRooms');
-    roomModal.classList.add('active');
+    showRoomSelector();
     e.preventDefault();
   }
 });
@@ -1385,7 +1384,16 @@ closeHistoryBtn.addEventListener('click', () => {
   historyModal.classList.remove('active');
 });
 
-// Settings sliders (still functional but hidden from UI)
+// Settings modal close button
+const settingsModal = document.getElementById('settings-modal');
+const closeSettingsBtn = document.getElementById('close-settings-btn');
+if (closeSettingsBtn && settingsModal) {
+  closeSettingsBtn.addEventListener('click', () => {
+    settingsModal.classList.remove('active');
+  });
+}
+
+// Settings sliders
 fontSizeSlider.addEventListener('input', (e) => {
   const value = e.target.value;
   fontSizeValue.textContent = value;
@@ -1393,12 +1401,28 @@ fontSizeSlider.addEventListener('input', (e) => {
   localStorage.setItem('virtualOfficeChatSettings', JSON.stringify(chatSettings));
 });
 
-bubbleWidthSlider.addEventListener('input', (e) => {
-  const value = e.target.value;
-  bubbleWidthValue.textContent = value;
-  chatSettings.bubbleWidth = parseInt(value);
-  localStorage.setItem('virtualOfficeChatSettings', JSON.stringify(chatSettings));
-});
+// Zoom slider
+const zoomSlider = document.getElementById('zoom-slider');
+const zoomValue = document.getElementById('zoom-value');
+if (zoomSlider && zoomValue) {
+  // Load saved zoom level
+  const savedZoom = localStorage.getItem('virtualOfficeZoomLevel');
+  if (savedZoom) {
+    zoomLevel = parseFloat(savedZoom);
+    zoomSlider.value = Math.round(zoomLevel * 100);
+    zoomValue.textContent = Math.round(zoomLevel * 100);
+  }
+
+  zoomSlider.addEventListener('input', (e) => {
+    const value = parseInt(e.target.value);
+    zoomValue.textContent = value;
+    zoomLevel = value / 100; // Convert 100% to 1.0
+    zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel));
+    localStorage.setItem('virtualOfficeZoomLevel', zoomLevel.toString());
+    clampCameraOffset(); // Adjust camera if needed
+    console.log('🔍 Zoom set to:', value + '%', 'zoomLevel:', zoomLevel);
+  });
+}
 
 displayTimeSlider.addEventListener('input', (e) => {
   const value = e.target.value;
@@ -1420,6 +1444,15 @@ canvas.addEventListener('mousedown', (e) => {
     // Check respawn button
     if (canvas.respawnBtnBounds) {
       const btn = canvas.respawnBtnBounds;
+      if (x >= btn.x && x <= btn.x + btn.width &&
+          y >= btn.y && y <= btn.y + btn.height) {
+        clickedOnUI = true;
+      }
+    }
+
+    // Check room list button
+    if (canvas.roomListBtnBounds && !clickedOnUI) {
+      const btn = canvas.roomListBtnBounds;
       if (x >= btn.x && x <= btn.x + btn.width &&
           y >= btn.y && y <= btn.y + btn.height) {
         clickedOnUI = true;
@@ -1640,6 +1673,18 @@ canvas.addEventListener('click', (e) => {
     }
   }
 
+  // Check if clicked on room list button
+  if (canvas.roomListBtnBounds) {
+    const btn = canvas.roomListBtnBounds;
+    console.log('🚪 Room list button bounds:', btn);
+    if (x >= btn.x && x <= btn.x + btn.width &&
+        y >= btn.y && y <= btn.y + btn.height) {
+      console.log('🚪 Room list button clicked!');
+      showRoomSelector();
+      return;
+    }
+  }
+
   // Check if clicked on settings button
   if (canvas.settingsIconBounds) {
     const btn = canvas.settingsIconBounds;
@@ -1647,8 +1692,10 @@ canvas.addEventListener('click', (e) => {
     if (x >= btn.x && x <= btn.x + btn.width &&
         y >= btn.y && y <= btn.y + btn.height) {
       console.log('⚙️ Settings button clicked!');
-      // TODO: Open settings modal
-      alert('Settings feature - Coming soon!');
+      const settingsModal = document.getElementById('settings-modal');
+      if (settingsModal) {
+        settingsModal.classList.add('active');
+      }
       return;
     }
   }
@@ -1815,19 +1862,155 @@ function displayRoomList(rooms) {
   });
 }
 
+// Room definitions with boundaries (3x3 grid)
+// World size: 4800x3600 (3 rooms x 3 rooms, each 1600x1200)
+const ROOMS = {
+  // Top row (Y: 0-1200)
+  'lobby': {
+    name: 'Lobby',
+    emoji: '🏠',
+    x: 0, y: 0, width: 1600, height: 1200
+  },
+  'workspace-1': {
+    name: 'Workspace 1',
+    emoji: '💼',
+    x: 1600, y: 0, width: 1600, height: 1200
+  },
+  'workspace-2': {
+    name: 'Workspace 2',
+    emoji: '💼',
+    x: 3200, y: 0, width: 1600, height: 1200
+  },
+
+  // Middle row (Y: 1200-2400)
+  'meeting-room-1': {
+    name: 'Meeting Room 1',
+    emoji: '🎯',
+    x: 0, y: 1200, width: 1600, height: 1200
+  },
+  'meeting-room-2': {
+    name: 'Meeting Room 2',
+    emoji: '📊',
+    x: 1600, y: 1200, width: 1600, height: 1200
+  },
+  'huddle-room': {
+    name: 'Huddle Room',
+    emoji: '🤝',
+    x: 3200, y: 1200, width: 1600, height: 1200
+  },
+
+  // Bottom row (Y: 2400-3600)
+  'lounge': {
+    name: 'Lounge',
+    emoji: '☕',
+    x: 0, y: 2400, width: 1600, height: 1200
+  },
+  'kitchen': {
+    name: 'Kitchen',
+    emoji: '🍕',
+    x: 1600, y: 2400, width: 1600, height: 1200
+  },
+  'game-room': {
+    name: 'Game Room',
+    emoji: '🎮',
+    x: 3200, y: 2400, width: 1600, height: 1200
+  }
+};
+
+// Detect which room the player is in based on position
+function detectRoom(x, y) {
+  for (const [roomId, room] of Object.entries(ROOMS)) {
+    if (x >= room.x && x < room.x + room.width &&
+        y >= room.y && y < room.y + room.height) {
+      return { id: roomId, ...room };
+    }
+  }
+  return { id: 'unknown', name: 'Unknown Area', emoji: '❓' };
+}
+
+// Show room selector modal with all 9 rooms in 3x3 grid
+function showRoomSelector() {
+  const roomModal = document.getElementById('room-modal');
+  const roomsList = document.getElementById('rooms-list');
+
+  if (!roomModal || !roomsList) return;
+
+  // Clear existing rooms
+  roomsList.innerHTML = '';
+
+  // Define room order to match 3x3 layout (top to bottom, left to right)
+  const roomOrder = [
+    // Top row
+    'lobby', 'workspace-1', 'workspace-2',
+    // Middle row
+    'meeting-room-1', 'meeting-room-2', 'huddle-room',
+    // Bottom row
+    'lounge', 'kitchen', 'game-room'
+  ];
+
+  // Add rooms in correct order
+  roomOrder.forEach(roomId => {
+    const room = ROOMS[roomId];
+    if (!room) return;
+
+    const roomEl = document.createElement('div');
+    roomEl.className = 'room-item';
+    roomEl.innerHTML = `
+      <span class="room-emoji">${room.emoji}</span>
+      <span class="room-name">${room.name}</span>
+    `;
+
+    roomEl.addEventListener('click', () => {
+      teleportToRoom(roomId);
+      roomModal.classList.remove('active');
+    });
+
+    roomsList.appendChild(roomEl);
+  });
+
+  roomModal.classList.add('active');
+  console.log('🚪 Room selector opened - 3x3 grid layout');
+}
+
+// Teleport player to center of selected room
+function teleportToRoom(roomId) {
+  const room = ROOMS[roomId];
+  if (!room || !currentPlayer) return;
+
+  // Calculate center of room
+  const centerX = room.x + room.width / 2;
+  const centerY = room.y + room.height / 2;
+
+  console.log(`🚀 Teleporting to ${room.name} at (${centerX}, ${centerY})`);
+
+  // Reset states
+  currentPlayer.isJumping = false;
+  currentPlayer.jumpProgress = 0;
+  currentPlayer.isMoving = false;
+  targetPosition = null;
+  keys = {};
+
+  // Set position
+  currentPlayer.x = centerX;
+  currentPlayer.y = centerY;
+
+  // Center camera on player
+  currentPlayer.centerCameraOnPlayer();
+
+  // Emit position update
+  socket.emit('move', {
+    x: currentPlayer.x,
+    y: currentPlayer.y,
+    direction: currentPlayer.direction,
+    isMoving: false
+  });
+
+  console.log(`✅ Teleported to ${room.name}`);
+}
+
 function getRoomEmoji(roomName) {
-  const emojis = {
-    'lobby': '🏠',
-    'workspace-1': '💼',
-    'workspace-2': '💼',
-    'meeting-room-1': '🎯',
-    'meeting-room-2': '📊',
-    'huddle-room': '🤝',
-    'lounge': '☕',
-    'kitchen': '🍕',
-    'game-room': '🎮'
-  };
-  return emojis[roomName] || '🚪';
+  const room = ROOMS[roomName];
+  return room ? room.emoji : '🚪';
 }
 
 // UI is now drawn on canvas - no need for DOM updates
@@ -2112,13 +2295,21 @@ function drawUI() {
   ctx.lineWidth = 2;
   ctx.strokeRect(infoX, infoY, infoWidth, infoHeight);
 
-  // Room name
-  const roomEmoji = getRoomEmoji(currentRoom);
+  // Detect current room based on player position
+  let currentAreaName = currentRoom;
+  let currentAreaEmoji = getRoomEmoji(currentRoom);
+  if (currentPlayer) {
+    const detectedRoom = detectRoom(currentPlayer.x, currentPlayer.y);
+    currentAreaName = detectedRoom.name;
+    currentAreaEmoji = detectedRoom.emoji;
+  }
+
+  // Room name (current area based on position)
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 16px Arial';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText(`${roomEmoji} ${currentRoom}`, infoX + infoPadding, infoY + infoPadding);
+  ctx.fillText(`${currentAreaEmoji} ${currentAreaName}`, infoX + infoPadding, infoY + infoPadding);
 
   // Player count
   const playerCount = otherPlayers.size + 1;
@@ -2157,9 +2348,24 @@ function drawUI() {
   ctx.fillText('🏠', respawnBtnX + buttonSize / 2, respawnBtnY + buttonSize / 2);
   canvas.respawnBtnBounds = { x: respawnBtnX, y: respawnBtnY, width: buttonSize, height: buttonSize };
 
-  // Settings button (below respawn)
+  // Room List button (below respawn)
+  const roomListBtnX = canvas.width - buttonSize - 15;
+  const roomListBtnY = respawnBtnY + buttonSize + buttonSpacing;
+  ctx.fillStyle = 'rgba(103, 58, 183, 0.95)';
+  ctx.fillRect(roomListBtnX, roomListBtnY, buttonSize, buttonSize);
+  ctx.strokeStyle = '#7B1FA2';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(roomListBtnX, roomListBtnY, buttonSize, buttonSize);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 24px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🚪', roomListBtnX + buttonSize / 2, roomListBtnY + buttonSize / 2);
+  canvas.roomListBtnBounds = { x: roomListBtnX, y: roomListBtnY, width: buttonSize, height: buttonSize };
+
+  // Settings button (below room list)
   const settingsBtnX = canvas.width - buttonSize - 15;
-  const settingsBtnY = respawnBtnY + buttonSize + buttonSpacing;
+  const settingsBtnY = roomListBtnY + buttonSize + buttonSpacing;
   ctx.fillStyle = 'rgba(255, 152, 0, 0.95)';
   ctx.fillRect(settingsBtnX, settingsBtnY, buttonSize, buttonSize);
   ctx.strokeStyle = '#F57C00';
