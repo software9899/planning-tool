@@ -475,7 +475,7 @@ class Player {
   drawCharacter(x, y, direction, isMoving, color, scale = 1) {
     const bodyWidth = 24 * scale;
     const bodyHeight = 30 * scale;
-    const headSize = 14 * scale;
+    const headSize = 22 * scale;
 
     // Save context for transformations
     ctx.save();
@@ -501,83 +501,7 @@ class Player {
     ctx.fillStyle = color;
     ctx.fillRect(x - bodyWidth/2, y, bodyWidth, bodyHeight);
 
-    // Head
-    ctx.fillStyle = '#ffdbac';
-    ctx.beginPath();
-    ctx.arc(x, y - 5 * scale, headSize, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1 * scale;
-    ctx.stroke();
-
-    // Hair/Hat - different for back view
-    ctx.fillStyle = this.getHairColor(color);
-    ctx.beginPath();
-    if (direction === 'up') {
-      // Full hair visible from behind
-      ctx.arc(x, y - 5 * scale, headSize * 0.95, 0, Math.PI * 2);
-    } else {
-      // Hair on top
-      ctx.arc(x, y - 8 * scale, headSize * 0.9, Math.PI, 2 * Math.PI);
-    }
-    ctx.fill();
-
-    // Face - improved side profile (like version 6.7)
-    const faceY = y - 5 * scale;
-    ctx.fillStyle = '#333';
-
-    if (direction !== 'up') {
-      if (direction === 'down') {
-        // Front view - two eyes
-        ctx.fillRect(x - 5 * scale, faceY - 2 * scale, 3 * scale, 2 * scale);
-        ctx.fillRect(x + 2 * scale, faceY - 2 * scale, 3 * scale, 2 * scale);
-      } else if (direction === 'left') {
-        // Side profile - left
-        // One eye
-        ctx.fillRect(x - 6 * scale, faceY - 2 * scale, 3 * scale, 2 * scale);
-
-        // Nose (profile pointing left)
-        ctx.beginPath();
-        ctx.moveTo(x - 8 * scale, faceY);
-        ctx.lineTo(x - 11 * scale, faceY + 2 * scale);
-        ctx.lineTo(x - 8 * scale, faceY + 3 * scale);
-        ctx.fillStyle = '#ffdbac';
-        ctx.fill();
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 0.5 * scale;
-        ctx.stroke();
-
-        // Mouth (side)
-        ctx.fillStyle = '#333';
-        ctx.fillRect(x - 9 * scale, faceY + 5 * scale, 3 * scale, 1 * scale);
-      } else if (direction === 'right') {
-        // Side profile - right
-        // One eye
-        ctx.fillRect(x + 3 * scale, faceY - 2 * scale, 3 * scale, 2 * scale);
-
-        // Nose (profile pointing right)
-        ctx.beginPath();
-        ctx.moveTo(x + 8 * scale, faceY);
-        ctx.lineTo(x + 11 * scale, faceY + 2 * scale);
-        ctx.lineTo(x + 8 * scale, faceY + 3 * scale);
-        ctx.fillStyle = '#ffdbac';
-        ctx.fill();
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 0.5 * scale;
-        ctx.stroke();
-
-        // Mouth (side)
-        ctx.fillStyle = '#333';
-        ctx.fillRect(x + 6 * scale, faceY + 5 * scale, 3 * scale, 1 * scale);
-      }
-
-      // Mouth for front view only
-      if (direction === 'down') {
-        ctx.fillRect(x - 2 * scale, faceY + 3 * scale, 4 * scale, 1 * scale);
-      }
-    }
-
-    // Arms (like version 6.6)
+    // Arms (draw BEFORE head so head appears on top)
     ctx.strokeStyle = color;
     ctx.lineWidth = 5 * scale;
     ctx.lineCap = 'round';
@@ -596,7 +520,105 @@ class Player {
     ctx.lineTo(x + bodyWidth/2 + 3 * scale, y + 15 * scale - armOffset);
     ctx.stroke();
 
-    // Legs (like version 6.6)
+    // Head
+    ctx.fillStyle = '#ffdbac';
+    ctx.beginPath();
+    ctx.arc(x, y - 5 * scale, headSize, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1 * scale;
+    ctx.stroke();
+
+    // Hair/Hat - different for each direction
+    ctx.fillStyle = this.getHairColor(color);
+
+    if (direction === 'up') {
+      // Full hair visible from behind
+      ctx.beginPath();
+      ctx.arc(x, y - 5 * scale, headSize * 0.95, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (direction === 'left') {
+      // Hair on top
+      ctx.beginPath();
+      ctx.arc(x, y - 8 * scale, headSize * 0.9, Math.PI, 2 * Math.PI);
+      ctx.fill();
+      // Hair on back of head (right side)
+      ctx.beginPath();
+      ctx.arc(x, y - 5 * scale, headSize * 0.95, -Math.PI/2, Math.PI/2);
+      ctx.fill();
+    } else if (direction === 'right') {
+      // Hair on top
+      ctx.beginPath();
+      ctx.arc(x, y - 8 * scale, headSize * 0.9, Math.PI, 2 * Math.PI);
+      ctx.fill();
+      // Hair on back of head (left side)
+      ctx.beginPath();
+      ctx.arc(x, y - 5 * scale, headSize * 0.95, Math.PI/2, Math.PI * 1.5);
+      ctx.fill();
+    } else {
+      // Front view (down) - Hair on top only
+      ctx.beginPath();
+      ctx.arc(x, y - 8 * scale, headSize * 0.9, Math.PI, 2 * Math.PI);
+      ctx.fill();
+    }
+
+    // Face - improved side profile (scaled up for bigger head)
+    const faceY = y - 5 * scale;
+    ctx.fillStyle = '#333';
+
+    if (direction !== 'up') {
+      if (direction === 'down') {
+        // Front view - two eyes (bigger, moved down)
+        ctx.fillRect(x - 7 * scale, faceY + 0 * scale, 5 * scale, 3 * scale);
+        ctx.fillRect(x + 2 * scale, faceY + 0 * scale, 5 * scale, 3 * scale);
+      } else if (direction === 'left') {
+        // Side profile - left (shifted left)
+        // One eye (bigger, moved down and left)
+        ctx.fillRect(x - 12 * scale, faceY + 0 * scale, 5 * scale, 3 * scale);
+
+        // Nose (profile pointing left) - sharper and more prominent
+        ctx.beginPath();
+        ctx.moveTo(x - 14 * scale, faceY + 2 * scale);
+        ctx.lineTo(x - 18 * scale, faceY + 4 * scale);
+        ctx.lineTo(x - 14 * scale, faceY + 6 * scale);
+        ctx.fillStyle = '#ffdbac';
+        ctx.fill();
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1 * scale;
+        ctx.stroke();
+
+        // Mouth (side) - bigger and shifted left
+        ctx.fillStyle = '#333';
+        ctx.fillRect(x - 16 * scale, faceY + 10 * scale, 5 * scale, 2 * scale);
+      } else if (direction === 'right') {
+        // Side profile - right (shifted right)
+        // One eye (bigger, moved down and right)
+        ctx.fillRect(x + 7 * scale, faceY + 0 * scale, 5 * scale, 3 * scale);
+
+        // Nose (profile pointing right) - sharper and more prominent
+        ctx.beginPath();
+        ctx.moveTo(x + 14 * scale, faceY + 2 * scale);
+        ctx.lineTo(x + 18 * scale, faceY + 4 * scale);
+        ctx.lineTo(x + 14 * scale, faceY + 6 * scale);
+        ctx.fillStyle = '#ffdbac';
+        ctx.fill();
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1 * scale;
+        ctx.stroke();
+
+        // Mouth (side) - bigger and shifted right
+        ctx.fillStyle = '#333';
+        ctx.fillRect(x + 11 * scale, faceY + 10 * scale, 5 * scale, 2 * scale);
+      }
+
+      // Mouth for front view only (bigger, moved down)
+      if (direction === 'down') {
+        ctx.fillRect(x - 3 * scale, faceY + 8 * scale, 6 * scale, 2 * scale);
+      }
+    }
+
+    // Legs (same color as body/shirt)
+    ctx.strokeStyle = color;
     ctx.lineWidth = 6 * scale;
     const legOffset = isMoving ? Math.sin(this.walkFrame * 0.3) * 6 * scale : 0;
 
@@ -663,15 +685,6 @@ class Player {
     // Draw character with jump offset
     this.drawCharacter(screenX, screenY - this.height/2 * scale + jumpOffset, this.direction, this.isMoving, this.color, scale);
 
-    // Draw selection indicator for current player
-    if (isCurrentPlayer) {
-      ctx.strokeStyle = '#FFD700';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(screenX, screenY, 25 * scale, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
     // Draw speed boost indicator (adjust position for jump)
     if (this.hasSpeedBoost) {
       ctx.fillStyle = '#FF4444';
@@ -697,17 +710,6 @@ class Player {
     // Draw chat bubble if there's a message (adjust position for jump)
     if (this.chatMessage) {
       this.drawChatBubble(this.chatMessage, screenX, screenY + jumpOffset, scale);
-    }
-
-    // Draw proximity chat indicator for current player
-    if (isCurrentPlayer && currentChatMode === 'proximity') {
-      ctx.strokeStyle = 'rgba(255, 165, 0, 0.3)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath();
-      ctx.arc(screenX, screenY, 200 * scale, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
     }
   }
 
