@@ -49,8 +49,8 @@
         <div class="sidebar-label">Calendar</div>
       </div>
       <div class="sidebar-item" data-tab="files">
-        <div class="sidebar-icon">📁</div>
-        <div class="sidebar-label">OneDrive</div>
+        <div class="sidebar-icon">🔖</div>
+        <div class="sidebar-label">Bookmark</div>
       </div>
       <div class="sidebar-item" id="history-btn">
         <div class="sidebar-icon">📜</div>
@@ -141,6 +141,20 @@
 
       <div id="activity-list" style="overflow-y: auto; height: calc(100% - 60px);">
         <!-- Activity items will be listed here -->
+      </div>
+    </div>
+
+    <!-- Calendar Panel -->
+    <div id="calendar-panel" style="display: none;">
+      <div class="chat-panel-header">
+        <h2>Calendar</h2>
+        <div class="header-actions">
+          <button class="icon-btn" id="toggle-calendar-panel-btn">◀</button>
+        </div>
+      </div>
+
+      <div id="calendar-list" style="overflow-y: auto; height: calc(100% - 60px);">
+        <!-- Calendar items will be listed here -->
       </div>
     </div>
 

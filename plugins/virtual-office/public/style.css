@@ -382,6 +382,28 @@ body {
   }
 }
 
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+}
+
 #chat-input {
   flex: 1;
   padding: 12px 20px;
@@ -997,9 +1019,10 @@ body {
   color: #4CAF50;
 }
 
-/* Chat Panel & Activity Panel */
+/* Chat Panel & Activity Panel & Calendar Panel */
 #chat-panel,
-#activity-panel {
+#activity-panel,
+#calendar-panel {
   position: absolute;
   top: 0;
   left: 72px; /* After left sidebar */

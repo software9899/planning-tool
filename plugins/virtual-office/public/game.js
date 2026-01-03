@@ -5264,29 +5264,57 @@ socket.on('receivePoke', (data) => {
 
 // Show poke notification
 function showPokeNotification(fromUsername) {
-  // You can customize this - for now using alert
   const notification = document.createElement('div');
   notification.style.cssText = `
     position: fixed;
-    top: 80px;
+    top: 100px;
     right: 20px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 16px 24px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 10000;
+    padding: 20px 30px;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+    z-index: 99999;
     animation: slideIn 0.3s ease;
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 18px;
+    min-width: 250px;
+    text-align: center;
+    cursor: pointer;
   `;
-  notification.innerHTML = `👉 ${fromUsername} poked you!`;
+  notification.innerHTML = `
+    <div style="font-size: 48px; margin-bottom: 8px;">👉</div>
+    <div><strong>${fromUsername}</strong> poked you!</div>
+  `;
+
+  // Click to dismiss
+  notification.addEventListener('click', () => {
+    notification.style.animation = 'slideOut 0.3s ease';
+    setTimeout(() => notification.remove(), 300);
+  });
 
   document.body.appendChild(notification);
 
+  // Auto-dismiss after 5 seconds
   setTimeout(() => {
-    notification.style.animation = 'slideOut 0.3s ease';
-    setTimeout(() => notification.remove(), 300);
-  }, 3000);
+    if (notification.parentNode) {
+      notification.style.animation = 'slideOut 0.3s ease';
+      setTimeout(() => notification.remove(), 300);
+    }
+  }, 5000);
+}
+
+// Update calendar panel
+function updateCalendarPanel() {
+  const calendarList = document.getElementById('calendar-list');
+  if (!calendarList) return;
+
+  calendarList.innerHTML = '';
+
+  const emptyMsg = document.createElement('div');
+  emptyMsg.style.cssText = 'padding: 40px 20px; text-align: center; color: #999; font-size: 14px;';
+  emptyMsg.textContent = 'ยังไม่มีกิจกรรม';
+  calendarList.appendChild(emptyMsg);
 }
 
 // Update activity tab
@@ -5369,6 +5397,7 @@ document.querySelectorAll('.sidebar-item[data-tab]').forEach(item => {
     // Hide all panels
     document.getElementById('chat-panel').style.display = 'none';
     document.getElementById('activity-panel').style.display = 'none';
+    document.getElementById('calendar-panel').style.display = 'none';
 
     // Show selected panel
     if (tab === 'chat') {
@@ -5376,6 +5405,9 @@ document.querySelectorAll('.sidebar-item[data-tab]').forEach(item => {
     } else if (tab === 'activity') {
       document.getElementById('activity-panel').style.display = 'flex';
       updateActivityTab();
+    } else if (tab === 'calendar') {
+      document.getElementById('calendar-panel').style.display = 'flex';
+      updateCalendarPanel();
     }
   });
 });
@@ -5410,32 +5442,36 @@ const chatSidebarItem = document.querySelector('.sidebar-item[data-tab="chat"]')
 
 if (toggleChatPanelBtn && chatPanel && chatSidebarItem) {
   toggleChatPanelBtn.addEventListener('click', () => {
-    if (chatPanel.style.display === 'none') {
-      // Show panel
-      chatPanel.style.display = 'flex';
-      chatSidebarItem.classList.add('active');
-      console.log('💬 Chat panel shown');
-    } else {
-      // Hide panel
-      chatPanel.style.display = 'none';
-      chatSidebarItem.classList.remove('active');
-      console.log('💬 Chat panel hidden');
-    }
-    // No need to resize canvas - chat panel is now an overlay
+    // Hide panel when clicking the close button
+    chatPanel.style.display = 'none';
+    chatSidebarItem.classList.remove('active');
+    console.log('💬 Chat panel hidden');
   });
+}
 
-  // Also toggle when clicking the Chat sidebar item
-  chatSidebarItem.addEventListener('click', () => {
-    if (chatPanel.style.display === 'none') {
-      chatPanel.style.display = 'flex';
-      chatSidebarItem.classList.add('active');
-      console.log('💬 Chat panel shown');
-    } else {
-      chatPanel.style.display = 'none';
-      chatSidebarItem.classList.remove('active');
-      console.log('💬 Chat panel hidden');
-    }
-    // No need to resize canvas - chat panel is now an overlay
+// Toggle activity panel visibility
+const toggleActivityPanelBtn = document.getElementById('toggle-activity-panel-btn');
+const activityPanel = document.getElementById('activity-panel');
+const activitySidebarItem = document.querySelector('.sidebar-item[data-tab="activity"]');
+
+if (toggleActivityPanelBtn && activityPanel && activitySidebarItem) {
+  toggleActivityPanelBtn.addEventListener('click', () => {
+    activityPanel.style.display = 'none';
+    activitySidebarItem.classList.remove('active');
+    console.log('🔔 Activity panel hidden');
+  });
+}
+
+// Toggle calendar panel visibility
+const toggleCalendarPanelBtn = document.getElementById('toggle-calendar-panel-btn');
+const calendarPanel = document.getElementById('calendar-panel');
+const calendarSidebarItem = document.querySelector('.sidebar-item[data-tab="calendar"]');
+
+if (toggleCalendarPanelBtn && calendarPanel && calendarSidebarItem) {
+  toggleCalendarPanelBtn.addEventListener('click', () => {
+    calendarPanel.style.display = 'none';
+    calendarSidebarItem.classList.remove('active');
+    console.log('📅 Calendar panel hidden');
   });
 }
 

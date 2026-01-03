@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Open Planning Tool button
   document.getElementById('openPlanningTool').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'http://localhost:5173/bookmarks' });
+    chrome.tabs.create({ url: 'http://localhost/bookmarks' });
   });
 
   // Refresh stats button
