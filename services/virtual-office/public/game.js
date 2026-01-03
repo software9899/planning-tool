@@ -3493,6 +3493,73 @@ if (chatExpandBtn && chatMessagesOverlay) {
   });
 }
 
+// Chat resize handle - drag to resize overlay height
+const chatResizeHandle = document.getElementById('chat-resize-handle');
+let isResizingChat = false;
+let resizeStartY = 0;
+let resizeStartHeight = 0;
+
+// Function to update resize handle position
+function updateResizeHandlePosition() {
+  if (!chatResizeHandle || !chatMessagesOverlay) return;
+
+  const overlayHeight = chatMessagesOverlay.offsetHeight;
+  const bottomOffset = 50; // bottom: 50px from CSS
+
+  // Position handle at top of overlay
+  chatResizeHandle.style.bottom = (bottomOffset + overlayHeight - 5) + 'px';
+
+  // Show/hide handle based on overlay visibility
+  if (overlayHeight > 0 && chatMessagesOverlay.children.length > 0) {
+    chatResizeHandle.style.display = 'flex';
+  } else {
+    chatResizeHandle.style.display = 'none';
+  }
+}
+
+if (chatResizeHandle && chatMessagesOverlay) {
+  // Update position initially and on resize
+  updateResizeHandlePosition();
+  setInterval(updateResizeHandlePosition, 100); // Update position every 100ms
+
+  chatResizeHandle.addEventListener('mousedown', (e) => {
+    isResizingChat = true;
+    resizeStartY = e.clientY;
+    resizeStartHeight = chatMessagesOverlay.offsetHeight;
+    e.preventDefault();
+    console.log('📏 Started resizing chat overlay');
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isResizingChat) return;
+
+    // Calculate new height (dragging up increases height, dragging down decreases)
+    const deltaY = resizeStartY - e.clientY;
+    const newHeight = Math.max(100, resizeStartHeight + deltaY);
+
+    // Calculate maximum allowed height (window height - bottom position - 20px)
+    const windowHeight = window.innerHeight;
+    const bottomOffset = 50; // bottom: 50px from CSS
+    const maxHeight = windowHeight - bottomOffset - 20; // +20px from bottom edge limit
+
+    // Constrain height
+    const constrainedHeight = Math.min(newHeight, maxHeight);
+
+    // Apply new height
+    chatMessagesOverlay.style.maxHeight = constrainedHeight + 'px';
+
+    // Update handle position
+    updateResizeHandlePosition();
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isResizingChat) {
+      isResizingChat = false;
+      console.log('📏 Finished resizing chat overlay');
+    }
+  });
+}
+
 // Canvas mousedown for dragging objects or drawing partitions
 canvas.addEventListener('mousedown', (e) => {
   // Only handle dragging in edit mode
