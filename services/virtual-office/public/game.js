@@ -3276,10 +3276,32 @@ async function startRecording() {
 
     // Check if getUserMedia is available
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.error('❌ getUserMedia NOT available!');
-      console.error('  - navigator.mediaDevices:', navigator.mediaDevices);
-      console.error('  - getUserMedia:', navigator.mediaDevices?.getUserMedia);
-      throw new Error('getUserMedia is not supported in this browser');
+      console.warn('⚠️ getUserMedia NOT available - Microphone disabled');
+      console.warn('  - Requires HTTPS or localhost');
+      console.warn('  - navigator.mediaDevices:', navigator.mediaDevices);
+      console.warn('  - getUserMedia:', navigator.mediaDevices?.getUserMedia);
+
+      // Show a non-intrusive notification instead of blocking alert
+      const isHttps = window.location.protocol === 'https:';
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+      if (!isHttps && !isLocalhost) {
+        console.warn('💡 Microphone requires HTTPS connection');
+        console.warn('📝 Current URL:', window.location.href);
+        console.warn('🔧 To enable microphone:');
+        console.warn('   1. Set up HTTPS/SSL on your server');
+        console.warn('   2. Or use for testing: http://localhost:3000');
+      }
+
+      // Disable mic button visually
+      if (micBtn) {
+        micBtn.disabled = true;
+        micBtn.style.opacity = '0.5';
+        micBtn.style.cursor = 'not-allowed';
+        micBtn.title = 'ไมโครโฟนต้องใช้ HTTPS';
+      }
+
+      return; // Exit gracefully without recording
     }
 
     console.log('✅ getUserMedia is available, requesting permission...');
@@ -3363,7 +3385,16 @@ async function startRecording() {
       errorMsg += '• ตรวจสอบ Console (F12)';
     }
 
-    alert(errorMsg);
+    // Log to console instead of showing blocking alert
+    console.warn(errorMsg);
+
+    // Disable mic button
+    if (micBtn) {
+      micBtn.disabled = true;
+      micBtn.style.opacity = '0.5';
+      micBtn.style.cursor = 'not-allowed';
+      micBtn.title = 'ไมโครโฟนไม่พร้อมใช้งาน - ดู Console (F12)';
+    }
   }
 }
 
