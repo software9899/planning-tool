@@ -3,6 +3,7 @@
   "name": "Browser Tabs",
   "version": "1.0.0",
   "description": "Manage and organize your browser bookmarks and tabs",
+  "main": "index.html",
   "icon": "🔖",
   "route": "/bookmarks",
   "sidebarLabel": "Browser Tabs",

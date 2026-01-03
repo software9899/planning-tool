@@ -3,6 +3,7 @@
   "name": "HR Management",
   "version": "1.0.0",
   "description": "Human Resources & Performance Management System",
+  "main": "index.html",
   "icon": "👥",
   "route": "/plugin/hr",
   "sidebarLabel": "HR Management",

@@ -3,6 +3,7 @@
   "name": "System Flow Diagram",
   "version": "1.0.0",
   "description": "Visual diagram editor for system architecture and flows with Mermaid support",
+  "main": "index.html",
   "icon": "📊",
   "route": "/plugin/diagram-editor",
   "sidebarLabel": "System Flow",

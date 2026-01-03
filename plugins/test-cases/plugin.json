@@ -3,6 +3,7 @@
   "name": "Test Cases Management",
   "version": "1.0.0",
   "description": "Test cases dashboard and management system",
+  "main": "index.html",
   "icon": "🧪",
   "route": "/dashboard-test-cases",
   "sidebarLabel": "Test Cases",

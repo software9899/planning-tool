@@ -23,7 +23,7 @@ services:
   # Frontend React App
   frontend:
     build:
-      context: ./planning-tool-react
+      context: ./frontend
       dockerfile: Dockerfile
     container_name: planning-tool-frontend
     ports:
@@ -79,7 +79,7 @@ services:
   # Virtual Office Server
   virtual-office:
     build:
-      context: ./plugins/virtual-office
+      context: ./services/virtual-office
       dockerfile: Dockerfile
     container_name: planning-tool-virtual-office
     ports:
@@ -88,12 +88,15 @@ services:
       - PORT=3000
       - MONGODB_URI=mongodb://mongodb:27017/virtual-office
       - NODE_ENV=production
+      - BACKEND_URL=http://backend:8002
     depends_on:
       mongodb:
         condition: service_healthy
+      backend:
+        condition: service_started
     restart: unless-stopped
     volumes:
-      - ./plugins/virtual-office:/app
+      - ./services/virtual-office:/app
       - /app/node_modules
     networks:
       - planning-network

@@ -8,7 +8,13 @@
       "Bash(docker exec planning-tool-frontend wget -O- http://backend:8002/health)",
       "Bash(docker exec planning-tool-frontend sh -c \"apk add --no-cache curl && curl -v http://backend:8002/api/plugins\")",
       "Bash(docker-compose restart:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(find:*)",
+      "Bash(cat:*)",
+      "Bash(tree:*)",
+      "Bash(done)",
+      "Bash(node:*)",
+      "Bash(ln:*)"
     ]
   }
 }

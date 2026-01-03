@@ -1,0 +1,25 @@
+{
+  "id": "example-plugin",
+  "name": "Example Plugin",
+  "version": "1.0.0",
+  "description": "A template plugin for Planning Tool",
+  "author": "Your Name",
+  "icon": "🔌",
+  "category": "utilities",
+  "main": "index.html",
+  "permissions": [
+    "api:read",
+    "api:write"
+  ],
+  "api": {
+    "version": "1.0",
+    "endpoints": []
+  },
+  "settings": {
+    "configurable": true,
+    "defaultSettings": {}
+  },
+  "dependencies": {
+    "backend": ">=1.0.0"
+  }
+}

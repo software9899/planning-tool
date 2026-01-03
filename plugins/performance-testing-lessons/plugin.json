@@ -3,6 +3,7 @@
   "name": "Academy",
   "version": "1.0.0",
   "description": "Create and manage lessons and tutorials",
+  "main": "index.html",
   "icon": "🎓",
   "route": "/plugin/performance-testing-lessons",
   "sidebarLabel": "Academy",

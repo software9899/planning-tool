@@ -3,6 +3,7 @@
   "name": "ReconA",
   "version": "1.0.0",
   "description": "",
+  "main": "index.html",
   "icon": "\ud83d\udd0c",
   "route": "/plugin/reconA",
   "sidebarLabel": "ReconA",

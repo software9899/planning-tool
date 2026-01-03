@@ -3,6 +3,7 @@
   "name": "AI Assistant",
   "version": "1.0.0",
   "description": "AI-powered workflow assistant and automation tool",
+  "main": "index.html",
   "icon": "🤖",
   "route": "/ai-agent",
   "sidebarLabel": "AI Assistant",

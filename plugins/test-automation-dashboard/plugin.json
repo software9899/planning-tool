@@ -3,6 +3,7 @@
   "name": "Test Automation Dashboard",
   "version": "1.0.0",
   "description": "Track manual, automatable, and automated test cases with visual progress charts",
+  "main": "index.html",
   "icon": "📊",
   "route": "/plugin/test-automation-dashboard",
   "sidebarLabel": "Test Automation",

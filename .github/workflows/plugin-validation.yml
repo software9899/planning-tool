@@ -1,0 +1,33 @@
+name: Plugin Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'plugins/**'
+      - '.github/workflows/plugin-validation.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'plugins/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Validate all plugins
+      run: |
+        for plugin in plugins/*/; do
+          if [ -d "$plugin" ]; then
+            echo "Validating $(basename $plugin)..."
+            node plugin-sdk/validate-plugin.js "$plugin"
+          fi
+        done

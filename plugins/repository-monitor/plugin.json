@@ -3,6 +3,7 @@
   "name": "Repository Monitor",
   "version": "1.0.0",
   "description": "Test",
+  "main": "index.html",
   "icon": "\ud83d\udd0c",
   "route": "/plugin/repository-monitor",
   "sidebarLabel": "Repository Monitor",

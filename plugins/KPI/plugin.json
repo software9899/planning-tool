@@ -3,6 +3,7 @@
   "name": "KPI Dashboard",
   "version": "1.0.0",
   "description": "Balanced Scorecard KPI tracking and visualization",
+  "main": "index.html",
   "icon": "📊",
   "route": "/plugin/kpi",
   "sidebarLabel": "KPI Dashboard",
