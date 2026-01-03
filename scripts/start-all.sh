@@ -1,33 +1,18 @@
 #!/bin/bash
 
-echo "🚀 Starting Planning Tool with Docker Compose..."
-echo ""
+echo "🚀 Starting Planning Tool..."
+docker-compose up -d
 
-# Stop any running containers
-echo "Stopping existing containers..."
-docker compose down
-
-# Build and start all services
-echo "Building and starting services..."
-docker compose up --build -d
-
-# Wait for services to be ready
-echo ""
-echo "Waiting for services to start..."
-sleep 5
-
-# Check service status
-echo ""
-echo "📊 Service Status:"
-docker compose ps
+echo "🎮 Starting Virtual Office..."
+docker-compose -f docker-compose.virtual-office.yml -p virtual-office up -d
 
 echo ""
-echo "✅ Planning Tool is running!"
+echo "✅ All services started!"
 echo ""
-echo "🌐 Frontend: http://localhost"
-echo "🔧 Backend API: http://localhost:8002"
-echo "🔍 API Docs: http://localhost:8002/docs"
-echo "🗄️  Database: localhost:5432"
+echo "📊 Status:"
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 echo ""
-echo "📝 View logs: docker compose logs -f"
-echo "🛑 Stop all: docker compose down"
+echo "🌐 Access URLs:"
+echo "  • Planning Tool:  http://localhost:80"
+echo "  • Backend API:    http://localhost:8002"
+echo "  • Virtual Office: http://localhost:3000"

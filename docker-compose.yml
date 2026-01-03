@@ -56,54 +56,11 @@ services:
       retries: 5
       start_period: 10s
 
-  # MongoDB for Virtual Office
-  mongodb:
-    image: mongo:7
-    container_name: planning-tool-mongodb
-    environment:
-      - MONGO_INITDB_DATABASE=virtual-office
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-    restart: unless-stopped
-    networks:
-      - planning-network
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-
-  # Virtual Office Server
-  virtual-office:
-    build:
-      context: ./services/virtual-office
-      dockerfile: Dockerfile
-    container_name: planning-tool-virtual-office
-    ports:
-      - "3000:3000"
-    environment:
-      - PORT=3000
-      - MONGODB_URI=mongodb://mongodb:27017/virtual-office
-      - NODE_ENV=production
-      - BACKEND_URL=http://backend:8002
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      backend:
-        condition: service_started
-    restart: unless-stopped
-    volumes:
-      - ./services/virtual-office:/app
-      - /app/node_modules
-    networks:
-      - planning-network
+  # MongoDB and Virtual Office moved to docker-compose.virtual-office.yml
+  # Run separately with: docker-compose -f docker-compose.virtual-office.yml up -d
 
 volumes:
   postgres_data:
-  mongodb_data:
 
 networks:
   planning-network:

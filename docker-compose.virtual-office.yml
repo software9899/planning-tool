@@ -1,0 +1,53 @@
+services:
+  # MongoDB for Virtual Office
+  mongodb:
+    image: mongo:7
+    container_name: virtual-office-mongodb
+    environment:
+      - MONGO_INITDB_DATABASE=virtual-office
+    ports:
+      - "27017:27017"
+    volumes:
+      - virtual_office_mongodb_data:/data/db
+    restart: unless-stopped
+    networks:
+      - virtual-office-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Virtual Office Server
+  virtual-office:
+    build:
+      context: ./services/virtual-office
+      dockerfile: Dockerfile
+    container_name: virtual-office-server
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - MONGODB_URI=mongodb://mongodb:27017/virtual-office
+      - NODE_ENV=production
+      - BACKEND_URL=http://host.docker.internal:8002
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./services/virtual-office:/app
+      - /app/node_modules
+    networks:
+      - virtual-office-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  virtual_office_mongodb_data:
+
+networks:
+  virtual-office-network:
+    driver: bridge
+    name: virtual-office-network
