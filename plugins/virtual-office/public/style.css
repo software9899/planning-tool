@@ -243,6 +243,31 @@ body {
   backdrop-filter: blur(10px);
   pointer-events: auto;
   box-sizing: border-box;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+/* Faded state when moving */
+#chat-container.collapsed {
+  opacity: 0.3;
+}
+
+/* Move mic button to the right */
+#chat-container {
+  flex-direction: row;
+}
+
+#mic-btn {
+  order: 3;
+}
+
+#translator-btn {
+  order: 1;
+}
+
+.chat-input-container {
+  order: 2;
+  flex: 1;
 }
 
 .chat-tabs {

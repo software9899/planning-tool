@@ -851,7 +851,7 @@ class Player {
 
     ctx.fillStyle = `rgba(0, 0, 0, ${shadowOpacity})`;
     ctx.beginPath();
-    ctx.ellipse(screenX, feetY, 12 * scale, 6 * scale, 0, 0, Math.PI * 2);
+    ctx.ellipse(screenX, feetY, 16 * scale, 4 * scale, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // Draw jump sparkles/motion effect
@@ -1148,6 +1148,20 @@ class Player {
       this.walkFrame = 0;
     }
 
+    // Hide/show chat input based on movement (only for current player)
+    if (this === currentPlayer) {
+      const chatContainer = document.getElementById('chat-container');
+      if (chatContainer) {
+        if (this.isMoving) {
+          // Collapse to show only icons
+          chatContainer.classList.add('collapsed');
+        } else {
+          // Expand to show chat input
+          chatContainer.classList.remove('collapsed');
+        }
+      }
+    }
+
     // Emit position if moved or direction changed
     if (moved && (oldX !== this.x || oldY !== this.y || oldDirection !== this.direction)) {
       socket.emit('move', {
@@ -1268,7 +1282,17 @@ joinBtn.addEventListener('click', () => {
   localStorage.setItem('virtualOfficeRoom', room);
 
   // Get or create persistent userId
-  const userId = getUserId();
+  let userId;
+  const isGuest = sessionStorage.getItem('isGuest') === 'true';
+  const guestId = sessionStorage.getItem('guestId');
+
+  if (isGuest && guestId) {
+    // Use guest ID for guests
+    userId = 'guest_' + guestId;
+  } else {
+    // Use normal user ID for regular users
+    userId = getUserId();
+  }
 
   socket.emit('join', { username, room, userId, status: userStatus });
 });
@@ -1438,21 +1462,34 @@ window.addEventListener('DOMContentLoaded', () => {
   const guestId = urlParams.get('guest');
 
   if (guestId) {
-    // Auto-join as guest
-    const guestUsername = 'Guest_' + guestId.substr(-4);
-    console.log('👤 Guest auto-login as:', guestUsername);
+    // Guest must enter a name (don't auto-join)
+    console.log('👤 Guest link detected - user must enter name');
 
-    // Join immediately as guest
-    setTimeout(() => {
-      const userId = 'guest_' + guestId;
-      socket.emit('join', {
-        username: guestUsername,
-        room: 'lobby',
-        userId: userId,
-        status: userStatus
-      });
-    }, 500);
-    return; // Skip normal login flow
+    // Store guest ID for later use (THIS SESSION ONLY)
+    sessionStorage.setItem('isGuest', 'true');
+    sessionStorage.setItem('guestId', guestId);
+
+    // Hide guest link button for guests
+    if (guestLinkBtn) {
+      guestLinkBtn.style.display = 'none';
+    }
+
+    // Change "Favorite" tab to "Guest" tab
+    const favoriteSection = document.querySelector('.chat-section .section-header span:not(.expand-icon)');
+    if (favoriteSection && favoriteSection.textContent === 'Favorite') {
+      favoriteSection.textContent = 'Guest';
+      console.log('🏷️ Changed Favorite tab to Guest tab');
+    }
+
+    // Pre-fill username input with placeholder
+    usernameInput.placeholder = 'ใส่ชื่อของคุณ (Guest)';
+
+    // Don't auto-join - let them enter their name
+    return;
+  } else {
+    // Clear guest status if not accessing via guest link
+    sessionStorage.removeItem('isGuest');
+    sessionStorage.removeItem('guestId');
   }
 
   const savedUsername = localStorage.getItem('virtualOfficeUsername');
@@ -2142,15 +2179,20 @@ if (savedAiKey) {
 // Status message functionality
 let userStatus = '';
 
-// Load status from localStorage
-const savedStatus = localStorage.getItem('virtualOfficeStatus');
-if (savedStatus) {
-  userStatus = savedStatus;
-  const statusInput = document.getElementById('status-input');
-  if (statusInput) {
-    statusInput.value = savedStatus;
+// Load status from localStorage (but NOT for guests)
+const isGuest = sessionStorage.getItem('isGuest') === 'true';
+if (!isGuest) {
+  const savedStatus = localStorage.getItem('virtualOfficeStatus');
+  if (savedStatus) {
+    userStatus = savedStatus;
+    const statusInput = document.getElementById('status-input');
+    if (statusInput) {
+      statusInput.value = savedStatus;
+    }
+    console.log('💬 Status loaded:', userStatus);
   }
-  console.log('💬 Status loaded:', userStatus);
+} else {
+  console.log('👤 Guest user - no status loaded');
 }
 
 // Save status when closing settings
@@ -5077,71 +5119,23 @@ function drawUI() {
   ctx.fillText('⚙️', settingsBtnX + buttonSize / 2, settingsBtnY + buttonSize / 2);
   canvas.settingsIconBounds = { x: settingsBtnX, y: settingsBtnY, width: buttonSize, height: buttonSize };
 
-  // Bottom center floating menu (only for room change now)
-  const menuWidth = 200;
-  const menuX = (canvas.width - menuWidth) / 2;
-  const gestureHeight = 55;
-  const gestureY = canvas.height - gestureHeight - 15;
-
-  // Draw gesture bar
-  ctx.fillStyle = 'rgba(102, 126, 234, 0.95)';
-  ctx.fillRect(menuX, gestureY, menuWidth, gestureHeight);
-  ctx.strokeStyle = '#5568d3';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(menuX, gestureY, menuWidth, gestureHeight);
-
-  // Draw gesture indicator with icons
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 16px Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  if (bottomMenuExpanded) {
-    ctx.fillText('▼ ปิดเมนู', menuX + menuWidth / 2, gestureY + gestureHeight / 2);
-  } else {
-    ctx.fillText('▲ คลิกเพื่อเปิดเมนู', menuX + menuWidth / 2, gestureY + gestureHeight / 2 - 8);
-    ctx.font = '11px Arial';
-    ctx.fillStyle = '#dddddd';
-    ctx.fillText('(🚪 เปลี่ยนห้อง)', menuX + menuWidth / 2, gestureY + gestureHeight / 2 + 10);
-  }
-
-  // Store gesture bounds
-  canvas.gestureBounds = { x: menuX, y: gestureY, width: menuWidth, height: gestureHeight };
-
-  // Draw expanded menu icons
-  if (bottomMenuExpanded) {
-    const iconWidth = menuWidth - 20;
-    const iconHeight = 50;
-    const iconSpacing = 10;
-    let iconY = gestureY - iconHeight - iconSpacing;
-
-    // Room change button
-    const roomBtnX = menuX + 10;
-    ctx.fillStyle = 'rgba(102, 126, 234, 0.95)';
-    ctx.fillRect(roomBtnX, iconY, iconWidth, iconHeight);
-    ctx.strokeStyle = '#5568d3';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(roomBtnX, iconY, iconWidth, iconHeight);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🚪 เปลี่ยนห้อง', roomBtnX + iconWidth / 2, iconY + iconHeight / 2);
-    canvas.roomButtonBounds = { x: roomBtnX, y: iconY, width: iconWidth, height: iconHeight };
-  } else {
-    canvas.roomButtonBounds = null;
-  }
-
-  // Logout button remains null (can add back if needed)
+  // Bottom menu removed - use sidebar button instead
+  canvas.gestureBounds = null;
+  canvas.roomButtonBounds = null;
   canvas.logoutButtonBounds = null;
 }
 
 // Update online players list in chat panel
 function updateOnlinePlayersList() {
   const playersList = document.getElementById('online-players-list');
+  const guestList = document.getElementById('favorite-players-list');
   if (!playersList) return;
 
   playersList.innerHTML = '';
+  if (guestList) guestList.innerHTML = '';
+
+  let guestCount = 0;
+  let regularCount = 0;
 
   if (otherPlayers.size === 0) {
     const emptyMsg = document.createElement('div');
@@ -5155,6 +5149,12 @@ function updateOnlinePlayersList() {
   }
 
   otherPlayers.forEach((player) => {
+    // Check if player is a guest
+    const isGuestPlayer = player.id && player.id.startsWith('guest_');
+    const targetList = (isGuestPlayer && guestList) ? guestList : playersList;
+
+    if (isGuestPlayer) guestCount++;
+    else regularCount++;
     const item = document.createElement('div');
     item.className = 'chat-list-item';
 
@@ -5195,10 +5195,29 @@ function updateOnlinePlayersList() {
     item.appendChild(avatar);
     item.appendChild(info);
     item.appendChild(pokeBtn);
-    playersList.appendChild(item);
+    targetList.appendChild(item);
   });
 
-  console.log('📋 Updated players list:', otherPlayers.size, 'players');
+  // Show/hide and expand guest section if there are guests
+  if (guestList) {
+    const guestSection = guestList.closest('.chat-section');
+    if (guestSection) {
+      if (guestCount > 0) {
+        guestSection.style.display = 'block';
+        // Auto-expand guest section
+        const guestHeader = guestSection.querySelector('.section-header');
+        if (guestHeader && guestHeader.classList.contains('collapsed')) {
+          guestHeader.classList.remove('collapsed');
+          guestHeader.querySelector('.expand-icon').textContent = '▼';
+          guestList.style.display = 'block';
+        }
+      } else {
+        guestSection.style.display = 'none';
+      }
+    }
+  }
+
+  console.log('📋 Updated players list:', regularCount, 'regular,', guestCount, 'guests');
 }
 
 // Activity feed for pokes
