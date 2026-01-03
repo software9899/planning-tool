@@ -29,7 +29,20 @@
         <option value="kitchen">🍕 Kitchen</option>
         <option value="game-room">🎮 Game Room</option>
       </select>
-      <button id="join-btn">เข้าร่วม</button>
+      <button id="join-btn">เข้าร่วมแบบ Guest</button>
+
+      <div class="login-divider">
+        <span>หรือ</span>
+      </div>
+
+      <button id="planning-tool-login-btn" class="planning-tool-btn">
+        🔐 Login with Planning Tool
+      </button>
+
+      <div id="user-info" style="display: none;">
+        <p>ยินดีต้อนรับ, <strong id="logged-in-username"></strong>!</p>
+        <button id="logout-btn" class="secondary-btn">Logout</button>
+      </div>
     </div>
   </div>
 
@@ -191,7 +204,7 @@
       <div id="chat-messages-overlay"></div>
 
       <div id="chat-container">
-        <button id="mic-btn" title="กดค้างเพื่อพูด (Voice Recording)">🎤</button>
+        <button id="mic-btn" title="คลิกเพื่อเปิด/ปิดไมค์">🎤</button>
         <button id="translator-btn" title="เปิด/ปิดโหมด Translator">🤖</button>
         <div class="chat-input-container">
           <input

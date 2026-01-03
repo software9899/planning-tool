@@ -1303,6 +1303,109 @@ joinBtn.addEventListener('click', () => {
   socket.emit('join', { username, room, userId, status: userStatus });
 });
 
+// Planning Tool Login
+const planningToolLoginBtn = document.getElementById('planning-tool-login-btn');
+const logoutBtn = document.getElementById('logout-btn');
+const userInfoDiv = document.getElementById('user-info');
+const loggedInUsernameSpan = document.getElementById('logged-in-username');
+
+// Check if user is already logged in from Planning Tool
+function checkPlanningToolAuth() {
+  const token = localStorage.getItem('planningToolToken');
+  const userData = localStorage.getItem('planningToolUser');
+
+  if (token && userData) {
+    try {
+      const user = JSON.parse(userData);
+      showLoggedInState(user);
+      return true;
+    } catch (e) {
+      console.error('Error parsing user data:', e);
+      clearPlanningToolAuth();
+    }
+  }
+  return false;
+}
+
+function showLoggedInState(user) {
+  loggedInUsernameSpan.textContent = user.name || user.email;
+  userInfoDiv.style.display = 'block';
+  usernameInput.style.display = 'none';
+  joinBtn.textContent = 'เข้าร่วม Virtual Office';
+  planningToolLoginBtn.style.display = 'none';
+
+  // Pre-fill username
+  usernameInput.value = user.name || user.email.split('@')[0];
+}
+
+function clearPlanningToolAuth() {
+  localStorage.removeItem('planningToolToken');
+  localStorage.removeItem('planningToolUser');
+  userInfoDiv.style.display = 'none';
+  usernameInput.style.display = 'block';
+  planningToolLoginBtn.style.display = 'block';
+  joinBtn.textContent = 'เข้าร่วมแบบ Guest';
+}
+
+// Check on page load
+if (checkPlanningToolAuth()) {
+  console.log('✅ Already logged in with Planning Tool');
+}
+
+// Handle OAuth callback
+const urlParams = new URLSearchParams(window.location.search);
+const token = urlParams.get('token');
+const userName = urlParams.get('name');
+const userEmail = urlParams.get('email');
+
+if (token && (userName || userEmail)) {
+  // Save to localStorage
+  localStorage.setItem('planningToolToken', token);
+  const userData = {
+    name: userName,
+    email: userEmail,
+    token: token
+  };
+  localStorage.setItem('planningToolUser', JSON.stringify(userData));
+
+  // Clean URL
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  // Show logged in state
+  showLoggedInState(userData);
+
+  console.log('✅ Logged in with Planning Tool:', userData);
+}
+
+// Planning Tool Login Button
+if (planningToolLoginBtn) {
+  planningToolLoginBtn.addEventListener('click', () => {
+    // Get Planning Tool URL
+    const backendUrl = window.location.hostname === 'localhost'
+      ? 'http://localhost:80'
+      : `${window.location.protocol}//${window.location.hostname}`;
+
+    // Callback URL (where to return after login)
+    const callbackUrl = window.location.origin + window.location.pathname;
+
+    // Redirect to Planning Tool login with callback
+    const loginUrl = `${backendUrl}/login?redirect=${encodeURIComponent(callbackUrl)}&source=virtual-office`;
+
+    console.log('🔐 Redirecting to Planning Tool login:', loginUrl);
+    window.location.href = loginUrl;
+  });
+}
+
+// Logout Button
+if (logoutBtn) {
+  logoutBtn.addEventListener('click', () => {
+    if (confirm('ต้องการ Logout จาก Planning Tool?')) {
+      clearPlanningToolAuth();
+      alert('Logout สำเร็จ!');
+    }
+  });
+}
+
 // Guest Link Button
 const guestLinkBtn = document.getElementById('guest-link-btn');
 if (guestLinkBtn) {
@@ -3310,32 +3413,26 @@ async function testMicrophoneAccess() {
   }
 }
 
-// Mic button - Hold to record voice (Original functionality)
+// Mic button - Click to toggle microphone on/off
+let isMicOn = false;
+
 if (micBtn) {
-  // Mouse events for desktop
-  micBtn.addEventListener('mousedown', () => {
-    startRecording();
-  });
-
-  micBtn.addEventListener('mouseup', () => {
-    stopRecording();
-  });
-
-  micBtn.addEventListener('mouseleave', () => {
-    if (isRecording) {
+  micBtn.addEventListener('click', () => {
+    if (isMicOn) {
+      // Turn mic off
       stopRecording();
+      isMicOn = false;
+      micBtn.classList.remove('active');
+      micBtn.title = 'คลิกเพื่อเปิดไมค์';
+      console.log('🎤 Microphone turned OFF');
+    } else {
+      // Turn mic on
+      startRecording();
+      isMicOn = true;
+      micBtn.classList.add('active');
+      micBtn.title = 'คลิกเพื่อปิดไมค์';
+      console.log('🎤 Microphone turned ON');
     }
-  });
-
-  // Touch events for mobile
-  micBtn.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    startRecording();
-  });
-
-  micBtn.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    stopRecording();
   });
 }
 

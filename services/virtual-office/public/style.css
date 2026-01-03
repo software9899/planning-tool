@@ -85,6 +85,66 @@ body {
   transform: translateY(0);
 }
 
+/* Login Divider */
+.login-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.login-divider span {
+  padding: 0 10px;
+  color: #999;
+  font-size: 14px;
+}
+
+/* Planning Tool Login Button */
+.planning-tool-btn {
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%) !important;
+  margin-bottom: 15px;
+}
+
+.planning-tool-btn:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+}
+
+/* Secondary Button */
+.secondary-btn {
+  background: #f44336 !important;
+  font-size: 14px !important;
+  padding: 10px !important;
+}
+
+.secondary-btn:hover {
+  background: #da190b !important;
+}
+
+/* User Info Display */
+#user-info {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f0f0f0;
+  border-radius: 10px;
+}
+
+#user-info p {
+  margin-bottom: 10px;
+  color: #333;
+}
+
+#logged-in-username {
+  color: #667eea;
+}
+
 /* Game Screen */
 #game-screen {
   flex-direction: column;
@@ -331,6 +391,7 @@ body {
   justify-content: center;
   transition: all 0.3s;
   flex-shrink: 0;
+  position: relative;
 }
 
 #mic-btn:hover,
@@ -341,8 +402,24 @@ body {
 }
 
 #mic-btn.active {
-  background: #e74c3c;
+  background: #e74c3c !important;
   animation: pulse 1.5s infinite;
+  box-shadow: 0 0 20px rgba(231, 76, 60, 0.6);
+}
+
+#mic-btn.active::after {
+  content: ' ON';
+  font-size: 10px;
+  position: absolute;
+  bottom: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #e74c3c;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: bold;
+  white-space: nowrap;
 }
 
 #translate-btn {
