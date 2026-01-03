@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Virtual Office - Multiplayer Space</title>
-  <link rel="stylesheet" href="style.css?v=8.0">
+  <link rel="stylesheet" href="style.css?v=13.1">
 </head>
 <body>
   <div id="login-screen" class="screen active">
@@ -52,9 +52,13 @@
         <div class="sidebar-icon">📁</div>
         <div class="sidebar-label">OneDrive</div>
       </div>
-      <div class="sidebar-item" data-tab="copilot">
-        <div class="sidebar-icon">🤖</div>
-        <div class="sidebar-label">Copilot</div>
+      <div class="sidebar-item" id="history-btn">
+        <div class="sidebar-icon">📜</div>
+        <div class="sidebar-label">History</div>
+      </div>
+      <div class="sidebar-item" id="guest-link-btn">
+        <div class="sidebar-icon">🔗</div>
+        <div class="sidebar-label">Guest Link</div>
       </div>
     </div>
 
@@ -123,9 +127,11 @@
 
       <canvas id="game-canvas"></canvas>
 
+      <!-- Chat Messages Overlay (above chat-container) -->
+      <div id="chat-messages-overlay"></div>
+
       <div id="chat-container">
         <button id="mic-btn" title="กดค้างเพื่อพูด (Voice Recording)">🎤</button>
-        <button id="history-btn" title="ดูประวัติแชท">📜</button>
         <button id="translator-btn" title="เปิด/ปิดโหมด Translator">🤖</button>
         <div class="chat-input-container">
           <input
@@ -140,9 +146,11 @@
 
       <div id="history-modal" class="modal">
         <div class="modal-content">
-          <h2>📜 ประวัติแชท</h2>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">📜 ประวัติแชท</h2>
+            <button id="close-history-btn" style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">✕ ปิด</button>
+          </div>
           <div id="history-list"></div>
-          <button id="close-history-btn">ปิด</button>
         </div>
       </div>
 
@@ -202,6 +210,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=9.1"></script>
+  <script src="game.js?v=13.3"></script>
 </body>
 </html>

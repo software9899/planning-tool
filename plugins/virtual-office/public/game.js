@@ -41,8 +41,6 @@ let aiApiKey = ''; // Store AI API key for translator
 let translatorMode = false; // Track if translator mode is active
 let collectibles = []; // Cars and other collectible items
 let animationFrame = 0;
-let chatPanelOpen = false; // Track if chat panel is open
-let chatPanelHeight = 400; // Chat panel height: 400, 600, 800, or 0 (hidden)
 let bottomMenuExpanded = false; // Track if bottom gesture menu is expanded
 let mouseX = 0;
 let mouseY = 0;
@@ -182,55 +180,6 @@ const bubbleWidthValue = document.getElementById('bubble-width-value');
 const displayTimeSlider = document.getElementById('display-time-slider');
 const displayTimeValue = document.getElementById('display-time-value');
 
-// Create chat overlay button and insert it after mic button
-const chatOverlayBtn = document.createElement('button');
-chatOverlayBtn.id = 'chat-overlay-btn';
-chatOverlayBtn.title = 'เปิด/ปิดแชท';
-chatOverlayBtn.textContent = '💬';
-chatOverlayBtn.style.cssText = `
-  width: 50px;
-  height: 50px;
-  font-size: 24px;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  background: #9C27B0;
-  color: white;
-  transition: all 0.3s;
-  margin: 0 5px;
-`;
-const chatContainer = document.getElementById('chat-container');
-if (chatContainer && micBtn) {
-  chatContainer.insertBefore(chatOverlayBtn, micBtn.nextSibling);
-}
-
-// Chat overlay button click handler
-chatOverlayBtn.addEventListener('click', () => {
-  // Cycle through heights: 400 → 600 → 800 → 0 (hidden) → 400
-  if (chatPanelHeight === 0) {
-    chatPanelHeight = 400;
-    chatPanelOpen = true;
-  } else if (chatPanelHeight === 400) {
-    chatPanelHeight = 600;
-  } else if (chatPanelHeight === 600) {
-    chatPanelHeight = 800;
-  } else if (chatPanelHeight === 800) {
-    chatPanelHeight = 0;
-    chatPanelOpen = false;
-  }
-
-  // Update button style
-  if (chatPanelOpen && chatPanelHeight > 0) {
-    chatOverlayBtn.style.background = '#667eea';
-    chatOverlayBtn.style.boxShadow = '0 0 10px #FFD700';
-  } else {
-    chatOverlayBtn.style.background = '#9C27B0';
-    chatOverlayBtn.style.boxShadow = 'none';
-  }
-
-  console.log('💬 Chat panel height:', chatPanelHeight);
-});
-
 // Chat history storage
 let chatHistory = JSON.parse(localStorage.getItem('virtualOfficeChatHistory') || '[]');
 
@@ -244,6 +193,64 @@ let chatSettings = JSON.parse(localStorage.getItem('virtualOfficeChatSettings') 
 
 // Chat messages for sidebar (LINE-style)
 let sidebarChatMessages = [];
+
+// Render chat messages to overlay
+function renderChatOverlay() {
+  const overlay = document.getElementById('chat-messages-overlay');
+  if (!overlay) {
+    console.error('❌ Chat overlay element not found!');
+    return;
+  }
+
+  console.log(`🔄 Rendering chat overlay with ${sidebarChatMessages.length} total messages`);
+
+  overlay.innerHTML = '';
+
+  // Show last 5 messages
+  const messagesToShow = sidebarChatMessages.slice(-5);
+
+  console.log(`📊 Showing ${messagesToShow.length} messages in overlay`);
+
+  // Hide overlay if no messages
+  if (messagesToShow.length === 0) {
+    overlay.style.display = 'none';
+    console.log('🙈 No messages - overlay hidden');
+    return;
+  }
+
+  // Show overlay when there are messages
+  overlay.style.display = 'flex';
+
+  messagesToShow.forEach((msg, index) => {
+    console.log(`  ${index + 1}. ${msg.isOwn ? 'Own' : msg.username}: ${msg.message}`);
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${msg.isOwn ? 'own' : 'other'}`;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble';
+
+    if (!msg.isOwn) {
+      const username = document.createElement('div');
+      username.className = 'chat-bubble-username';
+      username.textContent = msg.username;
+      bubble.appendChild(username);
+    }
+
+    const text = document.createElement('div');
+    text.className = 'chat-bubble-text';
+    text.textContent = msg.message;
+    bubble.appendChild(text);
+
+    messageDiv.appendChild(bubble);
+    overlay.appendChild(messageDiv);
+  });
+
+  // Auto-scroll to bottom
+  overlay.scrollTop = overlay.scrollHeight;
+
+  console.log('✅ Chat overlay rendered successfully');
+}
 
 // Voice chat state
 let isRecording = false;
@@ -1075,6 +1082,25 @@ joinBtn.addEventListener('click', () => {
   socket.emit('join', { username, room, userId });
 });
 
+// Guest Link Button
+const guestLinkBtn = document.getElementById('guest-link-btn');
+if (guestLinkBtn) {
+  guestLinkBtn.addEventListener('click', () => {
+    // Generate unique guest ID
+    const guestId = 'guest_' + Math.random().toString(36).substr(2, 9);
+    const guestUrl = `${window.location.origin}${window.location.pathname}?guest=${guestId}`;
+
+    // Copy to clipboard
+    navigator.clipboard.writeText(guestUrl).then(() => {
+      alert('✅ Guest Link copied to clipboard!\n\n' + guestUrl + '\n\nShare this link with anyone to let them join without login.');
+      console.log('🔗 Guest link generated:', guestUrl);
+    }).catch(err => {
+      // Fallback if clipboard API fails
+      prompt('📋 Copy this Guest Link:', guestUrl);
+    });
+  });
+}
+
 // Generate or get persistent user ID
 function getUserId() {
   let userId = localStorage.getItem('virtualOfficeUserId');
@@ -1216,6 +1242,27 @@ window.addEventListener('DOMContentLoaded', () => {
   // Load saved decorations first
   loadSavedDecorations();
 
+  // Check for guest link parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const guestId = urlParams.get('guest');
+
+  if (guestId) {
+    // Auto-join as guest
+    const guestUsername = 'Guest_' + guestId.substr(-4);
+    console.log('👤 Guest auto-login as:', guestUsername);
+
+    // Join immediately as guest
+    setTimeout(() => {
+      const userId = 'guest_' + guestId;
+      socket.emit('join', {
+        username: guestUsername,
+        room: 'lobby',
+        userId: userId
+      });
+    }, 500);
+    return; // Skip normal login flow
+  }
+
   const savedUsername = localStorage.getItem('virtualOfficeUsername');
   const savedRoom = localStorage.getItem('virtualOfficeRoom');
 
@@ -1265,6 +1312,10 @@ socket.on('init', (data) => {
   // Request decorations from server (synced for everyone)
   socket.emit('getDecorations', currentRoom);
   console.log('📡 Requesting decorations from server...');
+
+  // Request chat history from server
+  socket.emit('getChatHistory', { room: currentRoom, limit: 100 });
+  console.log('📜 Requesting chat history from server...');
 
   // Switch to game screen
   loginScreen.classList.remove('active');
@@ -1367,23 +1418,26 @@ socket.on('globalChat', (message) => {
     if (sidebarChatMessages.length > 50) {
       sidebarChatMessages.shift();
     }
+
+    // Render to overlay
+    renderChatOverlay();
   }
 
-  // Find the player who sent the message and show bubble
-  otherPlayers.forEach(player => {
-    if (player.username === message.username) {
-      player.showChatBubble(message.message);
-    }
-  });
+  // Chat bubbles disabled - messages show in overlay only
+  // otherPlayers.forEach(player => {
+  //   if (player.username === message.username) {
+  //     player.showChatBubble(message.message);
+  //   }
+  // });
 });
 
 socket.on('proximityChat', (message) => {
-  // Find the player who sent the message and show bubble
-  otherPlayers.forEach(player => {
-    if (player.username === message.username) {
-      player.showChatBubble(message.message);
-    }
-  });
+  // Chat bubbles disabled - messages show in overlay only
+  // otherPlayers.forEach(player => {
+  //   if (player.username === message.username) {
+  //     player.showChatBubble(message.message);
+  //   }
+  // });
 });
 
 socket.on('voiceChat', (message) => {
@@ -1391,12 +1445,12 @@ socket.on('voiceChat', (message) => {
   const audio = new Audio(message.audio);
   audio.play().catch(err => console.error('Failed to play audio:', err));
 
-  // Show visual indicator on the player
-  otherPlayers.forEach(player => {
-    if (player.username === message.username) {
-      player.showChatBubble('🎤 Voice message');
-    }
-  });
+  // Chat bubbles disabled - messages show in overlay only
+  // otherPlayers.forEach(player => {
+  //   if (player.username === message.username) {
+  //     player.showChatBubble('🎤 Voice message');
+  //   }
+  // });
 
   console.log(`🔊 Playing voice message from ${message.username}`);
 });
@@ -1422,11 +1476,25 @@ socket.on('decorationsLoaded', (data) => {
   // Preload custom images
   preloadCustomImages();
 
-  // Initialize default furniture if none exist
-  if (furniture.length === 0) {
-    initializeFurniture(currentRoom);
-    console.log('🪑 Initialized default furniture');
-  }
+  // ❌ REMOVED: Auto-initialization of default furniture
+  // Map will now start completely empty
+  // if (furniture.length === 0) {
+  //   initializeFurniture(currentRoom);
+  //   console.log('🪑 Initialized default furniture');
+  // }
+});
+
+// Chat history loaded from database
+socket.on('chatHistoryLoaded', (data) => {
+  console.log('📜 Chat history loaded from server:', data.length, 'messages');
+
+  // Replace local chatHistory with server data
+  chatHistory = data;
+
+  // Also save to localStorage as backup
+  localStorage.setItem('virtualOfficeChatHistory', JSON.stringify(chatHistory));
+
+  console.log('✅ Chat history synced from database');
 });
 
 socket.on('decorationsUpdated', (data) => {
@@ -1661,6 +1729,7 @@ function saveChatHistory(message, translation = null) {
   const historyItem = {
     id: Date.now(),
     username: currentPlayer ? currentPlayer.username : 'Unknown',
+    userId: getUserId(),
     message: message,
     translation: translation,
     timestamp: new Date().toISOString(),
@@ -1674,6 +1743,12 @@ function saveChatHistory(message, translation = null) {
     chatHistory = chatHistory.slice(0, 100);
   }
 
+  // Save to database via socket
+  if (socket && socket.connected) {
+    socket.emit('saveChatMessage', historyItem);
+  }
+
+  // Also keep in localStorage as backup
   localStorage.setItem('virtualOfficeChatHistory', JSON.stringify(chatHistory));
 }
 
@@ -1703,8 +1778,12 @@ async function sendMessage() {
     }
   }
 
-  // Save to history (save corrected version)
-  saveChatHistory(finalMessage);
+  // Save to history (save ORIGINAL message with translation if translator mode was used)
+  if (translatorMode && aiApiKey && finalMessage !== message) {
+    saveChatHistory(message, finalMessage); // Save original with translation
+  } else {
+    saveChatHistory(message); // Save original message only
+  }
 
   // Add to sidebar chat (own message)
   sidebarChatMessages.push({
@@ -1719,13 +1798,16 @@ async function sendMessage() {
     sidebarChatMessages.shift();
   }
 
+  // Render to overlay
+  renderChatOverlay();
+
   // Always send as global chat (visible to everyone in room)
   socket.emit('globalChat', finalMessage);
 
-  // Show on own character immediately
-  if (currentPlayer) {
-    currentPlayer.showChatBubble(finalMessage);
-  }
+  // Chat bubbles disabled - messages show in overlay only
+  // if (currentPlayer) {
+  //   currentPlayer.showChatBubble(finalMessage);
+  // }
 
   // Clear input and keep focus for quick consecutive messages
   chatInput.value = '';
@@ -1742,11 +1824,21 @@ chatInput.addEventListener('keypress', (e) => {
 // Translate button
 // History button
 historyBtn.addEventListener('click', () => {
+  // Remove active from all sidebar items
+  document.querySelectorAll('.sidebar-item').forEach(item => {
+    item.classList.remove('active');
+  });
+
+  // Add active to history button
+  historyBtn.classList.add('active');
+
   displayChatHistory();
   historyModal.classList.add('active');
 });
 
 closeHistoryBtn.addEventListener('click', () => {
+  // Remove active from history button
+  historyBtn.classList.remove('active');
   historyModal.classList.remove('active');
 });
 
@@ -1835,6 +1927,14 @@ async function correctGrammar(text) {
     alert('⚠️ ไม่สามารถแปลและแก้ไวยากรณ์ได้ กรุณาตรวจสอบ API Key');
     return text; // Return original text if translation fails
   }
+}
+
+// Correct English function for history items
+async function correctEnglish(text) {
+  if (!aiApiKey) {
+    throw new Error('กรุณาตั้งค่า AI API Key ในเมนู Settings ก่อน (เปิดด้วยปุ่ม ⚙️)');
+  }
+  return await correctGrammar(text);
 }
 
 // Translator mode toggle button
@@ -2025,6 +2125,22 @@ canvas.addEventListener('mouseleave', () => {
   }
 });
 
+// Helper function to classify message type
+function getMessageType(text) {
+  // Check if message contains any letters (Thai, English, or other alphabets)
+  const hasLetters = /[a-zA-Z\u0E00-\u0E7F\u0080-\uFFFF]/.test(text);
+
+  if (!hasLetters) {
+    return 'numbers-special'; // Only numbers and special characters (no letters at all)
+  }
+  return 'text'; // Normal text message (Thai, English, or mixed)
+}
+
+// Helper function to extract words from text
+function extractWords(text) {
+  return text.split(/\s+/).filter(word => word.length > 0);
+}
+
 // Display chat history
 function displayChatHistory() {
   const historyList = document.getElementById('history-list');
@@ -2035,20 +2151,263 @@ function displayChatHistory() {
     return;
   }
 
+  // Classify all messages by type
+  const messagesByType = {
+    text: [],
+    'numbers-special': []
+  };
+
   chatHistory.forEach(item => {
-    const div = document.createElement('div');
-    div.className = 'history-item';
+    const type = getMessageType(item.message);
+    messagesByType[type].push(item);
+  });
 
-    const time = new Date(item.timestamp).toLocaleString('th-TH');
+  // Create filter UI at top
+  const filterDiv = document.createElement('div');
+  filterDiv.style.cssText = 'background: #f0f0f0; padding: 15px; border-radius: 8px; margin-bottom: 20px;';
+  filterDiv.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+      <h3 style="margin: 0; color: #667eea;">🔍 กรองชนิดข้อความ</h3>
+      <button id="translate-all-btn" style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">
+        🌐 แปลทั้งหมด
+      </button>
+    </div>
+    <div style="display: flex; gap: 15px; margin-bottom: 10px; flex-wrap: wrap;">
+      <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; background: white; border-radius: 6px;">
+        <input type="checkbox" class="type-filter" value="text" checked style="margin-right: 8px; width: 18px; height: 18px;">
+        <span style="font-size: 14px;">💬 ข้อความ (ไทย/EN) - ${messagesByType.text.length} ข้อความ</span>
+      </label>
+      <label style="display: flex; align-items: center; cursor: pointer; padding: 8px 12px; background: white; border-radius: 6px;">
+        <input type="checkbox" class="type-filter" value="numbers-special" style="margin-right: 8px; width: 18px; height: 18px;">
+        <span style="font-size: 14px;">🔢 ตัวเลข/อักขระพิเศษ - ${messagesByType['numbers-special'].length} ข้อความ</span>
+      </label>
+    </div>
+    <div style="font-size: 12px; color: #666;">
+      📊 แสดง: <span id="visible-count">${messagesByType.text.length}</span> / ${chatHistory.length} ข้อความ
+    </div>
+  `;
 
-    div.innerHTML = `
-      <div class="history-time">${time}</div>
-      <div class="history-user">${item.username} (${item.room})</div>
-      <div class="history-message">${item.message}</div>
-      ${item.translation ? `<div class="history-translation">📝 แปล: ${item.translation}</div>` : ''}
-    `;
+  historyList.appendChild(filterDiv);
 
-    historyList.appendChild(div);
+  // Container for messages
+  const messagesContainer = document.createElement('div');
+  messagesContainer.id = 'messages-container';
+  messagesContainer.style.cssText = 'display: flex; flex-direction: column; gap: 6px;';
+  historyList.appendChild(messagesContainer);
+
+  // Function to render messages based on filters
+  function renderMessages() {
+    const checkedTypes = Array.from(document.querySelectorAll('.type-filter:checked')).map(cb => cb.value);
+    messagesContainer.innerHTML = '';
+
+    let visibleCount = 0;
+
+    chatHistory.forEach((item, index) => {
+      const type = getMessageType(item.message);
+
+      // Skip if type is not selected
+      if (!checkedTypes.includes(type)) return;
+
+      visibleCount++;
+
+      const div = document.createElement('div');
+      div.className = 'history-item';
+      div.style.cssText = 'background: white; border-radius: 8px; border-left: 4px solid #667eea; overflow: hidden;';
+      div.dataset.type = type;
+
+      const time = new Date(item.timestamp).toLocaleString('th-TH');
+      const hasTranslation = item.translation && item.translation !== item.message;
+
+      div.innerHTML = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; min-height: 45px;">
+          <!-- Left Column: Original Message -->
+          <div style="padding: 8px 12px; border-right: 2px solid #e0e0e0; position: relative;">
+            <button class="correct-btn" data-id="${item.id}" style="position: absolute; top: 6px; right: 8px; padding: 4px 8px; background: ${hasTranslation ? '#4caf50' : '#667eea'}; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer;">
+              ${hasTranslation ? '✅' : '✏️'}
+            </button>
+            <div style="font-size: 10px; color: #999; margin-bottom: 3px;">${time}</div>
+            <div style="color: #333; font-size: 14px; line-height: 1.4; padding-right: 40px;">${item.message}</div>
+          </div>
+          <!-- Right Column: Translation -->
+          <div style="padding: 8px 12px; background: ${hasTranslation ? '#f0f9ff' : '#f9f9f9'}; display: flex; align-items: center; position: relative;">
+            ${hasTranslation ? `
+              <div style="width: 100%;">
+                <div style="font-size: 10px; color: #4caf50; font-weight: bold; margin-bottom: 3px;">
+                  ✅ TRANSLATION
+                  ${item.isNewTranslation ? '<span style="background: #ff5722; color: white; padding: 2px 6px; border-radius: 10px; font-size: 9px; margin-left: 6px;">🆕 NEW</span>' : ''}
+                </div>
+                <div style="font-size: 14px; color: #333; line-height: 1.4;">${item.translation}</div>
+              </div>
+            ` : `
+              <div style="text-align: center; color: #999; font-size: 12px; width: 100%;">—</div>
+            `}
+          </div>
+        </div>
+      `;
+
+      messagesContainer.appendChild(div);
+    });
+
+    // Update visible count
+    document.getElementById('visible-count').textContent = visibleCount;
+
+    // Check if all visible messages are translated
+    const untranslatedCount = chatHistory.filter(item => {
+      const type = getMessageType(item.message);
+      return checkedTypes.includes(type) && !item.translation;
+    }).length;
+
+    // Update Translate All button state
+    const translateAllBtn = document.getElementById('translate-all-btn');
+    if (translateAllBtn) {
+      if (untranslatedCount === 0) {
+        translateAllBtn.disabled = true;
+        translateAllBtn.style.opacity = '0.5';
+        translateAllBtn.style.cursor = 'not-allowed';
+        translateAllBtn.textContent = '✅ แปลครบแล้ว';
+      } else {
+        translateAllBtn.disabled = false;
+        translateAllBtn.style.opacity = '1';
+        translateAllBtn.style.cursor = 'pointer';
+        translateAllBtn.textContent = `🌐 แปลทั้งหมด (${untranslatedCount})`;
+      }
+    }
+
+    // Add event listeners for correct buttons
+    document.querySelectorAll('.correct-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const button = e.target;
+        const itemId = parseInt(button.dataset.id);
+
+        // Find the item in chatHistory
+        const historyIndex = chatHistory.findIndex(h => h.id === itemId);
+        if (historyIndex === -1) {
+          alert('❌ ไม่พบข้อความในประวัติ');
+          return;
+        }
+
+        const item = chatHistory[historyIndex];
+
+        // Disable button during translation
+        button.disabled = true;
+        const originalText = button.innerHTML;
+        button.innerHTML = '⏳';
+
+        try {
+          const corrected = await correctEnglish(item.message);
+
+          // Update chatHistory with the translation
+          chatHistory[historyIndex].translation = corrected;
+          chatHistory[historyIndex].isNewTranslation = true;
+          localStorage.setItem('virtualOfficeChatHistory', JSON.stringify(chatHistory));
+
+          // Update translation in database
+          if (socket && socket.connected) {
+            socket.emit('updateTranslation', {
+              messageId: item.id,
+              translation: corrected,
+              isNewTranslation: true
+            });
+          }
+
+          console.log('✅ Updated translation for:', item.message, '→', corrected);
+
+          // Re-render to update Column 2
+          renderMessages();
+        } catch (error) {
+          console.error('❌ Translation error:', error);
+          alert('❌ เกิดข้อผิดพลาด: ' + error.message);
+          button.disabled = false;
+          button.innerHTML = originalText;
+        }
+      });
+    });
+  }
+
+  // Initial render
+  renderMessages();
+
+  // Update when filters change
+  document.querySelectorAll('.type-filter').forEach(checkbox => {
+    checkbox.addEventListener('change', renderMessages);
+  });
+
+  // Translate all button
+  const translateAllBtn = document.getElementById('translate-all-btn');
+  let isTranslating = false;
+
+  translateAllBtn.addEventListener('click', async () => {
+    // Prevent multiple clicks
+    if (isTranslating) {
+      return;
+    }
+
+    const checkedTypes = Array.from(document.querySelectorAll('.type-filter:checked')).map(cb => cb.value);
+
+    // Filter only messages that are visible AND have NOT been translated yet
+    const untranslatedMessages = chatHistory.filter(item =>
+      checkedTypes.includes(getMessageType(item.message)) &&
+      !item.translation // Only messages without any translation
+    );
+
+    if (untranslatedMessages.length === 0) {
+      alert('ไม่มีข้อความที่ยังไม่ได้แปล ข้อความทั้งหมดถูกแปลแล้ว');
+      return;
+    }
+
+    isTranslating = true;
+    translateAllBtn.disabled = true;
+
+    let successCount = 0;
+    let failCount = 0;
+
+    // Translate each message individually
+    for (let i = 0; i < untranslatedMessages.length; i++) {
+      const item = untranslatedMessages[i];
+      translateAllBtn.textContent = `⏳ กำลังแปล ${i + 1}/${untranslatedMessages.length}...`;
+
+      try {
+        const translated = await correctEnglish(item.message);
+
+        // Find the item in chatHistory and update it
+        const historyIndex = chatHistory.findIndex(h => h.id === item.id);
+        if (historyIndex !== -1) {
+          chatHistory[historyIndex].translation = translated;
+          chatHistory[historyIndex].isNewTranslation = true; // Mark as new
+
+          // Update translation in database
+          if (socket && socket.connected) {
+            socket.emit('updateTranslation', {
+              messageId: item.id,
+              translation: translated,
+              isNewTranslation: true
+            });
+          }
+        }
+
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to translate message ${i + 1}:`, error);
+        failCount++;
+      }
+
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    // Save updated chatHistory to localStorage
+    localStorage.setItem('virtualOfficeChatHistory', JSON.stringify(chatHistory));
+
+    // Re-render messages to show new translations
+    renderMessages();
+
+    // Show completion message
+    translateAllBtn.textContent = `✅ แปลเสร็จ: ${successCount} สำเร็จ${failCount > 0 ? `, ${failCount} ล้มเหลว` : ''}`;
+    setTimeout(() => {
+      translateAllBtn.disabled = false;
+      translateAllBtn.textContent = '🌐 แปลทั้งหมด';
+      isTranslating = false;
+    }, 3000);
   });
 }
 
@@ -2098,10 +2457,10 @@ async function startRecording() {
           duration: audioChunks.length
         });
 
-        // Show visual indicator
-        if (currentPlayer) {
-          currentPlayer.showChatBubble('🎤 Voice message');
-        }
+        // Chat bubbles disabled - messages show in overlay only
+        // if (currentPlayer) {
+        //   currentPlayer.showChatBubble('🎤 Voice message');
+        // }
         console.log('📤 Voice message sent!');
       };
 
@@ -4105,96 +4464,6 @@ function drawUI() {
     canvas.roomButtonBounds = { x: roomBtnX, y: iconY, width: iconWidth, height: iconHeight };
   } else {
     canvas.roomButtonBounds = null;
-  }
-
-  // Floating chat panel (above bottom bar)
-  if (chatPanelOpen && chatPanelHeight > 0) {
-    // Match the width of the bottom chat bar
-    const chatWidth = Math.min(800, canvas.width - 40); // Max 800px or full width minus padding
-    const chatHeight = chatPanelHeight;
-    const chatX = (canvas.width - chatWidth) / 2; // Center horizontally
-    const chatY = canvas.height - chatHeight - 80; // 80px for bottom chat bar
-
-    // Chat panel background
-    ctx.fillStyle = 'rgba(245, 245, 245, 0.98)';
-    ctx.fillRect(chatX, chatY, chatWidth, chatHeight);
-    ctx.strokeStyle = '#667eea';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(chatX, chatY, chatWidth, chatHeight);
-
-    // Chat header
-    ctx.fillStyle = '#667eea';
-    ctx.fillRect(chatX, chatY, chatWidth, 40);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`💬 แชท (${chatHeight}px)`, chatX + chatWidth / 2, chatY + 20);
-
-    // Chat messages area
-    const chatAreaY = chatY + 45;
-    const chatAreaHeight = chatHeight - 50;
-    const chatAreaX = chatX + 20;
-    const chatAreaWidth = chatWidth - 40;
-
-    // Draw chat messages (new format: own on left, others on right with "username: message")
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(chatAreaX, chatAreaY, chatAreaWidth, chatAreaHeight);
-    ctx.clip();
-
-    let messageY = chatAreaY + 10;
-    const messagesToShow = sidebarChatMessages.slice(-20); // Show last 20 messages
-
-    for (let i = 0; i < messagesToShow.length; i++) {
-      const msg = messagesToShow[i];
-      const isOwn = msg.isOwn;
-
-      const fontSize = 14;
-      const lineHeight = 22;
-      ctx.font = `${fontSize}px Arial`;
-
-      // Format message
-      let displayText = isOwn ? msg.message : `${msg.username}: ${msg.message}`;
-
-      // Word wrap
-      const maxWidth = chatAreaWidth - 20;
-      const words = displayText.split(' ');
-      const lines = [];
-      let currentLine = words[0] || '';
-
-      for (let j = 1; j < words.length; j++) {
-        const testLine = currentLine + ' ' + words[j];
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth) {
-          lines.push(currentLine);
-          currentLine = words[j];
-        } else {
-          currentLine = testLine;
-        }
-      }
-      lines.push(currentLine);
-
-      // Draw message lines
-      ctx.textAlign = isOwn ? 'right' : 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = isOwn ? '#0066cc' : '#333333';
-
-      const textX = isOwn ? chatAreaX + chatAreaWidth - 10 : chatAreaX + 10;
-
-      lines.forEach((line, idx) => {
-        if (messageY + idx * lineHeight < chatAreaY + chatAreaHeight) {
-          ctx.fillText(line, textX, messageY + idx * lineHeight);
-        }
-      });
-
-      messageY += lines.length * lineHeight + 8;
-
-      // Stop if we've filled the area
-      if (messageY >= chatAreaY + chatAreaHeight) break;
-    }
-
-    ctx.restore();
   }
 
   // Logout button remains null (can add back if needed)

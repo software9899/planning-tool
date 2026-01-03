@@ -26,6 +26,7 @@ connectDB();
 
 // Models
 const RoomDecoration = require('./models/RoomDecoration');
+const ChatHistory = require('./models/ChatHistory');
 
 // Game state
 const rooms = new Map();
@@ -384,6 +385,90 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('❌ Error saving decorations:', error);
       socket.emit('decorationsError', { message: 'Failed to save decorations' });
+    }
+  });
+
+  // Save chat message to database
+  socket.on('saveChatMessage', async (data) => {
+    try {
+      const player = players.get(socket.id);
+
+      const chatMessage = new ChatHistory({
+        messageId: data.id,
+        username: data.username || (player ? player.username : 'Unknown'),
+        userId: data.userId || (player ? player.userId : null),
+        message: data.message,
+        translation: data.translation || null,
+        room: data.room || (player ? player.room : 'lobby'),
+        timestamp: data.timestamp || new Date(),
+        isNewTranslation: data.isNewTranslation || false
+      });
+
+      await chatMessage.save();
+      console.log(`💾 Saved chat message from ${chatMessage.username}`);
+    } catch (error) {
+      console.error('❌ Error saving chat message:', error);
+    }
+  });
+
+  // Get chat history from database
+  socket.on('getChatHistory', async (data) => {
+    try {
+      const { room, limit = 100 } = data || {};
+      const player = players.get(socket.id);
+      const targetRoom = room || (player ? player.room : 'lobby');
+
+      const history = await ChatHistory.find({ room: targetRoom })
+        .sort({ timestamp: -1 })
+        .limit(limit)
+        .lean();
+
+      // Convert to client format
+      const clientHistory = history.map(item => ({
+        id: item.messageId,
+        username: item.username,
+        message: item.message,
+        translation: item.translation,
+        timestamp: item.timestamp,
+        room: item.room,
+        isNewTranslation: item.isNewTranslation
+      }));
+
+      socket.emit('chatHistoryLoaded', clientHistory);
+      console.log(`📜 Sent ${clientHistory.length} chat messages to ${player ? player.username : socket.id}`);
+    } catch (error) {
+      console.error('❌ Error loading chat history:', error);
+      socket.emit('chatHistoryError', { message: 'Failed to load chat history' });
+    }
+  });
+
+  // Update translation for a message
+  socket.on('updateTranslation', async (data) => {
+    try {
+      const { messageId, translation, isNewTranslation } = data;
+
+      const result = await ChatHistory.findOneAndUpdate(
+        { messageId: messageId },
+        {
+          translation: translation,
+          isNewTranslation: isNewTranslation !== undefined ? isNewTranslation : true,
+          updatedAt: new Date()
+        },
+        { new: true }
+      );
+
+      if (result) {
+        console.log(`✅ Updated translation for message ${messageId}`);
+        socket.emit('translationUpdated', {
+          messageId: messageId,
+          translation: translation,
+          isNewTranslation: isNewTranslation
+        });
+      } else {
+        console.log(`⚠️ Message ${messageId} not found for translation update`);
+      }
+    } catch (error) {
+      console.error('❌ Error updating translation:', error);
     }
   });
 
