@@ -47,7 +47,7 @@ io.on('connection', (socket) => {
   console.log(`Player connected: ${socket.id}`);
 
   // Player joins with username
-  socket.on('join', ({ username, room = 'lobby', userId }) => {
+  socket.on('join', ({ username, room = 'lobby', userId, status = '' }) => {
     // Force everyone to lobby since we now have unified map
     room = 'lobby';
 
@@ -79,7 +79,8 @@ io.on('connection', (socket) => {
               x: oldPlayer.x,
               y: oldPlayer.y,
               color: oldPlayer.color,
-              room: oldPlayer.room
+              room: oldPlayer.room,
+              status: oldPlayer.status
             };
             playerStates.set(userId, savedState);
           }
@@ -99,6 +100,21 @@ io.on('connection', (socket) => {
       });
     }
 
+    // NOW check if username is already taken by another active player
+    // (after removing reconnection duplicates)
+    let usernameTaken = false;
+    players.forEach((player, id) => {
+      if (player.username === username && id !== socket.id) {
+        usernameTaken = true;
+      }
+    });
+
+    if (usernameTaken) {
+      socket.emit('joinError', { message: 'ชื่อนี้มีคนใช้แล้ว กรุณาเลือกชื่ออื่น' });
+      console.log(`❌ Username "${username}" already taken`);
+      return;
+    }
+
     // World coordinates - 3x3 grid of rooms (4800x3600 total)
     const WORLD_WIDTH = 4800;
     const WORLD_HEIGHT = 3600;
@@ -116,7 +132,8 @@ io.on('connection', (socket) => {
       x: savedState ? savedState.x : Math.random() * (LOBBY_X_MAX - LOBBY_X_MIN) + LOBBY_X_MIN,
       y: savedState ? savedState.y : Math.random() * (LOBBY_Y_MAX - LOBBY_Y_MIN) + LOBBY_Y_MIN,
       room: savedState ? savedState.room : room,
-      color: savedState ? savedState.color : `hsl(${Math.random() * 360}, 70%, 60%)`
+      color: savedState ? savedState.color : `hsl(${Math.random() * 360}, 70%, 60%)`,
+      status: savedState ? savedState.status : status
     };
 
     players.set(socket.id, player);
@@ -178,6 +195,7 @@ io.on('connection', (socket) => {
     if (player) {
       const chatMessage = {
         id: Date.now(),
+        playerId: socket.id,
         username: player.username,
         message: message,
         timestamp: new Date(),
@@ -197,6 +215,7 @@ io.on('connection', (socket) => {
       if (roomData) {
         const chatMessage = {
           id: Date.now(),
+          playerId: socket.id,
           username: player.username,
           message: message,
           timestamp: new Date(),
@@ -236,6 +255,72 @@ io.on('connection', (socket) => {
       socket.to(player.room).emit('voiceChat', voiceMessage);
 
       console.log(`🎤 Voice message from ${player.username}`);
+    }
+  });
+
+  // Update player status
+  socket.on('updateStatus', ({ status }) => {
+    const player = players.get(socket.id);
+    if (player) {
+      player.status = status || '';
+
+      // Update in room data
+      const roomData = rooms.get(player.room);
+      if (roomData) {
+        roomData.players.set(socket.id, player);
+      }
+
+      // Broadcast status update to all players in the same room
+      socket.to(player.room).emit('playerStatusUpdated', {
+        id: socket.id,
+        status: player.status
+      });
+
+      console.log(`💬 ${player.username} updated status: "${player.status}"`);
+    }
+  });
+
+  // Update player color
+  socket.on('updateColor', ({ color }) => {
+    const player = players.get(socket.id);
+    if (player) {
+      player.color = color;
+
+      // Update in room data
+      const roomData = rooms.get(player.room);
+      if (roomData) {
+        roomData.players.set(socket.id, player);
+      }
+
+      // Update saved state for reconnection
+      if (player.userId && playerStates.has(player.userId)) {
+        const state = playerStates.get(player.userId);
+        state.color = color;
+      }
+
+      // Broadcast color update to all players in the same room
+      socket.to(player.room).emit('playerColorUpdated', {
+        id: socket.id,
+        color: player.color
+      });
+
+      console.log(`🎨 ${player.username} updated color: ${player.color}`);
+    }
+  });
+
+  // Send poke
+  socket.on('sendPoke', ({ targetId }) => {
+    const player = players.get(socket.id);
+    const targetPlayer = players.get(targetId);
+
+    if (player && targetPlayer) {
+      // Send poke to target player
+      io.to(targetId).emit('receivePoke', {
+        fromId: socket.id,
+        fromUsername: player.username
+      });
+
+      console.log(`👉 ${player.username} poked ${targetPlayer.username}`);
     }
   });
 
@@ -483,7 +568,8 @@ io.on('connection', (socket) => {
           y: player.y,
           color: player.color,
           room: player.room,
-          username: player.username
+          username: player.username,
+          status: player.status
         });
 
         // Auto-cleanup after 5 minutes
@@ -521,6 +607,9 @@ app.get('/api/rooms', (req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`🚀 Virtual Office server running on http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Virtual Office server running on:`);
+  console.log(`   - Local: http://localhost:${PORT}`);
+  console.log(`   - Network: http://[YOUR_IP]:${PORT}`);
+  console.log(`   (Replace [YOUR_IP] with your computer's IP address)`);
 });

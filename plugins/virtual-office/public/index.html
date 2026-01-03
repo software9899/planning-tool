@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Virtual Office - Multiplayer Space</title>
-  <link rel="stylesheet" href="style.css?v=13.1">
+  <link rel="stylesheet" href="style.css?v=16.7">
 </head>
 <body>
   <div id="login-screen" class="screen active">
@@ -60,6 +60,10 @@
         <div class="sidebar-icon">🔗</div>
         <div class="sidebar-label">Guest Link</div>
       </div>
+      <div class="sidebar-item" id="profile-btn">
+        <div class="sidebar-icon">👤</div>
+        <div class="sidebar-label">Profile</div>
+      </div>
     </div>
 
     <!-- Chat Panel -->
@@ -69,7 +73,7 @@
         <div class="header-actions">
           <button class="icon-btn">🔍</button>
           <button class="icon-btn">⚙️</button>
-          <button class="icon-btn" id="toggle-chat-panel-btn">...</button>
+          <button class="icon-btn" id="toggle-chat-panel-btn">◀</button>
         </div>
       </div>
 
@@ -98,18 +102,45 @@
       <div class="chat-section">
         <div class="section-header collapsed">
           <span class="expand-icon">▶</span>
-          <span>Favorites</span>
+          <span>Favorite</span>
+        </div>
+        <div class="chat-list" id="favorite-players-list" style="display: none;">
+          <!-- Favorite players will be listed here -->
         </div>
       </div>
 
       <div class="chat-section">
         <div class="section-header">
           <span class="expand-icon">▼</span>
-          <span>Chats</span>
+          <span>Online</span>
         </div>
         <div class="chat-list" id="online-players-list">
           <!-- Online players will be listed here -->
         </div>
+      </div>
+
+      <div class="chat-section">
+        <div class="section-header collapsed">
+          <span class="expand-icon">▶</span>
+          <span>Offline</span>
+        </div>
+        <div class="chat-list" id="offline-players-list" style="display: none;">
+          <!-- Offline players will be listed here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity Panel -->
+    <div id="activity-panel" style="display: none;">
+      <div class="chat-panel-header">
+        <h2>Activity</h2>
+        <div class="header-actions">
+          <button class="icon-btn" id="toggle-activity-panel-btn">◀</button>
+        </div>
+      </div>
+
+      <div id="activity-list" style="overflow-y: auto; height: calc(100% - 60px);">
+        <!-- Activity items will be listed here -->
       </div>
     </div>
 
@@ -146,9 +177,9 @@
 
       <div id="history-modal" class="modal">
         <div class="modal-content">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2 style="margin: 0;">📜 ประวัติแชท</h2>
-            <button id="close-history-btn" style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">✕ ปิด</button>
+          <div class="modal-header">
+            <h2>📜 ประวัติแชท</h2>
+            <button id="close-history-btn" class="close-btn">✕</button>
           </div>
           <div id="history-list"></div>
         </div>
@@ -175,6 +206,11 @@
             <small style="color: #666; font-size: 12px;">แปลและแก้ไวยากรณ์เป็นภาษาอังกฤษอัตโนมัติก่อนส่งแชท</small>
           </div>
           <div class="settings-group">
+            <label>💬 Status Message:</label>
+            <input type="text" id="status-input" placeholder="e.g., In a meeting, Available..." maxlength="50" style="width: 100%; padding: 8px; margin-top: 5px; border: 2px solid #ddd; border-radius: 4px;">
+            <small style="color: #666; font-size: 12px;">ข้อความสถานะที่จะแสดงให้ผู้อื่นเห็น</small>
+          </div>
+          <div class="settings-group">
             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
               <input type="checkbox" id="show-names-checkbox" style="width: 20px; height: 20px; cursor: pointer;">
               <span>แสดงชื่อผู้เล่นอื่น (ไม่แสดงชื่อตัวเอง)</span>
@@ -183,6 +219,67 @@
           <button id="close-settings-btn">ปิด</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div id="profile-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>👤 โปรไฟล์</h2>
+        <button id="close-profile-btn" class="close-btn">✕</button>
+      </div>
+
+      <!-- User Info Section -->
+      <div class="profile-section">
+        <!-- 2 Column Layout -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+
+          <!-- Left Column: User Info -->
+          <div>
+            <h3 style="margin-bottom: 15px; color: #667eea; font-size: 14px;">ข้อมูลผู้ใช้</h3>
+
+            <!-- Username with color -->
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+              <div id="current-color-display" style="width: 40px; height: 40px; border-radius: 50%; border: 3px solid #ddd; cursor: pointer; transition: all 0.3s; flex-shrink: 0;"></div>
+              <div style="flex: 1;">
+                <div id="profile-username" style="font-weight: bold; color: #333; font-size: 16px;"></div>
+              </div>
+            </div>
+
+            <!-- Status Input -->
+            <div style="margin-bottom: 12px;">
+              <label style="display: block; margin-bottom: 6px; color: #667eea; font-size: 13px; font-weight: 500;">สถานะ</label>
+              <input type="text" id="profile-status-input" placeholder="ตั้งสถานะ..." maxlength="50" style="width: 100%; padding: 8px 12px; border: 2px solid #e0e0e0; border-radius: 8px; background: white; font-size: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+            </div>
+          </div>
+
+          <!-- Right Column: Character Preview -->
+          <div>
+            <h3 style="margin-bottom: 15px; color: #667eea; font-size: 14px; text-align: center;">ตัวอย่างตัวละคร</h3>
+            <div id="character-preview-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <canvas id="preview-front" width="80" height="80" style="border: 2px solid #e0e0e0; border-radius: 8px; background: #f9f9f9;"></canvas>
+              <canvas id="preview-back" width="80" height="80" style="border: 2px solid #e0e0e0; border-radius: 8px; background: #f9f9f9;"></canvas>
+              <canvas id="preview-left" width="80" height="80" style="border: 2px solid #e0e0e0; border-radius: 8px; background: #f9f9f9;"></canvas>
+              <canvas id="preview-right" width="80" height="80" style="border: 2px solid #e0e0e0; border-radius: 8px; background: #f9f9f9;"></canvas>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px; text-align: center;">
+              <small style="color: #999; font-size: 11px;">หน้า</small>
+              <small style="color: #999; font-size: 11px;">หลัง</small>
+              <small style="color: #999; font-size: 11px;">ซ้าย</small>
+              <small style="color: #999; font-size: 11px;">ขวา</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Color Picker (Centered Below) -->
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+          <h4 style="margin: 0; color: #667eea; font-size: 14px;">เลือกสีตัวละคร</h4>
+          <input type="color" id="color-picker" style="width: 80px; height: 80px; border: 3px solid #ddd; border-radius: 12px; cursor: pointer; padding: 5px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <button id="confirm-color-btn" style="padding: 10px 24px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3); transition: all 0.2s;">✓ ยืนยันสี</button>
+        </div>
+      </div>
+
+      <button id="save-profile-btn" style="width: 100%; margin-top: 20px; padding: 12px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">💾 บันทึก</button>
     </div>
   </div>
 
@@ -210,6 +307,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=13.3"></script>
+  <script src="game.js?v=16.7"></script>
 </body>
 </html>

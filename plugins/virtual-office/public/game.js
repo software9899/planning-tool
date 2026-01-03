@@ -11,6 +11,7 @@ const WORLD_HEIGHT = 3600; // 3 rooms tall (1200 * 3)
 let currentPlayer = null;
 let otherPlayers = new Map();
 let keys = {};
+let keyPressTime = {}; // Track how long each key has been pressed
 let currentChatMode = 'global';
 let currentRoom = 'lobby';
 let furniture = [];
@@ -146,9 +147,30 @@ function clampCameraOffset() {
 // Resize canvas
 function resizeCanvas() {
   const container = document.getElementById('game-container');
+
+  // Save current visual scale before resize
+  const oldWidth = canvas.width;
+  const oldHeight = canvas.height;
+  const oldScaleX = oldWidth / WORLD_WIDTH;
+  const oldScaleY = oldHeight / WORLD_HEIGHT;
+  const oldBaseScale = Math.min(oldScaleX, oldScaleY);
+  const oldVisualScale = oldBaseScale * zoomLevel;
+
+  // Resize canvas
   canvas.width = container.clientWidth;
   canvas.height = container.clientHeight;
-  console.log('📐 Canvas resized to:', canvas.width, 'x', canvas.height);
+
+  // Calculate new base scale
+  const newScaleX = canvas.width / WORLD_WIDTH;
+  const newScaleY = canvas.height / WORLD_HEIGHT;
+  const newBaseScale = Math.min(newScaleX, newScaleY);
+
+  // Adjust zoomLevel to maintain the same visual scale
+  if (newBaseScale > 0 && oldBaseScale > 0) {
+    zoomLevel = oldVisualScale / newBaseScale;
+  }
+
+  console.log('📐 Canvas resized to:', canvas.width, 'x', canvas.height, '| Zoom adjusted to:', zoomLevel.toFixed(2));
 }
 
 // Initial resize
@@ -354,6 +376,7 @@ class Player {
     this.y = data.y;
     this.color = data.color;
     this.room = data.room;
+    this.status = data.status || '';
     this.direction = data.direction || 'down';
     this.width = 32;
     this.height = 48;
@@ -361,6 +384,8 @@ class Player {
     this.speed = 5.0; // Smooth movement
     this.hasSpeedBoost = false;
     this.isMoving = false;
+    this.isRunning = false; // Running state (2+ seconds key hold)
+    this.runningLevel = 0; // 0=walk, 1=run1, 2=run2, 3=run3 (every 2 seconds)
     this.walkFrame = 0;
     this.chatMessage = null;
     this.chatTimeout = null;
@@ -400,10 +425,14 @@ class Player {
     let targetX = this.x;
     let targetY = this.y;
 
+    // Jump distance and height arrays
+    const jumpDistances = [100, 150, 200, 250]; // Level 0-3
+    const jumpHeights = [40, 60, 80, 100]; // Level 0-3
+
     // Only move forward if currently moving (WASD pressed)
     if (this.isMoving) {
-      // Calculate jump distance (2 cells = 64 pixels, like a mini-boost)
-      const jumpDistance = 100;
+      // Calculate jump distance based on running level
+      const jumpDistance = jumpDistances[this.runningLevel];
 
       // Calculate target position based on current direction
       switch(this.direction) {
@@ -429,10 +458,11 @@ class Player {
 
     this.jumpTargetX = targetX;
     this.jumpTargetY = targetY;
-    this.jumpHeight = 40; // Maximum height of jump arc
+    this.jumpHeight = jumpHeights[this.runningLevel];
 
     const jumpType = this.isMoving ? 'forward' : 'in place';
-    console.log(`🦘 Jump started! (${jumpType})`, this.direction, 'from', this.jumpStartX, this.jumpStartY, 'to', targetX, targetY);
+    const levelEmojis = ['🚶', '🏃', '🏃‍♂️💨', '⚡'];
+    console.log(`🦘 Jump started! ${levelEmojis[this.runningLevel]} Level ${this.runningLevel} (${jumpType})`, this.direction, 'Distance:', jumpDistances[this.runningLevel], 'Height:', this.jumpHeight);
   }
 
   updateJump() {
@@ -716,7 +746,17 @@ class Player {
     // Legs (same color as body/shirt)
     ctx.strokeStyle = color;
     ctx.lineWidth = 6 * scale;
-    const legOffset = isMoving ? Math.sin(this.walkFrame * 0.3) * 6 * scale : 0;
+
+    // Animation speed and leg swing based on running level
+    // Level 0: 0.3 speed, 6 swing
+    // Level 1: 0.45 speed, 8 swing
+    // Level 2: 0.6 speed, 10 swing
+    // Level 3: 0.75 speed, 12 swing
+    const animSpeeds = [0.3, 0.45, 0.6, 0.75];
+    const legSwings = [6, 8, 10, 12];
+    const animSpeed = animSpeeds[this.runningLevel];
+    const legSwing = legSwings[this.runningLevel];
+    const legOffset = isMoving ? Math.sin(this.walkFrame * animSpeed) * legSwing * scale : 0;
 
     // Left leg
     ctx.beginPath();
@@ -962,6 +1002,35 @@ class Player {
     }
     // Priority 2: WASD controls (fallback)
     else {
+      // Check running level based on key hold duration (every 2 seconds)
+      const currentTime = Date.now();
+      const movementKeys = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
+      let maxHoldDuration = 0;
+
+      for (const key of movementKeys) {
+        if (keys[key] && keyPressTime[key]) {
+          const holdDuration = (currentTime - keyPressTime[key]) / 1000; // in seconds
+          maxHoldDuration = Math.max(maxHoldDuration, holdDuration);
+        }
+      }
+
+      // Calculate running level (every 2 seconds)
+      const newRunningLevel = Math.min(3, Math.floor(maxHoldDuration / 2));
+
+      if (newRunningLevel !== this.runningLevel) {
+        this.runningLevel = newRunningLevel;
+
+        // Update speed based on level
+        // Level 0: 1x, Level 1: 1.5x, Level 2: 2x, Level 3: 2.5x
+        const speedMultipliers = [1.0, 1.5, 2.0, 2.5];
+        this.speed = this.baseSpeed * speedMultipliers[this.runningLevel];
+
+        this.isRunning = this.runningLevel > 0;
+
+        const levelEmojis = ['🚶', '🏃', '🏃‍♂️💨', '⚡'];
+        console.log(`${levelEmojis[this.runningLevel]} Running Level ${this.runningLevel}! Speed: ${this.speed.toFixed(1)}x`);
+      }
+
       if (keys['w'] || keys['arrowup']) {
         newY -= this.speed;
         this.direction = 'up';
@@ -1079,7 +1148,7 @@ joinBtn.addEventListener('click', () => {
   // Get or create persistent userId
   const userId = getUserId();
 
-  socket.emit('join', { username, room, userId });
+  socket.emit('join', { username, room, userId, status: userStatus });
 });
 
 // Guest Link Button
@@ -1257,7 +1326,8 @@ window.addEventListener('DOMContentLoaded', () => {
       socket.emit('join', {
         username: guestUsername,
         room: 'lobby',
-        userId: userId
+        userId: userId,
+        status: userStatus
       });
     }, 500);
     return; // Skip normal login flow
@@ -1280,7 +1350,8 @@ window.addEventListener('DOMContentLoaded', () => {
       socket.emit('join', {
         username: savedUsername,
         room: 'lobby', // Always join lobby (unified map)
-        userId: userId
+        userId: userId,
+        status: userStatus
       });
     }, 500);
   }
@@ -1294,6 +1365,18 @@ usernameInput.addEventListener('keypress', (e) => {
 });
 
 // Socket events
+socket.on('joinError', (data) => {
+  alert(data.message);
+
+  // Show login screen again
+  document.getElementById('game-screen').classList.remove('active');
+  document.getElementById('login-screen').classList.add('active');
+
+  // Focus on username input
+  usernameInput.focus();
+  usernameInput.select();
+});
+
 socket.on('init', (data) => {
   console.log('🎮 Init received:', data);
   currentPlayer = new Player(data.player);
@@ -1395,6 +1478,30 @@ socket.on('playerMoved', (data) => {
   }
 });
 
+socket.on('playerStatusUpdated', (data) => {
+  console.log('📥 Received playerStatusUpdated:', data);
+  const player = otherPlayers.get(data.id);
+  if (player) {
+    player.status = data.status;
+    console.log(`💬 ${player.username} updated status: "${data.status}"`);
+    updateOnlinePlayersList();
+  } else {
+    console.warn('⚠️ Player not found in otherPlayers:', data.id);
+  }
+});
+
+socket.on('playerColorUpdated', (data) => {
+  console.log('📥 Received playerColorUpdated:', data);
+  const player = otherPlayers.get(data.id);
+  if (player) {
+    player.color = data.color;
+    console.log(`🎨 ${player.username} updated color: ${data.color}`);
+    updateOnlinePlayersList();
+  } else {
+    console.warn('⚠️ Player not found in otherPlayers:', data.id);
+  }
+});
+
 socket.on('playerLeft', (playerId) => {
   const player = otherPlayers.get(playerId);
   if (player) {
@@ -1406,7 +1513,7 @@ socket.on('playerLeft', (playerId) => {
 
 socket.on('globalChat', (message) => {
   // Only add to sidebar if it's NOT from current player (to avoid duplicate)
-  if (currentPlayer && message.username !== currentPlayer.username) {
+  if (currentPlayer && message.playerId !== currentPlayer.id) {
     sidebarChatMessages.push({
       username: message.username,
       message: message.message,
@@ -1556,7 +1663,12 @@ window.addEventListener('keydown', (e) => {
   }
 
   const key = e.key.toLowerCase();
-  keys[key] = true;
+
+  // Track key press time for running mechanic
+  if (!keys[key]) {
+    keys[key] = true;
+    keyPressTime[key] = Date.now();
+  }
 
   // Log movement keys and prevent default behavior for arrow keys
   if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
@@ -1673,7 +1785,18 @@ window.addEventListener('keyup', (e) => {
     return;
   }
 
-  keys[e.key.toLowerCase()] = false;
+  const key = e.key.toLowerCase();
+  keys[key] = false;
+  delete keyPressTime[key]; // Reset key press time
+
+  // Reset running state when releasing movement keys
+  if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+    if (currentPlayer) {
+      currentPlayer.isRunning = false;
+      currentPlayer.runningLevel = 0;
+      currentPlayer.speed = currentPlayer.baseSpeed;
+    }
+  }
 });
 
 // Chat functionality
@@ -1867,6 +1990,408 @@ if (savedAiKey) {
     aiKeyInput.value = savedAiKey;
   }
   console.log('🔑 AI API Key loaded');
+}
+
+// Status message functionality
+let userStatus = '';
+
+// Load status from localStorage
+const savedStatus = localStorage.getItem('virtualOfficeStatus');
+if (savedStatus) {
+  userStatus = savedStatus;
+  const statusInput = document.getElementById('status-input');
+  if (statusInput) {
+    statusInput.value = savedStatus;
+  }
+  console.log('💬 Status loaded:', userStatus);
+}
+
+// Save status when closing settings
+const statusInput = document.getElementById('status-input');
+if (statusInput) {
+  // Save on blur (when user clicks outside)
+  statusInput.addEventListener('blur', () => {
+    userStatus = statusInput.value.trim();
+    localStorage.setItem('virtualOfficeStatus', userStatus);
+
+    // Update current player's status
+    if (currentPlayer) {
+      currentPlayer.status = userStatus;
+    }
+
+    // Broadcast status update to server if connected
+    if (socket && socket.connected && currentPlayer) {
+      socket.emit('updateStatus', { status: userStatus });
+      console.log('💬 Status updated and sent to server:', userStatus);
+    }
+  });
+
+  // Also save on Enter key
+  statusInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      statusInput.blur(); // Trigger blur event
+    }
+  });
+}
+
+// Helper function to convert HSL to HEX
+function hslToHex(hsl) {
+  // Parse HSL string like "hsl(120, 70%, 60%)"
+  const match = hsl.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+  if (!match) return '#000000';
+
+  const h = parseInt(match[1]);
+  const s = parseInt(match[2]) / 100;
+  const l = parseInt(match[3]) / 100;
+
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+
+  const toHex = (n) => {
+    const hex = Math.round((n + m) * 255).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  };
+
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+// Helper function to convert HEX to HSL
+function hexToHsl(hex) {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+
+  return `hsl(${Math.round(h * 360)}, ${Math.round(s * 100)}%, ${Math.round(l * 100)}%)`;
+}
+
+// Profile Modal functionality
+const profileBtn = document.getElementById('profile-btn');
+const profileModal = document.getElementById('profile-modal');
+const closeProfileBtn = document.getElementById('close-profile-btn');
+const saveProfileBtn = document.getElementById('save-profile-btn');
+const profileUsername = document.getElementById('profile-username');
+const profileStatusInput = document.getElementById('profile-status-input');
+const colorPicker = document.getElementById('color-picker');
+const currentColorDisplay = document.getElementById('current-color-display');
+let selectedPlayerColor = null;
+
+// Get hair color based on body color (standalone function)
+function getHairColorPreview(bodyColor) {
+  const colors = ['#2c1810', '#6b4423', '#8b6f47', '#3d2817', '#1a0f08'];
+  let hash = 0;
+  for (let i = 0; i < bodyColor.length; i++) {
+    hash = bodyColor.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
+// Draw full character preview on canvas (same as in-game)
+function drawCharacterPreview(canvas, direction, color) {
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+
+  // Clear canvas
+  ctx.clearRect(0, 0, width, height);
+
+  const x = width / 2;
+  const y = height / 2 + 10;
+  const scale = 0.8;
+
+  const bodyWidth = 24 * scale;
+  const bodyHeight = 30 * scale;
+  const headSize = 22 * scale;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + bodyHeight + 5 * scale, bodyWidth * 0.7, 6 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = color;
+  ctx.fillRect(x - bodyWidth/2, y, bodyWidth, bodyHeight);
+
+  // Arms
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 5 * scale;
+  ctx.lineCap = 'round';
+
+  // Left arm
+  ctx.beginPath();
+  ctx.moveTo(x - bodyWidth/2, y + 5 * scale);
+  ctx.lineTo(x - bodyWidth/2 - 3 * scale, y + 15 * scale);
+  ctx.stroke();
+
+  // Right arm
+  ctx.beginPath();
+  ctx.moveTo(x + bodyWidth/2, y + 5 * scale);
+  ctx.lineTo(x + bodyWidth/2 + 3 * scale, y + 15 * scale);
+  ctx.stroke();
+
+  // Head
+  ctx.fillStyle = '#ffdbac';
+  ctx.beginPath();
+  ctx.arc(x, y - 5 * scale, headSize, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1 * scale;
+  ctx.stroke();
+
+  // Hair
+  ctx.fillStyle = getHairColorPreview(color);
+
+  if (direction === 'up') {
+    // Full hair visible from behind
+    ctx.beginPath();
+    ctx.arc(x, y - 5 * scale, headSize * 0.95, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (direction === 'left') {
+    // Hair on top
+    ctx.beginPath();
+    ctx.arc(x, y - 8 * scale, headSize * 0.9, Math.PI, 2 * Math.PI);
+    ctx.fill();
+    // Hair on back of head (right side)
+    ctx.beginPath();
+    ctx.arc(x, y - 5 * scale, headSize * 0.95, -Math.PI/2, Math.PI/2);
+    ctx.fill();
+  } else if (direction === 'right') {
+    // Hair on top
+    ctx.beginPath();
+    ctx.arc(x, y - 8 * scale, headSize * 0.9, Math.PI, 2 * Math.PI);
+    ctx.fill();
+    // Hair on back of head (left side)
+    ctx.beginPath();
+    ctx.arc(x, y - 5 * scale, headSize * 0.95, Math.PI/2, Math.PI * 1.5);
+    ctx.fill();
+  } else {
+    // Front view (down) - Hair on top only
+    ctx.beginPath();
+    ctx.arc(x, y - 8 * scale, headSize * 0.9, Math.PI, 2 * Math.PI);
+    ctx.fill();
+  }
+
+  // Face
+  const faceY = y - 5 * scale;
+  ctx.fillStyle = '#333';
+
+  if (direction !== 'up') {
+    if (direction === 'down') {
+      // Front view - two eyes
+      ctx.fillRect(x - 7 * scale, faceY + 0 * scale, 5 * scale, 3 * scale);
+      ctx.fillRect(x + 2 * scale, faceY + 0 * scale, 5 * scale, 3 * scale);
+    } else if (direction === 'left') {
+      // Side profile - left
+      ctx.fillRect(x - 12 * scale, faceY + 0 * scale, 5 * scale, 3 * scale);
+
+      // Nose (profile pointing left)
+      ctx.beginPath();
+      ctx.moveTo(x - 14 * scale, faceY + 2 * scale);
+      ctx.lineTo(x - 18 * scale, faceY + 4 * scale);
+      ctx.lineTo(x - 14 * scale, faceY + 6 * scale);
+      ctx.fillStyle = '#ffdbac';
+      ctx.fill();
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1 * scale;
+      ctx.stroke();
+
+      // Mouth (side)
+      ctx.fillStyle = '#333';
+      ctx.fillRect(x - 16 * scale, faceY + 10 * scale, 5 * scale, 2 * scale);
+    } else if (direction === 'right') {
+      // Side profile - right
+      ctx.fillRect(x + 7 * scale, faceY + 0 * scale, 5 * scale, 3 * scale);
+
+      // Nose (profile pointing right)
+      ctx.beginPath();
+      ctx.moveTo(x + 14 * scale, faceY + 2 * scale);
+      ctx.lineTo(x + 18 * scale, faceY + 4 * scale);
+      ctx.lineTo(x + 14 * scale, faceY + 6 * scale);
+      ctx.fillStyle = '#ffdbac';
+      ctx.fill();
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1 * scale;
+      ctx.stroke();
+
+      // Mouth (side)
+      ctx.fillStyle = '#333';
+      ctx.fillRect(x + 11 * scale, faceY + 10 * scale, 5 * scale, 2 * scale);
+    }
+  }
+}
+
+// Update all character previews
+function updateCharacterPreviews(color) {
+  drawCharacterPreview(document.getElementById('preview-front'), 'down', color);
+  drawCharacterPreview(document.getElementById('preview-back'), 'up', color);
+  drawCharacterPreview(document.getElementById('preview-left'), 'left', color);
+  drawCharacterPreview(document.getElementById('preview-right'), 'right', color);
+}
+
+// Open profile modal
+if (profileBtn && profileModal) {
+  profileBtn.addEventListener('click', () => {
+    // Remove active from all sidebar items
+    document.querySelectorAll('.sidebar-item').forEach(item => {
+      item.classList.remove('active');
+    });
+
+    // Add active to profile button
+    profileBtn.classList.add('active');
+
+    // Load current player data
+    if (currentPlayer) {
+      profileUsername.textContent = currentPlayer.username;
+      selectedPlayerColor = currentPlayer.color;
+
+      // Load status
+      profileStatusInput.value = userStatus;
+
+      // Update color display and picker
+      currentColorDisplay.style.background = currentPlayer.color;
+      colorPicker.value = hslToHex(currentPlayer.color);
+
+      // Initialize temp preview color
+      tempPreviewColor = currentPlayer.color;
+
+      // Update character previews
+      updateCharacterPreviews(currentPlayer.color);
+    }
+
+    profileModal.classList.add('active');
+  });
+}
+
+// Close profile modal
+if (closeProfileBtn && profileModal) {
+  closeProfileBtn.addEventListener('click', () => {
+    profileBtn.classList.remove('active');
+    profileModal.classList.remove('active');
+  });
+}
+
+// Temporary color for preview (before confirmation)
+let tempPreviewColor = null;
+
+// Color picker change handler - only updates preview
+if (colorPicker) {
+  colorPicker.addEventListener('input', (e) => {
+    const hexColor = e.target.value;
+    const hslColor = hexToHsl(hexColor);
+
+    // Store temporary color
+    tempPreviewColor = hslColor;
+
+    // Update character previews only (not the actual color)
+    updateCharacterPreviews(hslColor);
+
+    console.log('🎨 Preview color:', hslColor);
+  });
+}
+
+// Confirm color button handler
+const confirmColorBtn = document.getElementById('confirm-color-btn');
+if (confirmColorBtn && currentColorDisplay) {
+  confirmColorBtn.addEventListener('click', () => {
+    if (tempPreviewColor) {
+      // Update actual color
+      selectedPlayerColor = tempPreviewColor;
+      currentColorDisplay.style.background = tempPreviewColor;
+
+      console.log('✓ Color confirmed:', selectedPlayerColor);
+
+      // Show feedback
+      confirmColorBtn.textContent = '✓ ยืนยันแล้ว!';
+      confirmColorBtn.style.background = '#4caf50';
+
+      setTimeout(() => {
+        confirmColorBtn.textContent = '✓ ยืนยันสี';
+        confirmColorBtn.style.background = '#667eea';
+      }, 1000);
+    }
+  });
+}
+
+// Allow clicking on the color display to open picker
+if (currentColorDisplay && colorPicker) {
+  currentColorDisplay.addEventListener('click', () => {
+    colorPicker.click();
+  });
+}
+
+// Save profile button
+if (saveProfileBtn) {
+  saveProfileBtn.addEventListener('click', () => {
+    // Update status
+    const newStatus = profileStatusInput.value.trim();
+    if (newStatus !== userStatus) {
+      userStatus = newStatus;
+      localStorage.setItem('virtualOfficeStatus', userStatus);
+
+      // Update current player's status
+      if (currentPlayer) {
+        currentPlayer.status = userStatus;
+      }
+
+      // Also update the settings modal status input
+      const settingsStatusInput = document.getElementById('status-input');
+      if (settingsStatusInput) {
+        settingsStatusInput.value = userStatus;
+      }
+
+      // Broadcast status update to server
+      if (socket && socket.connected && currentPlayer) {
+        socket.emit('updateStatus', { status: userStatus });
+        console.log('💬 Status updated from profile:', userStatus);
+        console.log('📍 Current room:', currentPlayer.room);
+        console.log('👥 Other players in room:', otherPlayers.size);
+      }
+    }
+
+    // Update color if changed
+    if (selectedPlayerColor && currentPlayer && selectedPlayerColor !== currentPlayer.color) {
+      currentPlayer.color = selectedPlayerColor;
+
+      // Broadcast color update to server
+      if (socket && socket.connected) {
+        socket.emit('updateColor', { color: selectedPlayerColor });
+        console.log('🎨 Color updated and sent to server:', selectedPlayerColor);
+        console.log('📍 Current room:', currentPlayer.room);
+        console.log('👥 Other players in room:', otherPlayers.size);
+      }
+
+      // Update the online players list to show new color
+      updateOnlinePlayersList();
+    }
+
+    // Close modal
+    profileBtn.classList.remove('active');
+    profileModal.classList.remove('active');
+  });
 }
 
 // Show names checkbox
@@ -4508,18 +5033,215 @@ function updateOnlinePlayersList() {
 
     const status = document.createElement('div');
     status.className = 'chat-status';
-    status.textContent = '🟢 Online';
+    // Show custom status if available, otherwise empty
+    status.textContent = player.status || '';
 
     info.appendChild(name);
-    info.appendChild(status);
+    if (player.status) {
+      info.appendChild(status);
+    }
+
+    // Poke button
+    const pokeBtn = document.createElement('button');
+    pokeBtn.className = 'poke-btn';
+    pokeBtn.textContent = '👉';
+    pokeBtn.title = 'Poke';
+    pokeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sendPoke(player.id, player.username);
+    });
 
     item.appendChild(avatar);
     item.appendChild(info);
+    item.appendChild(pokeBtn);
     playersList.appendChild(item);
   });
 
   console.log('📋 Updated players list:', otherPlayers.size, 'players');
 }
+
+// Activity feed for pokes
+let activityFeed = [];
+
+// Send poke to a player
+function sendPoke(playerId, username) {
+  if (socket && socket.connected) {
+    socket.emit('sendPoke', { targetId: playerId });
+    console.log(`👉 Poked ${username}`);
+
+    // Visual feedback
+    alert(`คุณ Poke ${username} แล้ว!`);
+  }
+}
+
+// Receive poke
+socket.on('receivePoke', (data) => {
+  console.log('👉 Received poke from:', data.fromUsername);
+
+  // Add to activity feed
+  const activity = {
+    id: Date.now(),
+    type: 'poke',
+    from: data.fromUsername,
+    fromId: data.fromId,
+    timestamp: new Date(),
+    read: false
+  };
+
+  activityFeed.unshift(activity);
+
+  // Keep only last 50 activities
+  if (activityFeed.length > 50) {
+    activityFeed.pop();
+  }
+
+  // Update activity tab
+  updateActivityTab();
+
+  // Show notification
+  showPokeNotification(data.fromUsername);
+});
+
+// Show poke notification
+function showPokeNotification(fromUsername) {
+  // You can customize this - for now using alert
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 16px 24px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10000;
+    animation: slideIn 0.3s ease;
+    font-weight: 500;
+  `;
+  notification.innerHTML = `👉 ${fromUsername} poked you!`;
+
+  document.body.appendChild(notification);
+
+  setTimeout(() => {
+    notification.style.animation = 'slideOut 0.3s ease';
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
+}
+
+// Update activity tab
+function updateActivityTab() {
+  const activityList = document.getElementById('activity-list');
+  if (!activityList) return;
+
+  activityList.innerHTML = '';
+
+  if (activityFeed.length === 0) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.style.cssText = 'padding: 40px 20px; text-align: center; color: #999; font-size: 14px;';
+    emptyMsg.textContent = 'ยังไม่มีกิจกรรม';
+    activityList.appendChild(emptyMsg);
+    return;
+  }
+
+  activityFeed.forEach(activity => {
+    const item = document.createElement('div');
+    item.className = 'activity-item';
+    item.style.cssText = `
+      padding: 12px 16px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+      transition: background 0.2s;
+      ${!activity.read ? 'background: rgba(102, 126, 234, 0.05);' : ''}
+    `;
+
+    const timeAgo = getTimeAgo(activity.timestamp);
+
+    item.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="font-size: 24px;">👉</div>
+        <div style="flex: 1;">
+          <div style="font-weight: 500; color: #333; margin-bottom: 4px;">
+            ${activity.from} poked you
+          </div>
+          <div style="font-size: 12px; color: #999;">
+            ${timeAgo}
+          </div>
+        </div>
+      </div>
+    `;
+
+    item.addEventListener('click', () => {
+      activity.read = true;
+      updateActivityTab();
+    });
+
+    activityList.appendChild(item);
+  });
+}
+
+// Helper function to get time ago
+function getTimeAgo(timestamp) {
+  const now = new Date();
+  const diff = now - new Date(timestamp);
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days} วันที่แล้ว`;
+  if (hours > 0) return `${hours} ชั่วโมงที่แล้ว`;
+  if (minutes > 0) return `${minutes} นาทีที่แล้ว`;
+  return `เมื่อสักครู่`;
+}
+
+// Tab switching for sidebar
+document.querySelectorAll('.sidebar-item[data-tab]').forEach(item => {
+  item.addEventListener('click', () => {
+    const tab = item.dataset.tab;
+
+    // Remove active from all sidebar items
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+
+    // Add active to clicked item
+    item.classList.add('active');
+
+    // Hide all panels
+    document.getElementById('chat-panel').style.display = 'none';
+    document.getElementById('activity-panel').style.display = 'none';
+
+    // Show selected panel
+    if (tab === 'chat') {
+      document.getElementById('chat-panel').style.display = 'flex';
+    } else if (tab === 'activity') {
+      document.getElementById('activity-panel').style.display = 'flex';
+      updateActivityTab();
+    }
+  });
+});
+
+// Chat section collapse/expand functionality
+document.querySelectorAll('.section-header').forEach(header => {
+  header.addEventListener('click', () => {
+    const section = header.parentElement;
+    const chatList = section.querySelector('.chat-list');
+    const expandIcon = header.querySelector('.expand-icon');
+
+    if (!chatList) return;
+
+    if (header.classList.contains('collapsed')) {
+      // Expand
+      header.classList.remove('collapsed');
+      chatList.style.display = 'block';
+      expandIcon.textContent = '▼';
+    } else {
+      // Collapse
+      header.classList.add('collapsed');
+      chatList.style.display = 'none';
+      expandIcon.textContent = '▶';
+    }
+  });
+});
 
 // Toggle chat panel visibility
 const toggleChatPanelBtn = document.getElementById('toggle-chat-panel-btn');
@@ -4539,8 +5261,7 @@ if (toggleChatPanelBtn && chatPanel && chatSidebarItem) {
       chatSidebarItem.classList.remove('active');
       console.log('💬 Chat panel hidden');
     }
-    // Resize canvas after toggling to prevent blurriness
-    setTimeout(resizeCanvas, 50);
+    // No need to resize canvas - chat panel is now an overlay
   });
 
   // Also toggle when clicking the Chat sidebar item
@@ -4554,8 +5275,7 @@ if (toggleChatPanelBtn && chatPanel && chatSidebarItem) {
       chatSidebarItem.classList.remove('active');
       console.log('💬 Chat panel hidden');
     }
-    // Resize canvas after toggling to prevent blurriness
-    setTimeout(resizeCanvas, 50);
+    // No need to resize canvas - chat panel is now an overlay
   });
 }
 
