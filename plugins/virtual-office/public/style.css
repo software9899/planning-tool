@@ -1019,10 +1019,11 @@ body {
   color: #4CAF50;
 }
 
-/* Chat Panel & Activity Panel & Calendar Panel */
+/* Chat Panel & Activity Panel & Calendar Panel & Bookmark Panel */
 #chat-panel,
 #activity-panel,
-#calendar-panel {
+#calendar-panel,
+#bookmark-panel {
   position: absolute;
   top: 0;
   left: 72px; /* After left sidebar */

@@ -5398,6 +5398,7 @@ document.querySelectorAll('.sidebar-item[data-tab]').forEach(item => {
     document.getElementById('chat-panel').style.display = 'none';
     document.getElementById('activity-panel').style.display = 'none';
     document.getElementById('calendar-panel').style.display = 'none';
+    document.getElementById('bookmark-panel').style.display = 'none';
 
     // Show selected panel
     if (tab === 'chat') {
@@ -5408,6 +5409,9 @@ document.querySelectorAll('.sidebar-item[data-tab]').forEach(item => {
     } else if (tab === 'calendar') {
       document.getElementById('calendar-panel').style.display = 'flex';
       updateCalendarPanel();
+    } else if (tab === 'files') {
+      document.getElementById('bookmark-panel').style.display = 'flex';
+      loadBookmarks();
     }
   });
 });
@@ -5473,6 +5477,133 @@ if (toggleCalendarPanelBtn && calendarPanel && calendarSidebarItem) {
     calendarSidebarItem.classList.remove('active');
     console.log('📅 Calendar panel hidden');
   });
+}
+
+// Toggle bookmark panel visibility
+const toggleBookmarkPanelBtn = document.getElementById('toggle-bookmark-panel-btn');
+const bookmarkPanel = document.getElementById('bookmark-panel');
+const bookmarkSidebarItem = document.querySelector('.sidebar-item[data-tab="files"]');
+
+if (toggleBookmarkPanelBtn && bookmarkPanel && bookmarkSidebarItem) {
+  toggleBookmarkPanelBtn.addEventListener('click', () => {
+    bookmarkPanel.style.display = 'none';
+    bookmarkSidebarItem.classList.remove('active');
+    console.log('🔖 Bookmark panel hidden');
+  });
+}
+
+// Refresh bookmarks button
+const refreshBookmarksBtn = document.getElementById('refresh-bookmarks-btn');
+if (refreshBookmarksBtn) {
+  refreshBookmarksBtn.addEventListener('click', () => {
+    loadBookmarks();
+  });
+}
+
+// Load bookmarks from Planning Tool API
+async function loadBookmarks() {
+  const bookmarkList = document.getElementById('bookmark-list');
+  if (!bookmarkList) return;
+
+  // Show loading
+  bookmarkList.innerHTML = '<div style="padding: 40px 20px; text-align: center; color: #999; font-size: 14px;">⏳ กำลังโหลด...</div>';
+
+  try {
+    // Fetch bookmarks from local proxy (which forwards to Planning Tool Backend)
+    const response = await fetch('/api/bookmarks');
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch bookmarks');
+    }
+
+    const data = await response.json();
+    const bookmarks = data.bookmarks || [];
+
+    bookmarkList.innerHTML = '';
+
+    if (bookmarks.length === 0) {
+      const emptyMsg = document.createElement('div');
+      emptyMsg.style.cssText = 'padding: 40px 20px; text-align: center; color: #999; font-size: 14px;';
+      emptyMsg.textContent = 'ยังไม่มี Bookmark';
+      bookmarkList.appendChild(emptyMsg);
+      return;
+    }
+
+    // Display bookmarks
+    bookmarks.forEach(bookmark => {
+      const item = document.createElement('div');
+      item.className = 'bookmark-item';
+      item.style.cssText = `
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 8px;
+        background: white;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid #e0e0e0;
+      `;
+
+      // Favicon
+      const favicon = document.createElement('img');
+      favicon.style.cssText = 'width: 20px; height: 20px; flex-shrink: 0; margin-top: 2px;';
+      favicon.src = bookmark.favicon || `https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=32`;
+      favicon.onerror = () => {
+        favicon.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">🔖</text></svg>';
+      };
+
+      // Content
+      const content = document.createElement('div');
+      content.style.cssText = 'flex: 1; min-width: 0;';
+
+      const title = document.createElement('div');
+      title.style.cssText = 'font-weight: 600; color: #333; font-size: 13px; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+      title.textContent = bookmark.title || 'Untitled';
+
+      const url = document.createElement('div');
+      url.style.cssText = 'font-size: 11px; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+      url.textContent = bookmark.url;
+
+      content.appendChild(title);
+      content.appendChild(url);
+
+      item.appendChild(favicon);
+      item.appendChild(content);
+
+      // Click to open
+      item.addEventListener('click', () => {
+        window.open(bookmark.url, '_blank');
+      });
+
+      // Hover effect
+      item.addEventListener('mouseenter', () => {
+        item.style.background = '#f5f5ff';
+        item.style.borderColor = '#667eea';
+        item.style.transform = 'translateX(4px)';
+      });
+      item.addEventListener('mouseleave', () => {
+        item.style.background = 'white';
+        item.style.borderColor = '#e0e0e0';
+        item.style.transform = 'translateX(0)';
+      });
+
+      bookmarkList.appendChild(item);
+    });
+
+    console.log('🔖 Loaded', bookmarks.length, 'bookmarks');
+
+  } catch (error) {
+    console.error('❌ Error loading bookmarks:', error);
+    bookmarkList.innerHTML = `
+      <div style="padding: 40px 20px; text-align: center; color: #ff5252; font-size: 14px;">
+        <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
+        <div>ไม่สามารถโหลด Bookmarks ได้</div>
+        <div style="font-size: 12px; margin-top: 8px; color: #999;">กรุณาตรวจสอบว่า Planning Tool API ทำงานอยู่</div>
+      </div>
+    `;
+  }
 }
 
 // Game loop

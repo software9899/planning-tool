@@ -605,6 +605,27 @@ app.get('/api/rooms', (req, res) => {
   res.json(roomList);
 });
 
+// Proxy to Planning Tool Backend API
+app.get('/api/bookmarks', async (req, res) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://backend:8002';
+    const response = await fetch(`${backendUrl}/api/bookmarks`);
+
+    if (!response.ok) {
+      throw new Error(`Backend responded with status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error fetching bookmarks from backend:', error);
+    res.status(500).json({
+      error: 'Failed to fetch bookmarks',
+      message: error.message
+    });
+  }
+});
+
 // Start server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {

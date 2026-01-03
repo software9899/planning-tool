@@ -211,6 +211,19 @@ class Diagram(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class Bookmark(Base):
+    __tablename__ = "bookmarks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(500), nullable=False)
+    url = Column(Text, nullable=False)
+    favicon = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    tags = Column(ARRAY(Text), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # Create all tables
 Base.metadata.create_all(bind=engine)
 
@@ -449,6 +462,34 @@ class DiagramResponse(BaseModel):
     description: Optional[str]
     diagram_data: str
     created_by: Optional[int]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class BookmarkCreate(BaseModel):
+    title: str
+    url: str
+    favicon: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[List[str]] = []
+
+class BookmarkUpdate(BaseModel):
+    title: Optional[str] = None
+    url: Optional[str] = None
+    favicon: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+class BookmarkResponse(BaseModel):
+    id: int
+    title: str
+    url: str
+    favicon: Optional[str]
+    description: Optional[str]
+    tags: Optional[List[str]]
+    user_id: Optional[int]
     created_at: datetime
     updated_at: datetime
 
@@ -1683,6 +1724,73 @@ def delete_diagram(diagram_id: int, db: Session = Depends(get_db)):
     db.delete(db_diagram)
     db.commit()
     return {"message": "Diagram deleted successfully"}
+
+# ==================== Bookmarks API ====================
+
+@app.get("/api/bookmarks")
+def get_bookmarks(db: Session = Depends(get_db)):
+    """Get all bookmarks"""
+    bookmarks = db.query(Bookmark).order_by(Bookmark.created_at.desc()).all()
+    bookmark_responses = [BookmarkResponse.model_validate(b) for b in bookmarks]
+    return {"bookmarks": bookmark_responses}
+
+@app.get("/api/bookmarks/{bookmark_id}", response_model=BookmarkResponse)
+def get_bookmark(bookmark_id: int, db: Session = Depends(get_db)):
+    """Get a specific bookmark by ID"""
+    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if bookmark is None:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    return bookmark
+
+@app.post("/api/bookmarks", response_model=BookmarkResponse)
+def create_bookmark(bookmark: BookmarkCreate, db: Session = Depends(get_db)):
+    """Create a new bookmark"""
+    db_bookmark = Bookmark(
+        title=bookmark.title,
+        url=bookmark.url,
+        favicon=bookmark.favicon,
+        description=bookmark.description,
+        tags=bookmark.tags,
+        user_id=None  # You can add user authentication later
+    )
+    db.add(db_bookmark)
+    db.commit()
+    db.refresh(db_bookmark)
+    return db_bookmark
+
+@app.put("/api/bookmarks/{bookmark_id}", response_model=BookmarkResponse)
+def update_bookmark(bookmark_id: int, bookmark: BookmarkUpdate, db: Session = Depends(get_db)):
+    """Update an existing bookmark"""
+    db_bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if db_bookmark is None:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    if bookmark.title is not None:
+        db_bookmark.title = bookmark.title
+    if bookmark.url is not None:
+        db_bookmark.url = bookmark.url
+    if bookmark.favicon is not None:
+        db_bookmark.favicon = bookmark.favicon
+    if bookmark.description is not None:
+        db_bookmark.description = bookmark.description
+    if bookmark.tags is not None:
+        db_bookmark.tags = bookmark.tags
+
+    db_bookmark.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(db_bookmark)
+    return db_bookmark
+
+@app.delete("/api/bookmarks/{bookmark_id}")
+def delete_bookmark(bookmark_id: int, db: Session = Depends(get_db)):
+    """Delete a bookmark"""
+    db_bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if db_bookmark is None:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    db.delete(db_bookmark)
+    db.commit()
+    return {"message": "Bookmark deleted successfully"}
 
 if __name__ == "__main__":
     import uvicorn
