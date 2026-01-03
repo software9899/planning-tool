@@ -397,6 +397,9 @@ class Player {
     this.jumpTargetX = 0;
     this.jumpTargetY = 0;
     this.jumpHeight = 0;
+    // Smoke trail particles
+    this.smokeParticles = [];
+    this.lastSmokeTime = 0;
   }
 
   showChatBubble(message) {
@@ -434,21 +437,30 @@ class Player {
       // Calculate jump distance based on running level
       const jumpDistance = jumpDistances[this.runningLevel];
 
-      // Calculate target position based on current direction
-      switch(this.direction) {
-        case 'up':
-          targetY -= jumpDistance;
-          break;
-        case 'down':
-          targetY += jumpDistance;
-          break;
-        case 'left':
-          targetX -= jumpDistance;
-          break;
-        case 'right':
-          targetX += jumpDistance;
-          break;
+      // Calculate jump direction based on currently pressed keys (supports diagonal)
+      let dx = 0;
+      let dy = 0;
+
+      if (keys['w']) dy -= 1;
+      if (keys['s']) dy += 1;
+      if (keys['a']) dx -= 1;
+      if (keys['d']) dx += 1;
+
+      console.log('🔍 Jump keys: W=' + keys['w'] + ' A=' + keys['a'] + ' S=' + keys['s'] + ' D=' + keys['d'] + ' → dx=' + dx + ' dy=' + dy);
+
+      // Normalize diagonal movement (so diagonal jumps aren't longer)
+      if (dx !== 0 && dy !== 0) {
+        const length = Math.sqrt(dx * dx + dy * dy);
+        dx /= length;
+        dy /= length;
+        console.log('↗️ Diagonal jump - normalized dx:', dx.toFixed(2), 'dy:', dy.toFixed(2));
       }
+
+      // Apply jump distance
+      targetX += dx * jumpDistance;
+      targetY += dy * jumpDistance;
+
+      console.log('🎯 Jump target calculated - from:', this.x.toFixed(0), this.y.toFixed(0), 'to:', targetX.toFixed(0), targetY.toFixed(0));
 
       // Keep target within bounds
       targetX = Math.max(30, Math.min(WORLD_WIDTH - 30, targetX));
@@ -616,12 +628,6 @@ class Player {
       ctx.rotate(0.15); // Tilt right
       ctx.translate(-x, -(y + bodyHeight/2));
     }
-
-    // Shadow
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-    ctx.beginPath();
-    ctx.ellipse(x, y + bodyHeight + 5 * scale, bodyWidth * 0.7, 6 * scale, 0, 0, Math.PI * 2);
-    ctx.fill();
 
     // Body (full width - like version 6.6)
     ctx.fillStyle = color;
@@ -793,14 +799,63 @@ class Player {
     // Apply jump offset to Y position
     const jumpOffset = this.getJumpOffset() * scale;
 
-    // Draw character shadow when jumping
-    if (this.isJumping) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.beginPath();
-      ctx.ellipse(screenX, screenY, 15 * scale, 8 * scale, 0, 0, Math.PI * 2);
-      ctx.fill();
+    // Draw smoke particles (behind player)
+    this.smokeParticles.forEach(particle => {
+      const particleScreen = worldToScreen(particle.x, particle.y);
+      const particleScale = particleScreen.scale;
 
-      // Draw jump sparkles/motion effect
+      // Convert color (HEX or HSL) to RGB
+      let r, g, b;
+      if (particle.color.startsWith('#')) {
+        // HEX format
+        const hex = particle.color.replace('#', '');
+        r = parseInt(hex.substring(0, 2), 16);
+        g = parseInt(hex.substring(2, 4), 16);
+        b = parseInt(hex.substring(4, 6), 16);
+      } else if (particle.color.startsWith('hsl')) {
+        // HSL format - convert to RGB
+        const tempDiv = document.createElement('div');
+        tempDiv.style.color = particle.color;
+        document.body.appendChild(tempDiv);
+        const computedColor = getComputedStyle(tempDiv).color;
+        document.body.removeChild(tempDiv);
+
+        const rgbMatch = computedColor.match(/\d+/g);
+        r = parseInt(rgbMatch[0]);
+        g = parseInt(rgbMatch[1]);
+        b = parseInt(rgbMatch[2]);
+      } else {
+        // Default gray
+        r = g = b = 200;
+      }
+
+      // Apply brightness variation
+      r = Math.min(255, Math.floor(r * particle.brightness));
+      g = Math.min(255, Math.floor(g * particle.brightness));
+      b = Math.min(255, Math.floor(b * particle.brightness));
+
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${particle.opacity})`;
+      ctx.beginPath();
+      ctx.arc(particleScreen.x, particleScreen.y, particle.size * particleScale, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Draw shadow at feet (fades when jumping)
+    const feetY = screenY + (this.height/2 - 6) * scale;
+    let shadowOpacity = 0.2; // Normal opacity
+
+    if (this.isJumping) {
+      // Shadow fades based on jump height
+      shadowOpacity = Math.max(0.05, 0.2 - (Math.abs(jumpOffset) / (this.jumpHeight * scale)) * 0.15);
+    }
+
+    ctx.fillStyle = `rgba(0, 0, 0, ${shadowOpacity})`;
+    ctx.beginPath();
+    ctx.ellipse(screenX, feetY, 12 * scale, 6 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw jump sparkles/motion effect
+    if (this.isJumping) {
       ctx.fillStyle = '#FFD700';
       ctx.font = `${16 * scale}px Arial`;
       ctx.textAlign = 'center';
@@ -1004,7 +1059,7 @@ class Player {
     else {
       // Check running level based on key hold duration (every 2 seconds)
       const currentTime = Date.now();
-      const movementKeys = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
+      const movementKeys = ['w', 'a', 's', 'd'];
       let maxHoldDuration = 0;
 
       for (const key of movementKeys) {
@@ -1031,22 +1086,22 @@ class Player {
         console.log(`${levelEmojis[this.runningLevel]} Running Level ${this.runningLevel}! Speed: ${this.speed.toFixed(1)}x`);
       }
 
-      if (keys['w'] || keys['arrowup']) {
+      if (keys['w']) {
         newY -= this.speed;
         this.direction = 'up';
         moved = true;
       }
-      if (keys['s'] || keys['arrowdown']) {
+      if (keys['s']) {
         newY += this.speed;
         this.direction = 'down';
         moved = true;
       }
-      if (keys['a'] || keys['arrowleft']) {
+      if (keys['a']) {
         newX -= this.speed;
         this.direction = 'left';
         moved = true;
       }
-      if (keys['d'] || keys['arrowright']) {
+      if (keys['d']) {
         newX += this.speed;
         this.direction = 'right';
         moved = true;
@@ -1102,6 +1157,14 @@ class Player {
         isMoving: this.isMoving
       });
     }
+
+    // Update smoke particles
+    this.updateSmokeParticles();
+
+    // Spawn smoke particles when running
+    if (this.isMoving && this.runningLevel > 0) {
+      this.spawnSmokeParticle();
+    }
   }
 
   checkCollectibles() {
@@ -1125,6 +1188,65 @@ class Player {
           // Remove the car from collectibles
           collectibles.splice(i, 1);
         }
+      }
+    }
+  }
+
+  spawnSmokeParticle() {
+    const currentTime = Date.now();
+    // Spawn rate based on running level (faster = more smoke)
+    const spawnRates = [200, 100, 50, 30]; // ms between particles for each level
+    const spawnRate = spawnRates[this.runningLevel];
+
+    if (currentTime - this.lastSmokeTime < spawnRate) return;
+
+    this.lastSmokeTime = currentTime;
+
+    // Calculate position behind player
+    let offsetX = 0;
+    let offsetY = 0;
+    const behindDistance = 10;
+
+    if (this.direction === 'up') offsetY = behindDistance;
+    else if (this.direction === 'down') offsetY = -behindDistance;
+    else if (this.direction === 'left') offsetX = behindDistance;
+    else if (this.direction === 'right') offsetX = -behindDistance;
+
+    // Base size increases with running level (bigger for higher levels!)
+    const baseSizes = [8, 12, 24, 36];
+    const baseSize = baseSizes[this.runningLevel];
+
+    // Spread area increases with running level
+    const spreads = [10, 15, 20, 25];
+    const spread = spreads[this.runningLevel];
+
+    this.smokeParticles.push({
+      x: this.x + offsetX + (Math.random() - 0.5) * spread,
+      y: this.y + offsetY + (Math.random() - 0.5) * spread,
+      size: baseSize,
+      opacity: 0.5 + Math.random() * 0.4, // Random opacity between 0.5-0.9
+      life: 1.0,
+      vx: (Math.random() - 0.5) * 3,
+      vy: (Math.random() - 0.5) * 3,
+      color: this.color, // Use player's color
+      brightness: 0.6 + Math.random() * 0.8 // Random brightness 0.6-1.4
+    });
+  }
+
+  updateSmokeParticles() {
+    for (let i = this.smokeParticles.length - 1; i >= 0; i--) {
+      const particle = this.smokeParticles[i];
+
+      // Update particle
+      particle.life -= 0.02;
+      particle.opacity = particle.life * 0.6;
+      particle.size += 1.2; // Grow faster over time
+      particle.x += particle.vx;
+      particle.y += particle.vy;
+
+      // Remove dead particles
+      if (particle.life <= 0) {
+        this.smokeParticles.splice(i, 1);
       }
     }
   }
@@ -1492,13 +1614,19 @@ socket.on('playerStatusUpdated', (data) => {
 
 socket.on('playerColorUpdated', (data) => {
   console.log('📥 Received playerColorUpdated:', data);
+
+  // Update current player if it's them
+  if (currentPlayer && currentPlayer.id === data.id) {
+    currentPlayer.color = data.color;
+    console.log(`🎨 Updated own color: ${data.color}`);
+  }
+
+  // Update other player
   const player = otherPlayers.get(data.id);
   if (player) {
     player.color = data.color;
     console.log(`🎨 ${player.username} updated color: ${data.color}`);
     updateOnlinePlayersList();
-  } else {
-    console.warn('⚠️ Player not found in otherPlayers:', data.id);
   }
 });
 
@@ -1664,19 +1792,27 @@ window.addEventListener('keydown', (e) => {
 
   const key = e.key.toLowerCase();
 
+  // Map arrow keys to WASD
+  let mappedKey = key;
+  if (key === 'arrowup') mappedKey = 'w';
+  else if (key === 'arrowdown') mappedKey = 's';
+  else if (key === 'arrowleft') mappedKey = 'a';
+  else if (key === 'arrowright') mappedKey = 'd';
+
   // Track key press time for running mechanic
-  if (!keys[key]) {
-    keys[key] = true;
-    keyPressTime[key] = Date.now();
+  if (!keys[mappedKey]) {
+    keys[mappedKey] = true;
+    keyPressTime[mappedKey] = Date.now();
   }
 
-  // Log movement keys and prevent default behavior for arrow keys
-  if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
-    console.log('⌨️ Key pressed:', key);
-    // Prevent default browser behavior (scrolling, focusing) for arrow keys
-    if (key.startsWith('arrow')) {
-      e.preventDefault();
-    }
+  // Log movement keys
+  if (['w', 'a', 's', 'd'].includes(mappedKey)) {
+    console.log('⌨️ Key pressed:', mappedKey, key !== mappedKey ? `(from ${key})` : '');
+  }
+
+  // Prevent default browser behavior for arrow keys
+  if (key.startsWith('arrow')) {
+    e.preventDefault();
   }
 
   // Focus chat on Enter
@@ -1685,10 +1821,13 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   }
 
-  // Jump on Space bar
-  if (e.key === ' ' && currentPlayer && !currentPlayer.isJumping) {
-    currentPlayer.startJump();
-    e.preventDefault();
+  // Jump on Space bar or Shift key
+  if (e.key === ' ' || e.key === 'Shift') {
+    console.log('🚀 Jump key pressed!', e.key, 'currentPlayer:', !!currentPlayer, 'isJumping:', currentPlayer?.isJumping, 'isMoving:', currentPlayer?.isMoving);
+    if (currentPlayer && !currentPlayer.isJumping) {
+      currentPlayer.startJump();
+      e.preventDefault();
+    }
   }
 
   // Respawn on H key (Home)
@@ -1786,11 +1925,19 @@ window.addEventListener('keyup', (e) => {
   }
 
   const key = e.key.toLowerCase();
-  keys[key] = false;
-  delete keyPressTime[key]; // Reset key press time
+
+  // Map arrow keys to WASD
+  let mappedKey = key;
+  if (key === 'arrowup') mappedKey = 'w';
+  else if (key === 'arrowdown') mappedKey = 's';
+  else if (key === 'arrowleft') mappedKey = 'a';
+  else if (key === 'arrowright') mappedKey = 'd';
+
+  keys[mappedKey] = false;
+  delete keyPressTime[mappedKey]; // Reset key press time
 
   // Reset running state when releasing movement keys
-  if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+  if (['w', 'a', 's', 'd'].includes(mappedKey)) {
     if (currentPlayer) {
       currentPlayer.isRunning = false;
       currentPlayer.runningLevel = 0;
@@ -2125,12 +2272,6 @@ function drawCharacterPreview(canvas, direction, color) {
   const bodyWidth = 24 * scale;
   const bodyHeight = 30 * scale;
   const headSize = 22 * scale;
-
-  // Shadow
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-  ctx.beginPath();
-  ctx.ellipse(x, y + bodyHeight + 5 * scale, bodyWidth * 0.7, 6 * scale, 0, 0, Math.PI * 2);
-  ctx.fill();
 
   // Body
   ctx.fillStyle = color;
