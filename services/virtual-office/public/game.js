@@ -210,7 +210,8 @@ let chatSettings = JSON.parse(localStorage.getItem('virtualOfficeChatSettings') 
   fontSize: 18,
   bubbleWidth: 250,
   displayTime: 5,
-  showNames: false
+  showNames: false,
+  showBubbles: true
 }));
 
 // Chat messages for sidebar (LINE-style)
@@ -1162,6 +1163,16 @@ class Player {
           chatContainer.classList.remove('collapsed');
         }
       }
+
+      // Hide/show chat overlay based on movement
+      const chatMessagesOverlay = document.getElementById('chat-messages-overlay');
+      if (chatMessagesOverlay) {
+        if (this.isMoving) {
+          chatMessagesOverlay.classList.add('hidden-while-walking');
+        } else {
+          chatMessagesOverlay.classList.remove('hidden-while-walking');
+        }
+      }
     }
 
     // Emit position if moved or direction changed
@@ -1808,21 +1819,25 @@ socket.on('globalChat', (message) => {
     renderChatOverlay();
   }
 
-  // Chat bubbles disabled - messages show in overlay only
-  // otherPlayers.forEach(player => {
-  //   if (player.username === message.username) {
-  //     player.showChatBubble(message.message);
-  //   }
-  // });
+  // Show chat bubble above character if enabled
+  if (chatSettings.showBubbles) {
+    otherPlayers.forEach(player => {
+      if (player.username === message.username) {
+        player.showChatBubble(message.message);
+      }
+    });
+  }
 });
 
 socket.on('proximityChat', (message) => {
-  // Chat bubbles disabled - messages show in overlay only
-  // otherPlayers.forEach(player => {
-  //   if (player.username === message.username) {
-  //     player.showChatBubble(message.message);
-  //   }
-  // });
+  // Show chat bubble above character if enabled
+  if (chatSettings.showBubbles) {
+    otherPlayers.forEach(player => {
+      if (player.username === message.username) {
+        player.showChatBubble(message.message);
+      }
+    });
+  }
 });
 
 socket.on('voiceChat', (message) => {
@@ -2224,10 +2239,10 @@ async function sendMessage() {
   // Always send as global chat (visible to everyone in room)
   socket.emit('globalChat', finalMessage);
 
-  // Chat bubbles disabled - messages show in overlay only
-  // if (currentPlayer) {
-  //   currentPlayer.showChatBubble(finalMessage);
-  // }
+  // Show chat bubble above character if enabled
+  if (currentPlayer && chatSettings.showBubbles) {
+    currentPlayer.showChatBubble(finalMessage);
+  }
 
   // Clear input and keep focus for quick consecutive messages
   chatInput.value = '';
@@ -2820,6 +2835,19 @@ displayTimeSlider.addEventListener('input', (e) => {
   chatSettings.displayTime = parseInt(value);
   localStorage.setItem('virtualOfficeChatSettings', JSON.stringify(chatSettings));
 });
+
+// Show Chat Bubbles Checkbox
+const showChatBubblesCheckbox = document.getElementById('show-chat-bubbles-checkbox');
+if (showChatBubblesCheckbox) {
+  // Set initial state from settings
+  showChatBubblesCheckbox.checked = chatSettings.showBubbles;
+
+  showChatBubblesCheckbox.addEventListener('change', (e) => {
+    chatSettings.showBubbles = e.target.checked;
+    localStorage.setItem('virtualOfficeChatSettings', JSON.stringify(chatSettings));
+    console.log('💬 Chat bubbles:', chatSettings.showBubbles ? 'ENABLED' : 'DISABLED');
+  });
+}
 
 // Mouse down - prepare for either pan or click-to-move
 canvas.addEventListener('mousedown', (e) => {
@@ -3433,6 +3461,35 @@ if (micBtn) {
       micBtn.title = 'คลิกเพื่อปิดไมค์';
       console.log('🎤 Microphone turned ON');
     }
+  });
+}
+
+// Chat expand button logic - cycle through steps 0→1→2→3→0
+const chatExpandBtn = document.getElementById('chat-expand-btn');
+const chatMessagesOverlay = document.getElementById('chat-messages-overlay');
+let currentStep = 0;
+
+if (chatExpandBtn && chatMessagesOverlay) {
+  chatExpandBtn.addEventListener('click', () => {
+    // Remove current step class
+    chatMessagesOverlay.classList.remove(`step-${currentStep}`);
+
+    // Cycle to next step: 0 → 1 → 2 → 3 → 0
+    currentStep = (currentStep + 1) % 4;
+
+    // Add new step class
+    chatMessagesOverlay.classList.add(`step-${currentStep}`);
+
+    // Update button icon based on state
+    if (currentStep === 0) {
+      chatExpandBtn.textContent = '💬';
+      chatExpandBtn.title = 'ขยาย Chat';
+    } else {
+      chatExpandBtn.textContent = '📊';
+      chatExpandBtn.title = 'ย่อ Chat (Step ' + currentStep + '/3)';
+    }
+
+    console.log(`💬 Chat overlay expanded to step ${currentStep}`);
   });
 }
 

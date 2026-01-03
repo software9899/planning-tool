@@ -200,8 +200,13 @@
 
       <canvas id="game-canvas"></canvas>
 
+      <!-- Chat Expand Toggle Button -->
+      <button id="chat-expand-btn" title="ขยาย/ย่อ Chat">💬</button>
+
       <!-- Chat Messages Overlay (above chat-container) -->
-      <div id="chat-messages-overlay"></div>
+      <div id="chat-messages-overlay">
+        <div id="chat-resize-handle" title="ลากเพื่อปรับขนาด">⋮⋮⋮</div>
+      </div>
 
       <div id="chat-container">
         <button id="mic-btn" title="คลิกเพื่อเปิด/ปิดไมค์">🎤</button>
@@ -237,6 +242,15 @@
           <div class="settings-group">
             <label>การซูม: <span id="zoom-value">100</span>%</label>
             <input type="range" id="zoom-slider" min="70" max="400" value="100" step="10">
+          </div>
+          <div class="settings-group">
+            <label>
+              <input type="checkbox" id="show-chat-bubbles-checkbox" checked>
+              แสดงข้อความเหนือหัวตัวละคร
+            </label>
+            <small style="color: #666; font-size: 12px; display: block; margin-left: 24px;">
+              แสดงข้อความแชทลอยเหนือหัวตัวละครเมื่อพิมพ์
+            </small>
           </div>
           <div class="settings-group">
             <label>เวลาแสดง: <span id="display-time-value">5</span> วินาที</label>
