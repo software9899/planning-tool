@@ -1010,7 +1010,9 @@ class Player {
           direction: this.direction,
           isMoving: false,
           isJumping: this.isJumping,
-          jumpProgress: this.jumpProgress
+          jumpProgress: this.jumpProgress,
+          jumpHeight: this.jumpHeight,
+          runningLevel: this.runningLevel
         });
         return; // Skip regular movement while jumping
       }
@@ -1168,7 +1170,11 @@ class Player {
         x: this.x,
         y: this.y,
         direction: this.direction,
-        isMoving: this.isMoving
+        isMoving: this.isMoving,
+        isJumping: this.isJumping,
+        jumpProgress: this.jumpProgress,
+        jumpHeight: this.jumpHeight,
+        runningLevel: this.runningLevel
       });
     }
 
@@ -1628,10 +1634,14 @@ socket.on('playerMoved', (data) => {
     player.y = data.y;
     if (data.direction) player.direction = data.direction;
     if (data.isMoving !== undefined) player.isMoving = data.isMoving;
+    if (data.runningLevel !== undefined) player.runningLevel = data.runningLevel;
     if (data.isJumping !== undefined) {
       player.isJumping = data.isJumping;
       if (data.jumpProgress !== undefined) {
         player.jumpProgress = data.jumpProgress;
+      }
+      if (data.jumpHeight !== undefined) {
+        player.jumpHeight = data.jumpHeight;
       }
     }
   }
@@ -3931,7 +3941,8 @@ function teleportToRoom(roomId) {
     x: currentPlayer.x,
     y: currentPlayer.y,
     direction: currentPlayer.direction,
-    isMoving: false
+    isMoving: false,
+    isJumping: false
   });
 
   console.log(`✅ Teleported to ${room.name}`);
@@ -5669,6 +5680,14 @@ function gameLoop() {
 
   // Draw other players
   otherPlayers.forEach(player => {
+    // Update smoke particles for other players
+    player.updateSmokeParticles();
+
+    // Spawn smoke particles when other player is running
+    if (player.isMoving && player.runningLevel > 0) {
+      player.spawnSmokeParticle();
+    }
+
     // Show name if: hovered OR showNames setting is enabled
     const showName = (hoveredPlayer && hoveredPlayer.id === player.id) || chatSettings.showNames;
     player.draw(false, showName);
