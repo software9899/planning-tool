@@ -1979,10 +1979,24 @@ async function createPeerConnection(peerId, peerUsername) {
     if (!audioElement) {
       audioElement = new Audio();
       audioElement.autoplay = true;
+      audioElement.volume = 1.0;
       remoteAudioElements.set(peerId, audioElement);
     }
 
     audioElement.srcObject = event.streams[0];
+
+    // Try to play and log any errors
+    audioElement.play()
+      .then(() => {
+        console.log(`✅ Playing audio from ${peerId}`);
+      })
+      .catch(err => {
+        console.error(`❌ Failed to play audio from ${peerId}:`, err);
+        // Retry on user interaction
+        document.addEventListener('click', () => {
+          audioElement.play().catch(e => console.error('Retry failed:', e));
+        }, { once: true });
+      });
   };
 
   // Handle ICE candidates
@@ -2048,21 +2062,29 @@ async function updateProximityConnections() {
     const hasConnection = peerConnections.has(playerId);
 
     if (isNearby && !hasConnection) {
-      // Player is nearby but no connection - create one
-      console.log(`👥 ${otherPlayer.username} entered proximity - connecting...`);
-      try {
-        const peerConnection = await createPeerConnection(playerId, otherPlayer.username);
+      // Only create connection if we should be the initiator
+      // Rule: Player with lower socket ID initiates the connection
+      const shouldInitiate = socket.id < playerId;
 
-        // Create and send offer
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
+      if (shouldInitiate) {
+        // Player is nearby but no connection - create one
+        console.log(`👥 ${otherPlayer.username} entered proximity - initiating connection...`);
+        try {
+          const peerConnection = await createPeerConnection(playerId, otherPlayer.username);
 
-        socket.emit('webrtc-offer', {
-          targetId: playerId,
-          offer: offer
-        });
-      } catch (error) {
-        console.error(`❌ Failed to connect to ${otherPlayer.username}:`, error);
+          // Create and send offer
+          const offer = await peerConnection.createOffer();
+          await peerConnection.setLocalDescription(offer);
+
+          socket.emit('webrtc-offer', {
+            targetId: playerId,
+            offer: offer
+          });
+        } catch (error) {
+          console.error(`❌ Failed to connect to ${otherPlayer.username}:`, error);
+        }
+      } else {
+        console.log(`⏳ Waiting for ${otherPlayer.username} to initiate connection...`);
       }
     } else if (!isNearby && hasConnection) {
       // Player left proximity - disconnect
@@ -2071,6 +2093,26 @@ async function updateProximityConnections() {
     }
   });
 }
+
+// Debug function - Show current WebRTC connections
+function debugConnections() {
+  console.log('=== WebRTC Connection Status ===');
+  console.log(`Mic enabled: ${isMicEnabled}`);
+  console.log(`Local stream: ${localStream ? 'Yes' : 'No'}`);
+  console.log(`Peer connections: ${peerConnections.size}`);
+
+  peerConnections.forEach((pc, peerId) => {
+    const player = otherPlayers.get(peerId);
+    const username = player ? player.username : 'Unknown';
+    console.log(`  - ${username} (${peerId}): ${pc.connectionState}`);
+  });
+
+  console.log(`Remote audio elements: ${remoteAudioElements.size}`);
+  console.log('================================');
+}
+
+// Make it available globally for debugging
+window.debugVoiceChat = debugConnections;
 
 // Enable/Disable microphone
 async function toggleMicrophone(enable) {
