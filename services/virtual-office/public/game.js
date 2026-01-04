@@ -2237,24 +2237,39 @@ async function toggleMicrophone(enable) {
         track.enabled = true;
       });
 
-      // Add tracks to existing peer connections
-      peerConnections.forEach((peerConnection, peerId) => {
+      // Add tracks to existing peer connections and renegotiate
+      for (const [peerId, peerConnection] of peerConnections) {
         const senders = peerConnection.getSenders();
         const audioSender = senders.find(sender => sender.track?.kind === 'audio');
 
         if (!audioSender && localStream) {
+          // Add track
           localStream.getAudioTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
+            console.log(`➕ Added audio track to connection with ${peerId}`);
           });
+
+          // Renegotiate - create and send new offer
+          try {
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            socket.emit('webrtc-offer', {
+              targetId: peerId,
+              offer: offer
+            });
+            console.log(`🔄 Sent renegotiation offer to ${peerId}`);
+          } catch (err) {
+            console.error(`❌ Failed to renegotiate with ${peerId}:`, err);
+          }
         }
-      });
+      }
 
       // Update proximity connections
       await updateProximityConnections();
 
       console.log('✅ Microphone enabled');
     } else {
-      // Disable audio tracks but keep connections open (to still receive audio)
+      // Disable audio tracks (just mute, don't remove)
       if (localStream) {
         localStream.getAudioTracks().forEach(track => {
           track.enabled = false;
@@ -2262,18 +2277,7 @@ async function toggleMicrophone(enable) {
       }
       isMicEnabled = false;
 
-      // Remove audio tracks from existing connections but keep them open
-      peerConnections.forEach((peerConnection, peerId) => {
-        const senders = peerConnection.getSenders();
-        const audioSender = senders.find(sender => sender.track?.kind === 'audio');
-
-        if (audioSender) {
-          peerConnection.removeTrack(audioSender);
-          console.log(`🔇 Removed audio track from connection with ${peerId}`);
-        }
-      });
-
-      console.log('🔇 Microphone disabled (still receiving audio from others)');
+      console.log('🔇 Microphone muted (still receiving audio from others)');
     }
   } catch (error) {
     console.error('❌ Error toggling microphone:', error);
