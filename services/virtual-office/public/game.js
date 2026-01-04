@@ -287,11 +287,27 @@ let remoteAudioElements = new Map(); // Map of peerId -> HTMLAudioElement
 let isMicEnabled = false; // Track if mic is on/off
 const PROXIMITY_DISTANCE = 300; // 3 tiles * 100 pixels per tile = 300 pixels
 
-// STUN servers for WebRTC
+// STUN/TURN servers for WebRTC
 const iceServers = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
+    { urls: 'stun:stun1.l.google.com:19302' },
+    // Free TURN server for relaying when direct P2P fails
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    },
+    {
+      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
   ]
 };
 
@@ -2009,14 +2025,28 @@ async function createPeerConnection(peerId, peerUsername) {
     }
   };
 
+  // Handle ICE connection state changes
+  peerConnection.oniceconnectionstatechange = () => {
+    console.log(`🧊 ICE connection state with ${peerId}: ${peerConnection.iceConnectionState}`);
+  };
+
   // Handle connection state changes
   peerConnection.onconnectionstatechange = () => {
     console.log(`🔗 Connection state with ${peerId}: ${peerConnection.connectionState}`);
 
-    if (peerConnection.connectionState === 'disconnected' ||
-        peerConnection.connectionState === 'failed' ||
-        peerConnection.connectionState === 'closed') {
+    if (peerConnection.connectionState === 'failed') {
+      console.error(`❌ Connection failed with ${peerId} - will retry...`);
+      // Don't close immediately on failed, let it retry
+      setTimeout(() => {
+        if (peerConnection.connectionState === 'failed') {
+          closePeerConnection(peerId);
+        }
+      }, 2000);
+    } else if (peerConnection.connectionState === 'disconnected' ||
+               peerConnection.connectionState === 'closed') {
       closePeerConnection(peerId);
+    } else if (peerConnection.connectionState === 'connected') {
+      console.log(`✅ Successfully connected to ${peerId}`);
     }
   };
 
