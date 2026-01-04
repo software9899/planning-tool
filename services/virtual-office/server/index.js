@@ -239,7 +239,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Voice chat
+  // Voice chat (legacy - recorded messages)
   socket.on('voiceChat', (data) => {
     const player = players.get(socket.id);
     if (player) {
@@ -255,6 +255,40 @@ io.on('connection', (socket) => {
       socket.to(player.room).emit('voiceChat', voiceMessage);
 
       console.log(`🎤 Voice message from ${player.username}`);
+    }
+  });
+
+  // WebRTC Signaling for real-time voice chat
+  socket.on('webrtc-offer', ({ targetId, offer }) => {
+    const player = players.get(socket.id);
+    if (player) {
+      console.log(`📞 WebRTC offer from ${player.username} to ${targetId}`);
+      io.to(targetId).emit('webrtc-offer', {
+        fromId: socket.id,
+        fromUsername: player.username,
+        offer: offer
+      });
+    }
+  });
+
+  socket.on('webrtc-answer', ({ targetId, answer }) => {
+    const player = players.get(socket.id);
+    if (player) {
+      console.log(`📞 WebRTC answer from ${player.username} to ${targetId}`);
+      io.to(targetId).emit('webrtc-answer', {
+        fromId: socket.id,
+        answer: answer
+      });
+    }
+  });
+
+  socket.on('webrtc-ice-candidate', ({ targetId, candidate }) => {
+    const player = players.get(socket.id);
+    if (player) {
+      io.to(targetId).emit('webrtc-ice-candidate', {
+        fromId: socket.id,
+        candidate: candidate
+      });
     }
   });
 

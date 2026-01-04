@@ -275,10 +275,25 @@ function renderChatOverlay() {
   console.log('✅ Chat overlay rendered successfully');
 }
 
-// Voice chat state
+// Voice chat state (legacy)
 let isRecording = false;
 let mediaRecorder = null;
 let audioChunks = [];
+
+// WebRTC Real-time Voice Chat
+let localStream = null; // Local microphone stream
+let peerConnections = new Map(); // Map of peerId -> RTCPeerConnection
+let remoteAudioElements = new Map(); // Map of peerId -> HTMLAudioElement
+let isMicEnabled = false; // Track if mic is on/off
+const PROXIMITY_DISTANCE = 300; // 3 tiles * 100 pixels per tile = 300 pixels
+
+// STUN servers for WebRTC
+const iceServers = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]
+};
 
 // Speech recognition (Speech-to-Text)
 let recognition = null;
@@ -1797,6 +1812,9 @@ socket.on('playerLeft', (playerId) => {
     console.log(`👋 ${player.username} left the room`);
     otherPlayers.delete(playerId);
     updateOnlinePlayersList();
+
+    // Close WebRTC connection if exists
+    closePeerConnection(playerId);
   }
 });
 
@@ -1854,6 +1872,256 @@ socket.on('voiceChat', (message) => {
 
   console.log(`🔊 Playing voice message from ${message.username}`);
 });
+
+// ============ WebRTC Real-time Voice Chat Events ============
+
+// Receive WebRTC offer from another player
+socket.on('webrtc-offer', async ({ fromId, fromUsername, offer }) => {
+  console.log(`📞 Received WebRTC offer from ${fromUsername} (${fromId})`);
+
+  try {
+    // Create peer connection if not exists
+    if (!peerConnections.has(fromId)) {
+      await createPeerConnection(fromId, fromUsername);
+    }
+
+    const peerConnection = peerConnections.get(fromId);
+    if (peerConnection) {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+      // Create answer
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+
+      // Send answer back
+      socket.emit('webrtc-answer', {
+        targetId: fromId,
+        answer: answer
+      });
+
+      console.log(`📞 Sent WebRTC answer to ${fromUsername}`);
+    }
+  } catch (error) {
+    console.error('❌ Error handling WebRTC offer:', error);
+  }
+});
+
+// Receive WebRTC answer from another player
+socket.on('webrtc-answer', async ({ fromId, answer }) => {
+  console.log(`📞 Received WebRTC answer from ${fromId}`);
+
+  try {
+    const peerConnection = peerConnections.get(fromId);
+    if (peerConnection) {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      console.log(`✅ WebRTC connection established with ${fromId}`);
+    }
+  } catch (error) {
+    console.error('❌ Error handling WebRTC answer:', error);
+  }
+});
+
+// Receive ICE candidate from another player
+socket.on('webrtc-ice-candidate', async ({ fromId, candidate }) => {
+  try {
+    const peerConnection = peerConnections.get(fromId);
+    if (peerConnection && candidate) {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+  } catch (error) {
+    console.error('❌ Error adding ICE candidate:', error);
+  }
+});
+
+// ============ WebRTC Functions ============
+
+// Initialize microphone stream
+async function initMicrophone() {
+  try {
+    if (!localStream) {
+      console.log('🎤 Requesting microphone access...');
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+      console.log('✅ Microphone access granted!');
+    }
+    return localStream;
+  } catch (error) {
+    console.error('❌ Failed to access microphone:', error);
+    throw error;
+  }
+}
+
+// Create peer connection with another player
+async function createPeerConnection(peerId, peerUsername) {
+  console.log(`🔗 Creating peer connection with ${peerUsername} (${peerId})`);
+
+  const peerConnection = new RTCPeerConnection(iceServers);
+
+  // Add local audio track if mic is enabled
+  if (localStream && isMicEnabled) {
+    localStream.getAudioTracks().forEach(track => {
+      peerConnection.addTrack(track, localStream);
+      console.log(`🎵 Added local audio track to peer ${peerId}`);
+    });
+  }
+
+  // Handle incoming audio tracks
+  peerConnection.ontrack = (event) => {
+    console.log(`🎵 Received remote audio track from ${peerId}`);
+
+    // Create or get audio element for this peer
+    let audioElement = remoteAudioElements.get(peerId);
+    if (!audioElement) {
+      audioElement = new Audio();
+      audioElement.autoplay = true;
+      remoteAudioElements.set(peerId, audioElement);
+    }
+
+    audioElement.srcObject = event.streams[0];
+  };
+
+  // Handle ICE candidates
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit('webrtc-ice-candidate', {
+        targetId: peerId,
+        candidate: event.candidate
+      });
+    }
+  };
+
+  // Handle connection state changes
+  peerConnection.onconnectionstatechange = () => {
+    console.log(`🔗 Connection state with ${peerId}: ${peerConnection.connectionState}`);
+
+    if (peerConnection.connectionState === 'disconnected' ||
+        peerConnection.connectionState === 'failed' ||
+        peerConnection.connectionState === 'closed') {
+      closePeerConnection(peerId);
+    }
+  };
+
+  peerConnections.set(peerId, peerConnection);
+  return peerConnection;
+}
+
+// Close peer connection
+function closePeerConnection(peerId) {
+  console.log(`🔌 Closing peer connection with ${peerId}`);
+
+  const peerConnection = peerConnections.get(peerId);
+  if (peerConnection) {
+    peerConnection.close();
+    peerConnections.delete(peerId);
+  }
+
+  const audioElement = remoteAudioElements.get(peerId);
+  if (audioElement) {
+    audioElement.srcObject = null;
+    remoteAudioElements.delete(peerId);
+  }
+}
+
+// Check if two players are within proximity (3 tiles = 300 pixels)
+function isWithinProximity(player1, player2) {
+  if (!player1 || !player2) return false;
+
+  const dx = player1.x - player2.x;
+  const dy = player1.y - player2.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  return distance <= PROXIMITY_DISTANCE;
+}
+
+// Update WebRTC connections based on proximity
+async function updateProximityConnections() {
+  if (!currentPlayer || !isMicEnabled) return;
+
+  // Get all other players in the room
+  otherPlayers.forEach(async (otherPlayer, playerId) => {
+    const isNearby = isWithinProximity(currentPlayer, otherPlayer);
+    const hasConnection = peerConnections.has(playerId);
+
+    if (isNearby && !hasConnection) {
+      // Player is nearby but no connection - create one
+      console.log(`👥 ${otherPlayer.username} entered proximity - connecting...`);
+      try {
+        const peerConnection = await createPeerConnection(playerId, otherPlayer.username);
+
+        // Create and send offer
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        socket.emit('webrtc-offer', {
+          targetId: playerId,
+          offer: offer
+        });
+      } catch (error) {
+        console.error(`❌ Failed to connect to ${otherPlayer.username}:`, error);
+      }
+    } else if (!isNearby && hasConnection) {
+      // Player left proximity - disconnect
+      console.log(`👋 ${otherPlayer.username} left proximity - disconnecting...`);
+      closePeerConnection(playerId);
+    }
+  });
+}
+
+// Enable/Disable microphone
+async function toggleMicrophone(enable) {
+  try {
+    if (enable) {
+      // Initialize microphone
+      await initMicrophone();
+      isMicEnabled = true;
+
+      // Enable audio tracks
+      localStream.getAudioTracks().forEach(track => {
+        track.enabled = true;
+      });
+
+      // Add tracks to existing peer connections
+      peerConnections.forEach((peerConnection, peerId) => {
+        const senders = peerConnection.getSenders();
+        const audioSender = senders.find(sender => sender.track?.kind === 'audio');
+
+        if (!audioSender && localStream) {
+          localStream.getAudioTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+          });
+        }
+      });
+
+      // Update proximity connections
+      await updateProximityConnections();
+
+      console.log('✅ Microphone enabled');
+    } else {
+      // Disable audio tracks
+      if (localStream) {
+        localStream.getAudioTracks().forEach(track => {
+          track.enabled = false;
+        });
+      }
+      isMicEnabled = false;
+
+      // Close all peer connections
+      peerConnections.forEach((_, peerId) => {
+        closePeerConnection(peerId);
+      });
+
+      console.log('🔇 Microphone disabled');
+    }
+  } catch (error) {
+    console.error('❌ Error toggling microphone:', error);
+    alert('ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาอนุญาตการใช้งานในเบราว์เซอร์');
+  }
+}
 
 // Decoration sync events
 socket.on('decorationsLoaded', (data) => {
@@ -3476,20 +3744,20 @@ async function testMicrophoneAccess() {
 let isMicOn = false;
 
 if (micBtn) {
-  micBtn.addEventListener('click', () => {
+  micBtn.addEventListener('click', async () => {
     if (isMicOn) {
       // Turn mic off
-      stopRecording();
+      await toggleMicrophone(false);
       isMicOn = false;
       micBtn.classList.remove('active');
-      micBtn.title = 'คลิกเพื่อเปิดไมค์';
+      micBtn.title = 'คลิกเพื่อเปิดไมค์ (Real-time Voice Chat)';
       console.log('🎤 Microphone turned OFF');
     } else {
       // Turn mic on
-      startRecording();
+      await toggleMicrophone(true);
       isMicOn = true;
       micBtn.classList.add('active');
-      micBtn.title = 'คลิกเพื่อปิดไมค์';
+      micBtn.title = 'คลิกเพื่อปิดไมค์ (Real-time Voice Chat)';
       console.log('🎤 Microphone turned ON');
     }
   });
@@ -5995,6 +6263,11 @@ function gameLoop() {
 
   // Draw UI overlay on top
   drawUI();
+
+  // Update WebRTC proximity connections (every 30 frames = ~500ms at 60fps)
+  if (frameCount % 30 === 0 && isMicEnabled) {
+    updateProximityConnections();
+  }
 
   frameCount++;
   requestAnimationFrame(gameLoop);
