@@ -1920,6 +1920,12 @@ socket.on('voiceChat', (message) => {
 socket.on('webrtc-offer', async ({ fromId, fromUsername, offer }) => {
   console.log(`📞 Received WebRTC offer from ${fromUsername} (${fromId})`);
 
+  // CRITICAL: Never accept offer from yourself
+  if (fromId === socket.id) {
+    console.error(`⚠️ Received offer from self! Ignoring.`);
+    return;
+  }
+
   try {
     // Make sure we have local stream before accepting connection
     if (isMicEnabled && !localStream) {
@@ -2036,21 +2042,38 @@ async function createPeerConnection(peerId, peerUsername) {
   peerConnection.ontrack = (event) => {
     console.log(`🎵 Received remote audio track from ${peerId}`);
 
+    // CRITICAL: Make sure this is not our own track somehow
+    if (event.streams[0] === localStream) {
+      console.error(`⚠️ Received own stream back! This should not happen!`);
+      return;
+    }
+
+    // Log stream info for debugging
+    const stream = event.streams[0];
+    const audioTracks = stream.getAudioTracks();
+    console.log(`   Stream ID: ${stream.id}`);
+    console.log(`   Audio tracks: ${audioTracks.length}`);
+    audioTracks.forEach((track, idx) => {
+      console.log(`   Track ${idx}: ${track.label}, enabled: ${track.enabled}`);
+    });
+
     // Create or get audio element for this peer
     let audioElement = remoteAudioElements.get(peerId);
     if (!audioElement) {
       audioElement = new Audio();
       audioElement.autoplay = true;
       audioElement.volume = 1.0;
+      // IMPORTANT: Don't mute - we want to hear remote audio
+      audioElement.muted = false;
       remoteAudioElements.set(peerId, audioElement);
     }
 
-    audioElement.srcObject = event.streams[0];
+    audioElement.srcObject = stream;
 
     // Try to play and log any errors
     audioElement.play()
       .then(() => {
-        console.log(`✅ Playing audio from ${peerId}`);
+        console.log(`✅ Playing audio from ${peerId} (volume: ${audioElement.volume}, muted: ${audioElement.muted})`);
       })
       .catch(err => {
         console.error(`❌ Failed to play audio from ${peerId}:`, err);
@@ -2142,6 +2165,12 @@ async function updateProximityConnections() {
 
   // Get all other players in the room
   otherPlayers.forEach(async (otherPlayer, playerId) => {
+    // CRITICAL: Never connect to yourself!
+    if (playerId === socket.id) {
+      console.warn('⚠️ Prevented connection to self!');
+      return;
+    }
+
     const isNearby = isWithinProximity(currentPlayer, otherPlayer);
     const hasConnection = peerConnections.has(playerId);
 
