@@ -1896,27 +1896,48 @@ socket.on('webrtc-offer', async ({ fromId, fromUsername, offer }) => {
   console.log(`📞 Received WebRTC offer from ${fromUsername} (${fromId})`);
 
   try {
-    // Create peer connection if not exists
-    if (!peerConnections.has(fromId)) {
-      await createPeerConnection(fromId, fromUsername);
+    // Make sure we have local stream before accepting connection
+    if (isMicEnabled && !localStream) {
+      console.log('⚠️ Mic enabled but no local stream, initializing...');
+      await initMicrophone();
     }
 
-    const peerConnection = peerConnections.get(fromId);
-    if (peerConnection) {
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-
-      // Create answer
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-
-      // Send answer back
-      socket.emit('webrtc-answer', {
-        targetId: fromId,
-        answer: answer
-      });
-
-      console.log(`📞 Sent WebRTC answer to ${fromUsername}`);
+    // Close existing connection if any and create fresh one
+    if (peerConnections.has(fromId)) {
+      console.log(`🔄 Recreating connection with ${fromId}`);
+      closePeerConnection(fromId);
     }
+
+    // Create new peer connection
+    const peerConnection = await createPeerConnection(fromId, fromUsername);
+
+    // Set remote description
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+    // Make sure we add our audio track if mic is enabled
+    if (isMicEnabled && localStream) {
+      const senders = peerConnection.getSenders();
+      const hasAudioSender = senders.some(sender => sender.track?.kind === 'audio');
+
+      if (!hasAudioSender) {
+        console.log(`➕ Adding audio track to answer for ${fromId}`);
+        localStream.getAudioTracks().forEach(track => {
+          peerConnection.addTrack(track, localStream);
+        });
+      }
+    }
+
+    // Create answer
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+
+    // Send answer back
+    socket.emit('webrtc-answer', {
+      targetId: fromId,
+      answer: answer
+    });
+
+    console.log(`📞 Sent WebRTC answer to ${fromUsername}`);
   } catch (error) {
     console.error('❌ Error handling WebRTC offer:', error);
   }
@@ -2100,7 +2121,18 @@ async function updateProximityConnections() {
         // Player is nearby but no connection - create one
         console.log(`👥 ${otherPlayer.username} entered proximity - initiating connection...`);
         try {
+          // Make sure we have local stream
+          if (!localStream) {
+            console.log('⚠️ Initializing microphone for connection...');
+            await initMicrophone();
+          }
+
           const peerConnection = await createPeerConnection(playerId, otherPlayer.username);
+
+          // Verify audio track is added
+          const senders = peerConnection.getSenders();
+          const hasAudioSender = senders.some(sender => sender.track?.kind === 'audio');
+          console.log(`🎵 Audio track in offer: ${hasAudioSender ? 'Yes' : 'No'}`);
 
           // Create and send offer
           const offer = await peerConnection.createOffer();
@@ -2110,6 +2142,8 @@ async function updateProximityConnections() {
             targetId: playerId,
             offer: offer
           });
+
+          console.log(`📤 Sent offer to ${otherPlayer.username}`);
         } catch (error) {
           console.error(`❌ Failed to connect to ${otherPlayer.username}:`, error);
         }
