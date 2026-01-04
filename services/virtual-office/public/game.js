@@ -2145,7 +2145,7 @@ function isWithinProximity(player1, player2) {
 
 // Update WebRTC connections based on proximity
 async function updateProximityConnections() {
-  if (!currentPlayer || !isMicEnabled) return;
+  if (!currentPlayer) return;
 
   // Get all other players in the room
   otherPlayers.forEach(async (otherPlayer, playerId) => {
@@ -2165,20 +2165,20 @@ async function updateProximityConnections() {
 
       if (shouldInitiate) {
         // Player is nearby but no connection - create one
-        console.log(`👥 ${otherPlayer.username} entered proximity - initiating connection...`);
+        console.log(`👥 ${otherPlayer.username} entered proximity - initiating connection (mic: ${isMicEnabled ? 'ON' : 'OFF'})...`);
         try {
-          // Make sure we have local stream
-          if (!localStream) {
+          // Initialize microphone ONLY if mic is enabled
+          if (isMicEnabled && !localStream) {
             console.log('⚠️ Initializing microphone for connection...');
             await initMicrophone();
           }
 
           const peerConnection = await createPeerConnection(playerId, otherPlayer.username);
 
-          // Verify audio track is added
+          // Verify audio track is added (only if mic is enabled)
           const senders = peerConnection.getSenders();
           const hasAudioSender = senders.some(sender => sender.track?.kind === 'audio');
-          console.log(`🎵 Audio track in offer: ${hasAudioSender ? 'Yes' : 'No'}`);
+          console.log(`🎵 Audio track in offer: ${hasAudioSender ? 'Yes (mic ON)' : 'No (mic OFF - receive only)'}`);
 
           // Create and send offer
           const offer = await peerConnection.createOffer();
@@ -2254,7 +2254,7 @@ async function toggleMicrophone(enable) {
 
       console.log('✅ Microphone enabled');
     } else {
-      // Disable audio tracks
+      // Disable audio tracks but keep connections open (to still receive audio)
       if (localStream) {
         localStream.getAudioTracks().forEach(track => {
           track.enabled = false;
@@ -2262,12 +2262,18 @@ async function toggleMicrophone(enable) {
       }
       isMicEnabled = false;
 
-      // Close all peer connections
-      peerConnections.forEach((_, peerId) => {
-        closePeerConnection(peerId);
+      // Remove audio tracks from existing connections but keep them open
+      peerConnections.forEach((peerConnection, peerId) => {
+        const senders = peerConnection.getSenders();
+        const audioSender = senders.find(sender => sender.track?.kind === 'audio');
+
+        if (audioSender) {
+          peerConnection.removeTrack(audioSender);
+          console.log(`🔇 Removed audio track from connection with ${peerId}`);
+        }
       });
 
-      console.log('🔇 Microphone disabled');
+      console.log('🔇 Microphone disabled (still receiving audio from others)');
     }
   } catch (error) {
     console.error('❌ Error toggling microphone:', error);
@@ -6417,7 +6423,8 @@ function gameLoop() {
   drawUI();
 
   // Update WebRTC proximity connections (every 30 frames = ~500ms at 60fps)
-  if (frameCount % 30 === 0 && isMicEnabled) {
+  // Always check proximity, even if mic is off (to receive audio from others)
+  if (frameCount % 30 === 0) {
     updateProximityConnections();
   }
 
