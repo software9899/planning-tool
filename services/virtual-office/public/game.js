@@ -290,9 +290,15 @@ const PROXIMITY_DISTANCE = 300; // 3 tiles * 100 pixels per tile = 300 pixels
 // STUN/TURN servers for WebRTC
 const iceServers = {
   iceServers: [
+    // Google STUN servers
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    // Free TURN server for relaying when direct P2P fails
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+
+    // Free TURN servers - Multiple providers for reliability
+    // Provider 1: OpenRelay
     {
       urls: 'turn:openrelay.metered.ca:80',
       username: 'openrelayproject',
@@ -307,8 +313,27 @@ const iceServers = {
       urls: 'turn:openrelay.metered.ca:443?transport=tcp',
       username: 'openrelayproject',
       credential: 'openrelayproject'
+    },
+
+    // Provider 2: Metered (alternative endpoint)
+    {
+      urls: 'turn:a.relay.metered.ca:80',
+      username: 'bc61612786a3cb26d0b136c9',
+      credential: 'uGNejCd5dMRqsSTe'
+    },
+    {
+      urls: 'turn:a.relay.metered.ca:443',
+      username: 'bc61612786a3cb26d0b136c9',
+      credential: 'uGNejCd5dMRqsSTe'
+    },
+    {
+      urls: 'turn:a.relay.metered.ca:443?transport=tcp',
+      username: 'bc61612786a3cb26d0b136c9',
+      credential: 'uGNejCd5dMRqsSTe'
     }
-  ]
+  ],
+  // ICE transport policy - try all methods
+  iceCandidatePoolSize: 10
 };
 
 // Speech recognition (Speech-to-Text)
@@ -2039,11 +2064,19 @@ async function createPeerConnection(peerId, peerUsername) {
   // Handle ICE candidates
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
+      console.log(`🧊 Sending ICE candidate to ${peerId}: ${event.candidate.type} (${event.candidate.protocol})`);
       socket.emit('webrtc-ice-candidate', {
         targetId: peerId,
         candidate: event.candidate
       });
+    } else {
+      console.log(`✅ ICE gathering complete for ${peerId}`);
     }
+  };
+
+  // Handle ICE gathering state
+  peerConnection.onicegatheringstatechange = () => {
+    console.log(`📡 ICE gathering state with ${peerId}: ${peerConnection.iceGatheringState}`);
   };
 
   // Handle ICE connection state changes
