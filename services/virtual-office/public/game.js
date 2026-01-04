@@ -290,46 +290,30 @@ const PROXIMITY_DISTANCE = 300; // 3 tiles * 100 pixels per tile = 300 pixels
 // STUN/TURN servers for WebRTC
 const iceServers = {
   iceServers: [
-    // Google STUN servers
+    // Google STUN servers (for discovering public IP)
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:tech2b.fun:3478' },
 
-    // Free TURN servers - Multiple providers for reliability
-    // Provider 1: OpenRelay
+    // Our own TURN server on DigitalOcean (BEST!)
     {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
+      urls: 'turn:tech2b.fun:3478',
+      username: 'virtualoffice',
+      credential: 'yourSecretPassword123'
     },
     {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
+      urls: 'turn:tech2b.fun:3478?transport=tcp',
+      username: 'virtualoffice',
+      credential: 'yourSecretPassword123'
     },
     {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    },
-
-    // Provider 2: Metered (alternative endpoint)
-    {
-      urls: 'turn:a.relay.metered.ca:80',
-      username: 'bc61612786a3cb26d0b136c9',
-      credential: 'uGNejCd5dMRqsSTe'
+      urls: 'turns:tech2b.fun:5349',
+      username: 'virtualoffice',
+      credential: 'yourSecretPassword123'
     },
     {
-      urls: 'turn:a.relay.metered.ca:443',
-      username: 'bc61612786a3cb26d0b136c9',
-      credential: 'uGNejCd5dMRqsSTe'
-    },
-    {
-      urls: 'turn:a.relay.metered.ca:443?transport=tcp',
-      username: 'bc61612786a3cb26d0b136c9',
-      credential: 'uGNejCd5dMRqsSTe'
+      urls: 'turns:tech2b.fun:5349?transport=tcp',
+      username: 'virtualoffice',
+      credential: 'yourSecretPassword123'
     }
   ],
   // ICE transport policy - try all methods
