@@ -222,37 +222,14 @@ body {
   transform: translateX(-50%);
   width: 600px;
   max-width: 90%;
-  max-height: 200px;
+  max-height: 0px; /* Hidden by default - expands when messages are added */
   background: rgba(0, 0, 0, 0.5) !important;
   border-radius: 10px;
   border: none;
-  padding: 10px 10px 50px 10px;
-  z-index: 9998;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  pointer-events: none;
-  box-sizing: border-box;
-  transition: max-height 0.3s ease, opacity 0.3s ease;
-}
-
-/* Chat Messages Overlay - Behind chat container */
-#chat-messages-overlay {
-  position: fixed;
-  bottom: 50px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 600px;
-  max-width: 90%;
-  max-height: 200px;
-  background: rgba(0, 0, 0, 0.5) !important;
-  border-radius: 10px;
-  border: none;
+  display: none; /* Completely hidden until messages appear */
   padding: 30px 10px 50px 10px;
   z-index: 9998;
   overflow-y: auto;
-  display: flex;
   flex-direction: column;
   gap: 10px;
   pointer-events: none;
@@ -266,17 +243,14 @@ body {
   bottom: calc(50px + 200px - 10px);
   left: 50%;
   transform: translateX(-50%);
-  width: 80px;
+  width: 120px;
   height: 25px;
   background: rgba(255, 255, 255, 0.6);
   border-radius: 10px 10px 0 0;
-  cursor: ns-resize;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: bold;
-  color: rgba(0, 0, 0, 0.7);
+  justify-content: space-between;
+  padding: 0 8px;
   pointer-events: all;
   z-index: 9999;
   user-select: none;
@@ -288,8 +262,35 @@ body {
   background: rgba(255, 255, 255, 0.8);
 }
 
-#chat-resize-handle:active {
-  background: rgba(255, 255, 255, 0.9);
+.resize-dots {
+  cursor: ns-resize;
+  font-size: 14px;
+  font-weight: bold;
+  color: rgba(0, 0, 0, 0.7);
+  flex: 1;
+  text-align: center;
+}
+
+#chat-overlay-close-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: rgba(220, 53, 69, 0.8);
+  color: white;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+  line-height: 1;
+}
+
+#chat-overlay-close-btn:hover {
+  background: rgba(220, 53, 69, 1);
+  transform: scale(1.1);
 }
 
 /* Hide resize handle when no messages */
@@ -433,14 +434,92 @@ body {
 /* Move mic button to the right */
 #chat-container {
   flex-direction: row;
+  align-items: center;
 }
 
-#mic-btn {
+/* Settings Toggle Button (large center button) */
+.settings-toggle {
   order: 3;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: #FF9800;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-#translator-btn {
-  order: 1;
+.settings-toggle:hover {
+  background: #F57C00;
+  transform: scale(1.1);
+}
+
+.settings-toggle.hidden {
+  display: none;
+}
+
+/* Game Controller Button Layout */
+#controller-btns {
+  order: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0px;
+  padding: 3px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+/* Collapsed state - hide all 4 buttons */
+#controller-btns.collapsed {
+  display: none;
+}
+
+/* Expanded state */
+#screen-share-btn {
+  margin-bottom: -6px;
+  transition: all 0.3s ease;
+}
+
+#controller-bottom {
+  margin-top: -6px;
+  transition: all 0.3s ease;
+}
+
+.controller-middle {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.controller-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #667eea;
+  border: none;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.controller-btn:hover {
+  background: #5568d3;
+  transform: scale(1.1);
 }
 
 .chat-input-container {
@@ -493,51 +572,19 @@ body {
   flex: 1;
 }
 
-#mic-btn,
-#translate-btn,
+/* Translator button color override */
 #translator-btn {
-  width: 45px;
-  height: 45px;
-  border-radius: 50%;
-  background: #667eea;
-  border: none;
-  color: white;
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s;
-  flex-shrink: 0;
-  position: relative;
+  background: #00BCD4;
 }
 
-#mic-btn:hover,
-#translate-btn:hover,
 #translator-btn:hover {
-  background: #5568d3;
-  transform: scale(1.05);
+  background: #0097A7;
 }
 
 #mic-btn.active {
   background: #e74c3c !important;
   animation: pulse 1.5s infinite;
   box-shadow: 0 0 20px rgba(231, 76, 60, 0.6);
-}
-
-#mic-btn.active::after {
-  content: ' ON';
-  font-size: 10px;
-  position: absolute;
-  bottom: -18px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #e74c3c;
-  color: white;
-  padding: 2px 6px;
-  border-radius: 10px;
-  font-weight: bold;
-  white-space: nowrap;
 }
 
 #translate-btn {
@@ -550,14 +597,6 @@ body {
 
 #translate-btn.active {
   background: #FFA500;
-}
-
-#translator-btn {
-  background: #00BCD4;
-}
-
-#translator-btn:hover {
-  background: #0097A7;
 }
 
 #settings-btn {
@@ -630,7 +669,7 @@ body {
   background: rgba(0, 0, 0, 0.5);
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 10002;
 }
 
 .modal.active {
@@ -641,8 +680,9 @@ body {
   background: white;
   padding: 30px;
   border-radius: 15px;
-  min-width: 1000px;
-  max-width: 1200px;
+  min-width: 500px;
+  max-width: 650px;
+  width: fit-content;
 }
 
 .modal-header {
@@ -676,6 +716,57 @@ body {
 .close-btn:hover {
   background: #d32f2f;
   transform: rotate(90deg);
+}
+
+/* Screen Share Modal */
+.screen-share-content {
+  background: white;
+  border-radius: 15px;
+  width: 90vw;
+  max-width: 1400px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.screen-share-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 2px solid #e0e0e0;
+  background: #f8f9fa;
+}
+
+.screen-share-header h2 {
+  color: #667eea;
+  margin: 0;
+  font-size: 20px;
+}
+
+#screen-share-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #000;
+  padding: 20px;
+  overflow: hidden;
+}
+
+#screen-share-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+/* Screen share button active state */
+#screen-share-btn.active {
+  background: #4CAF50 !important;
+  animation: pulse 1.5s infinite;
+  box-shadow: 0 0 20px rgba(76, 175, 80, 0.6);
 }
 
 #rooms-list {
@@ -1198,10 +1289,37 @@ body {
   line-height: 1;
 }
 
+/* Version Info */
+.version-info {
+  padding: 12px 8px;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  width: 100%;
+}
+
+.version-label {
+  font-size: 8px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.version-number {
+  font-size: 11px;
+  color: #667eea;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
 /* Guest Link Button - Special styling */
 #guest-link-btn {
   background: rgba(76, 175, 80, 0.1);
-  margin-top: auto; /* Push to bottom */
+}
+
+/* Profile Button - Push to bottom */
+#profile-btn {
+  margin-top: auto; /* Push profile and version to bottom */
 }
 
 #guest-link-btn:hover {

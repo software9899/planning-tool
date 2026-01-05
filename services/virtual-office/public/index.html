@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Virtual Office - Multiplayer Space</title>
-  <link rel="stylesheet" href="style.css?v=17.2">
+  <link rel="stylesheet" href="style.css?v=19.0">
 </head>
 <body>
   <div id="login-screen" class="screen active">
@@ -76,6 +76,12 @@
       <div class="sidebar-item" id="profile-btn">
         <div class="sidebar-icon">👤</div>
         <div class="sidebar-label">Profile</div>
+      </div>
+
+      <!-- Version Info -->
+      <div class="version-info">
+        <div class="version-label">Version</div>
+        <div class="version-number">19.0</div>
       </div>
     </div>
 
@@ -207,11 +213,24 @@
       <div id="chat-messages-overlay"></div>
 
       <!-- Resize handle for chat overlay -->
-      <div id="chat-resize-handle" title="ลากเพื่อปรับขนาด">⋮⋮⋮</div>
+      <div id="chat-resize-handle" title="ลากเพื่อปรับขนาด">
+        <span class="resize-dots">⋮⋮⋮</span>
+        <button id="chat-overlay-close-btn" title="ปิด Chat Overlay">✕</button>
+      </div>
 
       <div id="chat-container">
-        <button id="mic-btn" title="คลิกเพื่อเปิด/ปิดไมค์">🎤</button>
-        <button id="translator-btn" title="เปิด/ปิดโหมด Translator">🤖</button>
+        <!-- Settings Button (shows when collapsed) -->
+        <button id="settings-toggle-btn" class="settings-toggle" title="เปิดเมนู">⚙️</button>
+
+        <!-- Game Controller Style Buttons (shows when expanded) -->
+        <div id="controller-btns" class="collapsed">
+          <button id="screen-share-btn" class="controller-btn" title="แชร์หน้าจอ">🖥️</button>
+          <div class="controller-middle">
+            <button id="translator-btn" class="controller-btn" title="เปิด/ปิดโหมด Translator">🤖</button>
+            <button id="mic-btn" class="controller-btn" title="คลิกเพื่อเปิด/ปิดไมค์">🎤</button>
+          </div>
+          <button id="controller-bottom" class="controller-btn" title="ปุ่มล่าง">⬇️</button>
+        </div>
         <div class="chat-input-container">
           <input
             type="text"
@@ -358,7 +377,20 @@
     </div>
   </div>
 
+  <!-- Screen Share Viewer Modal -->
+  <div id="screen-share-modal" class="modal">
+    <div class="screen-share-content">
+      <div class="screen-share-header">
+        <h2 id="screen-share-title">🖥️ <span id="screen-sharer-name">User</span> กำลังแชร์หน้าจอ</h2>
+        <button id="close-screen-share-btn" class="close-btn">✕</button>
+      </div>
+      <div id="screen-share-container">
+        <video id="screen-share-video" autoplay playsinline></video>
+      </div>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=17.2"></script>
+  <script src="game.js?v=19.0"></script>
 </body>
 </html>

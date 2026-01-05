@@ -1977,6 +1977,98 @@ socket.on('webrtc-ice-candidate', async ({ fromId, candidate }) => {
   }
 });
 
+// ============ Screen Share WebRTC Events ============
+
+// Someone started screen sharing
+socket.on('user-started-screen-share', ({ userId, username }) => {
+  console.log(`🖥️ ${username} started screen sharing`);
+});
+
+// Someone stopped screen sharing
+socket.on('user-stopped-screen-share', ({ userId }) => {
+  console.log(`🖥️ User ${userId} stopped screen sharing`);
+  // Close modal if viewing this user's screen
+  const screenShareModal = document.getElementById('screen-share-modal');
+  if (screenShareModal && screenShareModal.classList.contains('active')) {
+    screenShareModal.classList.remove('active');
+  }
+});
+
+// Receive screen share offer
+socket.on('screen-share-offer', async ({ fromId, fromUsername, offer }) => {
+  console.log(`🖥️ Received screen share offer from ${fromUsername}`);
+
+  try {
+    const peerConnection = new RTCPeerConnection(iceServers);
+
+    // Handle incoming screen track
+    peerConnection.ontrack = (event) => {
+      console.log(`📺 Received screen track from ${fromUsername}`);
+      const stream = event.streams[0];
+
+      // Display the screen share
+      screenShareVideo.srcObject = stream;
+      screenSharerName.textContent = fromUsername;
+      screenShareModal.classList.add('active');
+    };
+
+    // ICE candidate handling
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit('screen-share-ice-candidate', {
+          targetId: fromId,
+          candidate: event.candidate
+        });
+      }
+    };
+
+    // Set remote description and create answer
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+
+    // Send answer back
+    socket.emit('screen-share-answer', {
+      targetId: fromId,
+      answer: answer
+    });
+
+    // Store peer connection
+    screenPeerConnections.set(fromId, peerConnection);
+
+    console.log(`✅ Screen share connection established with ${fromUsername}`);
+  } catch (error) {
+    console.error('❌ Error handling screen share offer:', error);
+  }
+});
+
+// Receive screen share answer
+socket.on('screen-share-answer', async ({ fromId, answer }) => {
+  console.log(`🖥️ Received screen share answer from ${fromId}`);
+
+  try {
+    const peerConnection = screenPeerConnections.get(fromId);
+    if (peerConnection) {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      console.log(`✅ Screen share connection established with ${fromId}`);
+    }
+  } catch (error) {
+    console.error('❌ Error handling screen share answer:', error);
+  }
+});
+
+// Receive screen share ICE candidate
+socket.on('screen-share-ice-candidate', async ({ fromId, candidate }) => {
+  try {
+    const peerConnection = screenPeerConnections.get(fromId);
+    if (peerConnection && candidate) {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+  } catch (error) {
+    console.error('❌ Error adding screen share ICE candidate:', error);
+  }
+});
+
 // ============ WebRTC Functions ============
 
 // Initialize microphone stream
@@ -2417,9 +2509,10 @@ window.addEventListener('keydown', (e) => {
     }
   }
 
-  // Respawn on H key (Home)
-  if ((e.key === 'h' || e.key === 'H') && currentPlayer) {
+  // Respawn on Cmd/Ctrl + H (Home)
+  if ((e.key === 'h' || e.key === 'H') && (e.metaKey || e.ctrlKey) && currentPlayer) {
     currentPlayer.respawn();
+    console.log('🏠 Cmd/Ctrl+H: Teleporting to spawn point');
     e.preventDefault();
   }
 
@@ -2446,8 +2539,14 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
   }
 
-  // Remove object/floor on R (in edit mode) OR open room selector
-  if (e.key === 'r' || e.key === 'R') {
+  // Open room selector on Cmd/Ctrl + R
+  if ((e.key === 'r' || e.key === 'R') && (e.metaKey || e.ctrlKey)) {
+    showRoomSelector();
+    console.log('🚪 Cmd/Ctrl+R: Opening room selector');
+    e.preventDefault();
+  }
+  // Remove object/floor on R (in edit mode only, without Cmd/Ctrl)
+  else if ((e.key === 'r' || e.key === 'R') && !e.metaKey && !e.ctrlKey) {
     // If in edit mode and hovering over an object, remove it
     if (isEditingObjects && hoveredObject) {
       const index = tempFurniture.indexOf(hoveredObject);
@@ -2470,11 +2569,6 @@ window.addEventListener('keydown', (e) => {
         console.log('🗑️ Removed room floor:', hoveredFloor.id, '- Remember to Save!');
       }
       hoveredFloor = null;
-      e.preventDefault();
-    }
-    else if (!isEditingObjects) {
-      // Otherwise, open room selector
-      showRoomSelector();
       e.preventDefault();
     }
   }
@@ -3894,11 +3988,42 @@ async function testMicrophoneAccess() {
   }
 }
 
+// Controller buttons toggle
+const controllerBtns = document.getElementById('controller-btns');
+const settingsToggleBtn = document.getElementById('settings-toggle-btn');
+
+// Settings button - Toggle between single button and 4 buttons
+if (settingsToggleBtn && controllerBtns) {
+  settingsToggleBtn.addEventListener('click', (e) => {
+    // Hide settings button, show 4 controller buttons
+    settingsToggleBtn.classList.add('hidden');
+    controllerBtns.classList.remove('collapsed');
+    console.log('⚙️ Settings expanded to 4 buttons');
+    e.stopPropagation();
+  });
+}
+
+// Click outside controller to collapse back to settings button
+if (controllerBtns && settingsToggleBtn) {
+  document.addEventListener('click', (e) => {
+    const clickedInsideController = controllerBtns.contains(e.target);
+    const clickedSettings = e.target === settingsToggleBtn;
+
+    if (!clickedInsideController && !clickedSettings && !controllerBtns.classList.contains('collapsed')) {
+      // Show settings button, hide 4 controller buttons
+      controllerBtns.classList.add('collapsed');
+      settingsToggleBtn.classList.remove('hidden');
+      console.log('⚙️ Controller collapsed to settings button');
+    }
+  });
+}
+
 // Mic button - Click to toggle microphone on/off
 let isMicOn = false;
 
 if (micBtn) {
-  micBtn.addEventListener('click', async () => {
+  micBtn.addEventListener('click', async (e) => {
+    // Normal mic toggle (only works when expanded)
     if (isMicOn) {
       // Turn mic off
       await toggleMicrophone(false);
@@ -3913,6 +4038,140 @@ if (micBtn) {
       micBtn.classList.add('active');
       micBtn.title = 'คลิกเพื่อปิดไมค์ (Real-time Voice Chat)';
       console.log('🎤 Microphone turned ON');
+    }
+    e.stopPropagation();
+  });
+}
+
+// Screen Share Feature
+let screenStream = null;
+let screenPeerConnections = new Map(); // Separate peer connections for screen sharing
+let isScreenSharing = false;
+
+const screenShareBtn = document.getElementById('screen-share-btn');
+const screenShareModal = document.getElementById('screen-share-modal');
+const screenShareVideo = document.getElementById('screen-share-video');
+const closeScreenShareBtn = document.getElementById('close-screen-share-btn');
+const screenSharerName = document.getElementById('screen-sharer-name');
+
+// Start screen sharing
+async function startScreenShare() {
+  try {
+    // Capture screen
+    screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: {
+        cursor: 'always',
+        displaySurface: 'monitor'
+      },
+      audio: false
+    });
+
+    isScreenSharing = true;
+    screenShareBtn.classList.add('active');
+    screenShareBtn.title = 'หยุดแชร์หน้าจอ';
+
+    console.log('🖥️ Screen sharing started');
+
+    // Notify server that we're sharing screen
+    socket.emit('start-screen-share');
+
+    // Handle when user stops sharing via browser UI
+    screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+      stopScreenShare();
+    });
+
+    // Send screen to all connected peers
+    otherPlayers.forEach((player, peerId) => {
+      createScreenSharePeerConnection(peerId);
+    });
+
+  } catch (error) {
+    console.error('❌ Screen share error:', error);
+    alert('ไม่สามารถแชร์หน้าจอได้ กรุณาอนุญาตการเข้าถึงหน้าจอ');
+    isScreenSharing = false;
+    screenShareBtn.classList.remove('active');
+  }
+}
+
+// Stop screen sharing
+function stopScreenShare() {
+  if (screenStream) {
+    screenStream.getTracks().forEach(track => track.stop());
+    screenStream = null;
+  }
+
+  // Close all screen share peer connections
+  screenPeerConnections.forEach((pc) => {
+    pc.close();
+  });
+  screenPeerConnections.clear();
+
+  isScreenSharing = false;
+  screenShareBtn.classList.remove('active');
+  screenShareBtn.title = 'แชร์หน้าจอ';
+
+  // Notify server
+  socket.emit('stop-screen-share');
+
+  console.log('🖥️ Screen sharing stopped');
+}
+
+// Create peer connection for screen sharing
+async function createScreenSharePeerConnection(peerId) {
+  if (!screenStream) return;
+
+  const peerConnection = new RTCPeerConnection(iceServers);
+  screenPeerConnections.set(peerId, peerConnection);
+
+  // Add screen track to peer connection
+  screenStream.getTracks().forEach(track => {
+    peerConnection.addTrack(track, screenStream);
+    console.log(`📡 Added screen track to peer ${peerId}`);
+  });
+
+  // ICE candidate handling
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit('screen-share-ice-candidate', {
+        targetId: peerId,
+        candidate: event.candidate
+      });
+    }
+  };
+
+  // Create and send offer
+  try {
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    socket.emit('screen-share-offer', {
+      targetId: peerId,
+      offer: offer
+    });
+    console.log(`📤 Sent screen share offer to ${peerId}`);
+  } catch (error) {
+    console.error('Error creating screen share offer:', error);
+  }
+}
+
+// Screen share button click handler
+if (screenShareBtn) {
+  screenShareBtn.addEventListener('click', async (e) => {
+    if (isScreenSharing) {
+      stopScreenShare();
+    } else {
+      await startScreenShare();
+    }
+    e.stopPropagation();
+  });
+}
+
+// Close screen share modal
+if (closeScreenShareBtn) {
+  closeScreenShareBtn.addEventListener('click', () => {
+    screenShareModal.classList.remove('active');
+    if (screenShareVideo.srcObject) {
+      screenShareVideo.srcObject.getTracks().forEach(track => track.stop());
+      screenShareVideo.srcObject = null;
     }
   });
 }
@@ -4011,6 +4270,20 @@ if (chatResizeHandle && chatMessagesOverlay) {
       console.log('📏 Finished resizing chat overlay');
     }
   });
+
+  // Close button - clear all messages and hide overlay
+  const chatOverlayCloseBtn = document.getElementById('chat-overlay-close-btn');
+  if (chatOverlayCloseBtn) {
+    chatOverlayCloseBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent triggering resize
+      sidebarChatMessages = []; // Clear message array
+      chatMessagesOverlay.innerHTML = ''; // Clear all messages
+      chatMessagesOverlay.style.display = 'none'; // Completely hide
+      chatMessagesOverlay.style.maxHeight = '0px';
+      updateResizeHandlePosition();
+      console.log('✕ Chat overlay closed and hidden');
+    });
+  }
 }
 
 // Canvas mousedown for dragging objects or drawing partitions

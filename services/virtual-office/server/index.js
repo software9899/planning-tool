@@ -292,6 +292,63 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Screen Share Signaling
+  socket.on('start-screen-share', () => {
+    const player = players.get(socket.id);
+    if (player) {
+      console.log(`🖥️ ${player.username} started screen sharing`);
+      // Notify all players in the same room
+      socket.to(player.room).emit('user-started-screen-share', {
+        userId: socket.id,
+        username: player.username
+      });
+    }
+  });
+
+  socket.on('stop-screen-share', () => {
+    const player = players.get(socket.id);
+    if (player) {
+      console.log(`🖥️ ${player.username} stopped screen sharing`);
+      // Notify all players in the same room
+      socket.to(player.room).emit('user-stopped-screen-share', {
+        userId: socket.id
+      });
+    }
+  });
+
+  socket.on('screen-share-offer', ({ targetId, offer }) => {
+    const player = players.get(socket.id);
+    if (player) {
+      console.log(`🖥️ Screen share offer from ${player.username} to ${targetId}`);
+      io.to(targetId).emit('screen-share-offer', {
+        fromId: socket.id,
+        fromUsername: player.username,
+        offer: offer
+      });
+    }
+  });
+
+  socket.on('screen-share-answer', ({ targetId, answer }) => {
+    const player = players.get(socket.id);
+    if (player) {
+      console.log(`🖥️ Screen share answer from ${player.username} to ${targetId}`);
+      io.to(targetId).emit('screen-share-answer', {
+        fromId: socket.id,
+        answer: answer
+      });
+    }
+  });
+
+  socket.on('screen-share-ice-candidate', ({ targetId, candidate }) => {
+    const player = players.get(socket.id);
+    if (player) {
+      io.to(targetId).emit('screen-share-ice-candidate', {
+        fromId: socket.id,
+        candidate: candidate
+      });
+    }
+  });
+
   // Update player status
   socket.on('updateStatus', ({ status }) => {
     const player = players.get(socket.id);
