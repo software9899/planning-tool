@@ -700,19 +700,30 @@ app.get('/api/rooms', (req, res) => {
 app.get('/api/bookmarks', async (req, res) => {
   try {
     const backendUrl = process.env.BACKEND_URL || 'http://backend:8002';
-    const response = await fetch(`${backendUrl}/api/bookmarks`);
+    console.log(`📡 Fetching bookmarks from: ${backendUrl}/api/bookmarks`);
+
+    const response = await fetch(`${backendUrl}/api/bookmarks`, {
+      timeout: 5000 // 5 second timeout
+    });
 
     if (!response.ok) {
       throw new Error(`Backend responded with status: ${response.status}`);
     }
 
     const data = await response.json();
+    console.log(`✅ Successfully fetched ${data.bookmarks?.length || 0} bookmarks`);
     res.json(data);
   } catch (error) {
-    console.error('❌ Error fetching bookmarks from backend:', error);
-    res.status(500).json({
-      error: 'Failed to fetch bookmarks',
-      message: error.message
+    console.error('❌ Error fetching bookmarks from backend:', error.message);
+    console.error('   Backend URL:', process.env.BACKEND_URL || 'http://backend:8002');
+    console.error('   Make sure the Planning Tool Backend is running and accessible');
+
+    // Return empty bookmarks instead of error (graceful degradation)
+    res.json({
+      bookmarks: [],
+      error: true,
+      message: `Cannot connect to Planning Tool Backend: ${error.message}`,
+      backendUrl: process.env.BACKEND_URL || 'http://backend:8002'
     });
   }
 });

@@ -6573,6 +6573,23 @@ async function loadBookmarks() {
 
     bookmarkList.innerHTML = '';
 
+    // Check if there's an error from backend
+    if (data.error) {
+      const errorMsg = document.createElement('div');
+      errorMsg.style.cssText = 'padding: 40px 20px; text-align: center; font-size: 14px;';
+      errorMsg.innerHTML = `
+        <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
+        <div style="color: #ff5252; font-weight: 600; margin-bottom: 8px;">ไม่สามารถเชื่อมต่อ Backend ได้</div>
+        <div style="color: #999; font-size: 12px; margin-bottom: 4px;">${data.message || 'Unknown error'}</div>
+        <div style="color: #999; font-size: 11px; margin-top: 8px;">Backend: ${data.backendUrl || 'Unknown'}</div>
+        <button onclick="loadBookmarks()" style="margin-top: 16px; padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">
+          🔄 ลองอีกครั้ง
+        </button>
+      `;
+      bookmarkList.appendChild(errorMsg);
+      return;
+    }
+
     if (bookmarks.length === 0) {
       const emptyMsg = document.createElement('div');
       emptyMsg.style.cssText = 'padding: 40px 20px; text-align: center; color: #999; font-size: 14px;';
