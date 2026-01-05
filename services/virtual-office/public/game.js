@@ -294,7 +294,7 @@ const iceServers = {
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:tech2b.fun:3478' },
 
-    // Our own TURN server on DigitalOcean (BEST!)
+    // Our own TURN server (running in Docker) - BEST for reliability!
     {
       urls: 'turn:tech2b.fun:3478',
       username: 'virtualoffice',
@@ -302,16 +302,6 @@ const iceServers = {
     },
     {
       urls: 'turn:tech2b.fun:3478?transport=tcp',
-      username: 'virtualoffice',
-      credential: 'yourSecretPassword123'
-    },
-    {
-      urls: 'turns:tech2b.fun:5349',
-      username: 'virtualoffice',
-      credential: 'yourSecretPassword123'
-    },
-    {
-      urls: 'turns:tech2b.fun:5349?transport=tcp',
       username: 'virtualoffice',
       credential: 'yourSecretPassword123'
     }

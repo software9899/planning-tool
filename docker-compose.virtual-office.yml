@@ -44,6 +44,23 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  # TURN Server (coturn) for WebRTC voice chat
+  coturn:
+    image: coturn/coturn:latest
+    container_name: virtual-office-coturn
+    ports:
+      - "3478:3478/tcp"      # STUN/TURN TCP
+      - "3478:3478/udp"      # STUN/TURN UDP
+      - "5349:5349/tcp"      # TURN TLS TCP
+      - "5349:5349/udp"      # TURN TLS UDP
+      - "49152-65535:49152-65535/udp"  # TURN relay ports
+    volumes:
+      - ./services/virtual-office/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    restart: unless-stopped
+    networks:
+      - virtual-office-network
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+
 volumes:
   virtual_office_mongodb_data:
 
