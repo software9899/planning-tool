@@ -306,8 +306,10 @@ const iceServers = {
       credential: 'yourSecretPassword123'
     }
   ],
-  // ICE transport policy - try all methods
-  iceCandidatePoolSize: 10
+  // Try all methods (host, srflx, relay)
+  // WebRTC will prefer direct connection but fallback to TURN if needed
+  iceCandidatePoolSize: 10,
+  iceTransportPolicy: 'all'  // Try all candidate types
 };
 
 // Speech recognition (Speech-to-Text)
