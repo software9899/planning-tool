@@ -49,11 +49,11 @@ services:
     image: coturn/coturn:latest
     container_name: virtual-office-coturn
     ports:
-      - "3478:3478/tcp"      # STUN/TURN TCP
-      - "3478:3478/udp"      # STUN/TURN UDP
-      - "5349:5349/tcp"      # TURN TLS TCP
-      - "5349:5349/udp"      # TURN TLS UDP
-      - "49152-65535:49152-65535/udp"  # TURN relay ports
+      - "3478:3478/tcp"       # STUN/TURN TCP
+      - "3478:3478/udp"       # STUN/TURN UDP
+      - "5349:5349/tcp"       # TURN TLS TCP (optional)
+      - "5349:5349/udp"       # TURN TLS UDP (optional)
+      - "49160-49200:49160-49200/udp"  # TURN relay ports (40 ports for simultaneous connections)
     volumes:
       - ./services/virtual-office/turnserver.conf:/etc/coturn/turnserver.conf:ro
     restart: unless-stopped
