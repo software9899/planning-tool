@@ -696,7 +696,7 @@ app.get('/api/rooms', (req, res) => {
   res.json(roomList);
 });
 
-// Proxy to Planning Tool Backend API
+// Proxy to Planning Tool Backend API - GET bookmarks
 app.get('/api/bookmarks', async (req, res) => {
   try {
     const backendUrl = process.env.BACKEND_URL || 'http://backend:8002';
@@ -721,6 +721,40 @@ app.get('/api/bookmarks', async (req, res) => {
     // Return empty bookmarks instead of error (graceful degradation)
     res.json({
       bookmarks: [],
+      error: true,
+      message: `Cannot connect to Planning Tool Backend: ${error.message}`,
+      backendUrl: process.env.BACKEND_URL || 'http://backend:8002'
+    });
+  }
+});
+
+// Proxy to Planning Tool Backend API - POST bookmark (for Chrome Extension)
+app.post('/api/bookmarks', async (req, res) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://backend:8002';
+    console.log(`📝 Creating bookmark via: ${backendUrl}/api/bookmarks`);
+    console.log(`📋 Bookmark data:`, req.body);
+
+    const response = await fetch(`${backendUrl}/api/bookmarks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(req.body),
+      timeout: 5000
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend responded with status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log(`✅ Bookmark created successfully:`, data);
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error creating bookmark:', error.message);
+    console.error('   Backend URL:', process.env.BACKEND_URL || 'http://backend:8002');
+    res.status(500).json({
       error: true,
       message: `Cannot connect to Planning Tool Backend: ${error.message}`,
       backendUrl: process.env.BACKEND_URL || 'http://backend:8002'

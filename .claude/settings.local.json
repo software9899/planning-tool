@@ -14,7 +14,8 @@
       "Bash(tree:*)",
       "Bash(done)",
       "Bash(node:*)",
-      "Bash(ln:*)"
+      "Bash(ln:*)",
+      "Bash(docker logs:*)"
     ]
   }
 }

@@ -1,9 +1,9 @@
 // Configuration helper for Planning Tool Extension
 
 const Config = {
-  // Default backend URL
-  DEFAULT_BACKEND_URL: 'http://localhost:8002',
-  DEFAULT_PLANNING_TOOL_URL: 'http://localhost/api/plugins/virtual-office/html',
+  // Default backend URL (via Virtual Office proxy)
+  DEFAULT_BACKEND_URL: 'https://office.tech2b.fun',
+  DEFAULT_PLANNING_TOOL_URL: 'https://office.tech2b.fun/api/plugins/virtual-office/html',
 
   // Get backend URL from storage or use default
   async getBackendUrl() {
