@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Planning Tool - Tab Manager",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Manage browser tabs and bookmarks for Planning Tool",
   "permissions": [
     "tabs",
@@ -11,7 +11,9 @@
   ],
   "host_permissions": [
     "http://localhost/*",
-    "https://localhost/*"
+    "https://localhost/*",
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -19,7 +21,10 @@
   "content_scripts": [
     {
       "matches": [
-        "http://localhost/*"
+        "http://localhost/*",
+        "https://localhost/*",
+        "http://*/*",
+        "https://*/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
