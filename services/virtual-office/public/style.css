@@ -488,9 +488,15 @@ body {
   transition: all 0.3s ease;
 }
 
-#controller-bottom {
+#voice-to-text-btn {
   margin-top: -6px;
   transition: all 0.3s ease;
+}
+
+#voice-to-text-btn.active {
+  background: #FF5722 !important;
+  animation: pulse 1.5s infinite;
+  box-shadow: 0 0 20px rgba(255, 87, 34, 0.6);
 }
 
 .controller-middle {

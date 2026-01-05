@@ -320,7 +320,7 @@ let isListening = false;
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SpeechRecognition();
-  recognition.continuous = false;
+  recognition.continuous = true; // Keep listening continuously
   recognition.interimResults = true; // Show interim results while speaking
   recognition.lang = 'th-TH'; // Thai language, can change to 'en-US' for English
   recognition.maxAlternatives = 1;
@@ -339,7 +339,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     console.log('🎤 Speech recognition started');
   };
 
-  recognition.onresult = (event) => {
+  recognition.onresult = async (event) => {
     // Get the latest result
     const lastResult = event.results[event.results.length - 1];
     const transcript = lastResult[0].transcript;
@@ -347,12 +347,46 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
     console.log('📝 Recognized:', transcript, isFinal ? '(final)' : '(interim)');
 
-    // Update chat input with transcript
-    chatInput.value = transcript;
+    // Update chat input with transcript (show interim results)
+    if (!isFinal) {
+      chatInput.value = transcript;
+    }
 
-    // Only focus on final result
+    // Only process final result
     if (isFinal) {
-      chatInput.focus();
+      // If translator mode is ON, translate and auto-send
+      if (translatorMode && aiApiKey) {
+        try {
+          // Show translating indicator
+          chatInput.value = '🤖 กำลังแปล...';
+          chatInput.disabled = true;
+
+          // Translate to English
+          const translatedText = await correctGrammar(transcript);
+
+          // Send translated message
+          chatInput.value = translatedText;
+          chatInput.disabled = false;
+
+          // Auto-send
+          await sendMessage();
+
+          // Clear input for next utterance in continuous mode
+          chatInput.value = '';
+
+          console.log(`🗣️→🌐 "${transcript}" → "${translatedText}"`);
+        } catch (error) {
+          console.error('❌ Translation error:', error);
+          // If translation fails, just show original
+          chatInput.disabled = false;
+          chatInput.value = transcript;
+          chatInput.focus();
+        }
+      } else {
+        // No translator mode - accumulate transcript in input field
+        chatInput.value = transcript;
+        chatInput.focus();
+      }
     }
   };
 
@@ -390,11 +424,20 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
   recognition.onend = () => {
     isListening = false;
-    if (micBtn) {
-      micBtn.style.background = '';
-      micBtn.style.transform = '';
-    }
     console.log('🎤 Speech recognition ended');
+
+    // Auto-restart if voice-to-text button is still active (continuous mode)
+    const voiceBtn = document.getElementById('voice-to-text-btn');
+    if (voiceBtn && voiceBtn.classList.contains('active')) {
+      console.log('🔄 Auto-restarting speech recognition...');
+      setTimeout(() => {
+        try {
+          recognition.start();
+        } catch (error) {
+          console.error('❌ Failed to restart recognition:', error);
+        }
+      }, 100);
+    }
   };
 } else {
   console.warn('⚠️ Speech Recognition not supported in this browser');
@@ -4174,6 +4217,57 @@ if (closeScreenShareBtn) {
       screenShareVideo.srcObject = null;
     }
   });
+}
+
+// Voice-to-Text button - Click to start/stop speech recognition
+const voiceToTextBtn = document.getElementById('voice-to-text-btn');
+
+if (voiceToTextBtn && recognition) {
+  voiceToTextBtn.addEventListener('click', (e) => {
+    if (isListening) {
+      // Stop listening
+      recognition.stop();
+      voiceToTextBtn.classList.remove('active');
+      voiceToTextBtn.title = 'พูดเพื่อพิมพ์';
+      console.log('🎙️ Voice-to-text stopped');
+    } else {
+      // Start listening
+      try {
+        recognition.start();
+        voiceToTextBtn.classList.add('active');
+        voiceToTextBtn.title = 'กำลังฟัง... (คลิกอีกครั้งเพื่อหยุด)';
+        console.log('🎙️ Voice-to-text started');
+
+        // Show hint if translator mode is on
+        if (translatorMode && aiApiKey) {
+          console.log('🌐 Translator mode ON: Speech will be auto-translated and sent');
+        }
+      } catch (error) {
+        console.error('❌ Failed to start voice recognition:', error);
+        voiceToTextBtn.classList.remove('active');
+      }
+    }
+    e.stopPropagation();
+  });
+
+  // Update button state when recognition starts/stops
+  if (recognition) {
+    recognition.addEventListener('start', () => {
+      voiceToTextBtn.classList.add('active');
+    });
+
+    recognition.addEventListener('end', () => {
+      voiceToTextBtn.classList.remove('active');
+      voiceToTextBtn.title = 'พูดเพื่อพิมพ์';
+    });
+  }
+}
+
+// Show warning if Speech Recognition not supported
+if (!recognition && voiceToTextBtn) {
+  voiceToTextBtn.disabled = true;
+  voiceToTextBtn.style.opacity = '0.5';
+  voiceToTextBtn.title = 'Browser นี้ไม่รองรับ Speech Recognition';
 }
 
 // Chat expand button logic - cycle through steps 0→1→2→3→0
