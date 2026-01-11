@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Virtual Office - Multiplayer Space</title>
-  <link rel="stylesheet" href="style.css?v=20.2">
+  <link rel="stylesheet" href="style.css?v=20.3">
 </head>
 <body>
   <div id="login-screen" class="screen active">
@@ -69,6 +69,10 @@
         <div class="sidebar-icon">📜</div>
         <div class="sidebar-label">History</div>
       </div>
+      <div class="sidebar-item" id="minigame-btn">
+        <div class="sidebar-icon">🎮</div>
+        <div class="sidebar-label">Mini Game</div>
+      </div>
       <div class="sidebar-item" id="guest-link-btn">
         <div class="sidebar-icon">🔗</div>
         <div class="sidebar-label">Guest Link</div>
@@ -81,7 +85,7 @@
       <!-- Version Info -->
       <div class="version-info">
         <div class="version-label">Version</div>
-        <div class="version-number">20.2</div>
+        <div class="version-number">20.3</div>
       </div>
     </div>
 
@@ -252,6 +256,27 @@
         </div>
       </div>
 
+      <div id="minigame-modal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 700px;">
+          <div class="modal-header">
+            <h2>🎮 Mini Game - Platform Adventure</h2>
+            <button id="close-minigame-btn" class="close-btn">✕</button>
+          </div>
+          <div style="padding: 20px; text-align: center;">
+            <div id="game-info" style="margin-bottom: 10px; font-size: 14px; color: #666;">
+              <span>Score: <strong id="game-score">0</strong></span> |
+              <span>Lives: <strong id="game-lives">3</strong></span> |
+              <span>Level: <strong id="game-level">1</strong></span>
+            </div>
+            <canvas id="minigame-canvas" width="800" height="500" style="border: 2px solid #333; border-radius: 8px; background: #87CEEB;"></canvas>
+            <div style="margin-top: 15px; font-size: 13px; color: #666;">
+              <p>🎯 Controls: ← → Arrow keys to move, SPACE to jump</p>
+              <p>🌟 Collect coins and avoid enemies!</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="settings-modal" class="modal">
         <div class="modal-content">
           <h2>⚙️ ตั้งค่า</h2>
@@ -391,6 +416,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=20.2"></script>
+  <script src="game.js?v=20.3"></script>
 </body>
 </html>

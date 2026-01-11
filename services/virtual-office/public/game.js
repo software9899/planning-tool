@@ -2836,6 +2836,32 @@ closeHistoryBtn.addEventListener('click', () => {
   historyModal.classList.remove('active');
 });
 
+// Mini Game button
+const minigameBtn = document.getElementById('minigame-btn');
+const minigameModal = document.getElementById('minigame-modal');
+const closeMinigameBtn = document.getElementById('close-minigame-btn');
+
+minigameBtn.addEventListener('click', () => {
+  // Remove active from all sidebar items
+  document.querySelectorAll('.sidebar-item').forEach(item => {
+    item.classList.remove('active');
+  });
+
+  // Add active to minigame button
+  minigameBtn.classList.add('active');
+
+  minigameModal.classList.add('active');
+  initMiniGame();
+});
+
+closeMinigameBtn.addEventListener('click', () => {
+  // Remove active from minigame button
+  minigameBtn.classList.remove('active');
+
+  minigameModal.classList.remove('active');
+  stopMiniGame();
+});
+
 // Settings modal close button
 const settingsModal = document.getElementById('settings-modal');
 const closeSettingsBtn = document.getElementById('close-settings-btn');
@@ -7058,3 +7084,426 @@ socket.on('connect', () => {
     console.log('✅ Reconnected to server');
   }
 });
+
+// ========================================
+// MINI GAME - 2D Platform Adventure
+// ========================================
+
+let miniGameRunning = false;
+let miniGameCanvas = null;
+let miniGameCtx = null;
+let miniGameAnimationId = null;
+
+// Game state
+let miniGamePlayer = null;
+let miniGamePlatforms = [];
+let miniGameCoins = [];
+let miniGameEnemies = [];
+let miniGameScore = 0;
+let miniGameLives = 3;
+let miniGameLevel = 1;
+let miniGameKeys = {};
+
+function initMiniGame() {
+  if (miniGameRunning) return;
+
+  miniGameCanvas = document.getElementById('minigame-canvas');
+  miniGameCtx = miniGameCanvas.getContext('2d');
+
+  // Initialize game state
+  miniGameScore = 0;
+  miniGameLives = 3;
+  miniGameLevel = 1;
+  miniGameKeys = {};
+
+  // Update UI
+  updateMiniGameUI();
+
+  // Set up player with Virtual Office character color
+  const playerColor = currentPlayer ? currentPlayer.color : '#667eea';
+  miniGamePlayer = {
+    x: 100,
+    y: 350,
+    width: 30,
+    height: 30,
+    velX: 0,
+    velY: 0,
+    speed: 5,
+    jumpPower: 12,
+    grounded: false,
+    color: playerColor
+  };
+
+  // Create level
+  createLevel(miniGameLevel);
+
+  // Add keyboard listeners
+  document.addEventListener('keydown', miniGameKeyDown);
+  document.addEventListener('keyup', miniGameKeyUp);
+
+  // Start game loop
+  miniGameRunning = true;
+  miniGameLoop();
+
+  console.log('🎮 Mini Game started!');
+}
+
+function stopMiniGame() {
+  miniGameRunning = false;
+
+  if (miniGameAnimationId) {
+    cancelAnimationFrame(miniGameAnimationId);
+    miniGameAnimationId = null;
+  }
+
+  // Remove keyboard listeners
+  document.removeEventListener('keydown', miniGameKeyDown);
+  document.removeEventListener('keyup', miniGameKeyUp);
+
+  console.log('🎮 Mini Game stopped!');
+}
+
+function createLevel(level) {
+  miniGamePlatforms = [];
+  miniGameCoins = [];
+  miniGameEnemies = [];
+
+  // Ground
+  miniGamePlatforms.push({ x: 0, y: 480, width: 800, height: 20 });
+
+  if (level === 1) {
+    // Platforms
+    miniGamePlatforms.push({ x: 150, y: 400, width: 100, height: 15 });
+    miniGamePlatforms.push({ x: 300, y: 350, width: 100, height: 15 });
+    miniGamePlatforms.push({ x: 450, y: 300, width: 100, height: 15 });
+    miniGamePlatforms.push({ x: 600, y: 250, width: 120, height: 15 });
+
+    // Coins
+    miniGameCoins.push({ x: 180, y: 360, collected: false });
+    miniGameCoins.push({ x: 330, y: 310, collected: false });
+    miniGameCoins.push({ x: 480, y: 260, collected: false });
+    miniGameCoins.push({ x: 640, y: 210, collected: false });
+
+    // Enemies
+    miniGameEnemies.push({ x: 300, y: 450, width: 30, height: 30, velX: 2, direction: 1 });
+    miniGameEnemies.push({ x: 450, y: 270, width: 30, height: 30, velX: 2, direction: 1 });
+  } else if (level === 2) {
+    // More challenging level
+    miniGamePlatforms.push({ x: 100, y: 420, width: 80, height: 15 });
+    miniGamePlatforms.push({ x: 220, y: 380, width: 80, height: 15 });
+    miniGamePlatforms.push({ x: 340, y: 340, width: 80, height: 15 });
+    miniGamePlatforms.push({ x: 460, y: 300, width: 80, height: 15 });
+    miniGamePlatforms.push({ x: 580, y: 260, width: 80, height: 15 });
+    miniGamePlatforms.push({ x: 700, y: 220, width: 80, height: 15 });
+
+    // More coins
+    for (let i = 0; i < 8; i++) {
+      miniGameCoins.push({
+        x: 100 + i * 100,
+        y: 150 + Math.random() * 200,
+        collected: false
+      });
+    }
+
+    // More enemies
+    miniGameEnemies.push({ x: 200, y: 450, width: 30, height: 30, velX: 3, direction: 1 });
+    miniGameEnemies.push({ x: 400, y: 450, width: 30, height: 30, velX: 3, direction: -1 });
+    miniGameEnemies.push({ x: 580, y: 230, width: 30, height: 30, velX: 2, direction: 1 });
+  }
+}
+
+function miniGameKeyDown(e) {
+  if (e.key === 'ArrowLeft' || e.key === 'a') miniGameKeys.left = true;
+  if (e.key === 'ArrowRight' || e.key === 'd') miniGameKeys.right = true;
+  if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w') {
+    if (miniGamePlayer.grounded) {
+      miniGamePlayer.velY = -miniGamePlayer.jumpPower;
+      miniGamePlayer.grounded = false;
+    }
+    e.preventDefault();
+  }
+}
+
+function miniGameKeyUp(e) {
+  if (e.key === 'ArrowLeft' || e.key === 'a') miniGameKeys.left = false;
+  if (e.key === 'ArrowRight' || e.key === 'd') miniGameKeys.right = false;
+}
+
+function updateMiniGame() {
+  if (!miniGamePlayer) return;
+
+  // Gravity
+  miniGamePlayer.velY += 0.5;
+
+  // Horizontal movement
+  if (miniGameKeys.left) {
+    miniGamePlayer.velX = -miniGamePlayer.speed;
+  } else if (miniGameKeys.right) {
+    miniGamePlayer.velX = miniGamePlayer.speed;
+  } else {
+    miniGamePlayer.velX = 0;
+  }
+
+  // Update player position
+  miniGamePlayer.x += miniGamePlayer.velX;
+  miniGamePlayer.y += miniGamePlayer.velY;
+
+  // Boundary check
+  if (miniGamePlayer.x < 0) miniGamePlayer.x = 0;
+  if (miniGamePlayer.x + miniGamePlayer.width > miniGameCanvas.width) {
+    miniGamePlayer.x = miniGameCanvas.width - miniGamePlayer.width;
+  }
+
+  // Platform collision
+  miniGamePlayer.grounded = false;
+  miniGamePlatforms.forEach(platform => {
+    if (miniGamePlayer.x < platform.x + platform.width &&
+        miniGamePlayer.x + miniGamePlayer.width > platform.x &&
+        miniGamePlayer.y + miniGamePlayer.height < platform.y + platform.height &&
+        miniGamePlayer.y + miniGamePlayer.height + miniGamePlayer.velY >= platform.y) {
+
+      miniGamePlayer.y = platform.y - miniGamePlayer.height;
+      miniGamePlayer.velY = 0;
+      miniGamePlayer.grounded = true;
+    }
+  });
+
+  // Coin collection
+  miniGameCoins.forEach(coin => {
+    if (!coin.collected) {
+      const dist = Math.hypot(
+        miniGamePlayer.x + miniGamePlayer.width / 2 - coin.x,
+        miniGamePlayer.y + miniGamePlayer.height / 2 - coin.y
+      );
+      if (dist < 25) {
+        coin.collected = true;
+        miniGameScore += 10;
+        updateMiniGameUI();
+      }
+    }
+  });
+
+  // Enemy movement and collision
+  miniGameEnemies.forEach(enemy => {
+    enemy.x += enemy.velX * enemy.direction;
+
+    // Bounce off edges
+    if (enemy.x < 0 || enemy.x + enemy.width > miniGameCanvas.width) {
+      enemy.direction *= -1;
+    }
+
+    // Check collision with player
+    if (miniGamePlayer.x < enemy.x + enemy.width &&
+        miniGamePlayer.x + miniGamePlayer.width > enemy.x &&
+        miniGamePlayer.y < enemy.y + enemy.height &&
+        miniGamePlayer.y + miniGamePlayer.height > enemy.y) {
+
+      // Player hit enemy
+      miniGameLives--;
+      updateMiniGameUI();
+
+      if (miniGameLives <= 0) {
+        // Game over
+        gameOver();
+      } else {
+        // Reset player position
+        miniGamePlayer.x = 100;
+        miniGamePlayer.y = 350;
+        miniGamePlayer.velX = 0;
+        miniGamePlayer.velY = 0;
+      }
+    }
+  });
+
+  // Check if all coins collected (level complete)
+  const allCoinsCollected = miniGameCoins.every(coin => coin.collected);
+  if (allCoinsCollected) {
+    levelComplete();
+  }
+
+  // Fall off bottom
+  if (miniGamePlayer.y > miniGameCanvas.height) {
+    miniGameLives--;
+    updateMiniGameUI();
+
+    if (miniGameLives <= 0) {
+      gameOver();
+    } else {
+      miniGamePlayer.x = 100;
+      miniGamePlayer.y = 350;
+      miniGamePlayer.velX = 0;
+      miniGamePlayer.velY = 0;
+    }
+  }
+}
+
+function drawMiniGame() {
+  if (!miniGameCtx) return;
+
+  // Clear canvas
+  miniGameCtx.fillStyle = '#87CEEB'; // Sky blue
+  miniGameCtx.fillRect(0, 0, miniGameCanvas.width, miniGameCanvas.height);
+
+  // Draw platforms
+  miniGameCtx.fillStyle = '#8B4513'; // Brown
+  miniGamePlatforms.forEach(platform => {
+    miniGameCtx.fillRect(platform.x, platform.y, platform.width, platform.height);
+
+    // Add grass on top
+    miniGameCtx.fillStyle = '#228B22';
+    miniGameCtx.fillRect(platform.x, platform.y - 3, platform.width, 3);
+    miniGameCtx.fillStyle = '#8B4513';
+  });
+
+  // Draw coins
+  miniGameCoins.forEach(coin => {
+    if (!coin.collected) {
+      miniGameCtx.fillStyle = '#FFD700'; // Gold
+      miniGameCtx.beginPath();
+      miniGameCtx.arc(coin.x, coin.y, 10, 0, Math.PI * 2);
+      miniGameCtx.fill();
+
+      // Coin shine
+      miniGameCtx.fillStyle = '#FFF';
+      miniGameCtx.beginPath();
+      miniGameCtx.arc(coin.x - 3, coin.y - 3, 3, 0, Math.PI * 2);
+      miniGameCtx.fill();
+    }
+  });
+
+  // Draw enemies
+  miniGameCtx.fillStyle = '#FF4444'; // Red
+  miniGameEnemies.forEach(enemy => {
+    // Body
+    miniGameCtx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+
+    // Eyes
+    miniGameCtx.fillStyle = '#FFF';
+    miniGameCtx.fillRect(enemy.x + 5, enemy.y + 8, 8, 8);
+    miniGameCtx.fillRect(enemy.x + enemy.width - 13, enemy.y + 8, 8, 8);
+
+    // Pupils
+    miniGameCtx.fillStyle = '#000';
+    miniGameCtx.fillRect(enemy.x + 8, enemy.y + 11, 3, 3);
+    miniGameCtx.fillRect(enemy.x + enemy.width - 10, enemy.y + 11, 3, 3);
+
+    miniGameCtx.fillStyle = '#FF4444';
+  });
+
+  // Draw player (use Virtual Office character style)
+  if (miniGamePlayer) {
+    // Player body
+    miniGameCtx.fillStyle = miniGamePlayer.color;
+    miniGameCtx.fillRect(
+      miniGamePlayer.x,
+      miniGamePlayer.y,
+      miniGamePlayer.width,
+      miniGamePlayer.height
+    );
+
+    // Player eyes
+    miniGameCtx.fillStyle = '#FFF';
+    miniGameCtx.fillRect(miniGamePlayer.x + 6, miniGamePlayer.y + 8, 6, 6);
+    miniGameCtx.fillRect(miniGamePlayer.x + miniGamePlayer.width - 12, miniGamePlayer.y + 8, 6, 6);
+
+    // Player pupils
+    miniGameCtx.fillStyle = '#000';
+    miniGameCtx.fillRect(miniGamePlayer.x + 8, miniGamePlayer.y + 10, 3, 3);
+    miniGameCtx.fillRect(miniGamePlayer.x + miniGamePlayer.width - 10, miniGamePlayer.y + 10, 3, 3);
+
+    // Player smile
+    miniGameCtx.strokeStyle = '#000';
+    miniGameCtx.lineWidth = 2;
+    miniGameCtx.beginPath();
+    miniGameCtx.arc(
+      miniGamePlayer.x + miniGamePlayer.width / 2,
+      miniGamePlayer.y + 22,
+      8,
+      0.2,
+      Math.PI - 0.2
+    );
+    miniGameCtx.stroke();
+  }
+}
+
+function updateMiniGameUI() {
+  document.getElementById('game-score').textContent = miniGameScore;
+  document.getElementById('game-lives').textContent = miniGameLives;
+  document.getElementById('game-level').textContent = miniGameLevel;
+}
+
+function levelComplete() {
+  miniGameLevel++;
+  miniGameScore += 50; // Bonus for completing level
+
+  if (miniGameLevel > 2) {
+    // Game won!
+    miniGameCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    miniGameCtx.fillRect(0, 0, miniGameCanvas.width, miniGameCanvas.height);
+
+    miniGameCtx.fillStyle = '#FFD700';
+    miniGameCtx.font = 'bold 48px Arial';
+    miniGameCtx.textAlign = 'center';
+    miniGameCtx.fillText('🎉 YOU WIN! 🎉', miniGameCanvas.width / 2, miniGameCanvas.height / 2 - 30);
+
+    miniGameCtx.fillStyle = '#FFF';
+    miniGameCtx.font = '24px Arial';
+    miniGameCtx.fillText(`Final Score: ${miniGameScore}`, miniGameCanvas.width / 2, miniGameCanvas.height / 2 + 20);
+
+    miniGameCtx.font = '18px Arial';
+    miniGameCtx.fillText('Close and reopen to play again', miniGameCanvas.width / 2, miniGameCanvas.height / 2 + 60);
+
+    stopMiniGame();
+  } else {
+    // Show level complete message briefly
+    miniGameCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    miniGameCtx.fillRect(0, 0, miniGameCanvas.width, miniGameCanvas.height);
+
+    miniGameCtx.fillStyle = '#FFD700';
+    miniGameCtx.font = 'bold 36px Arial';
+    miniGameCtx.textAlign = 'center';
+    miniGameCtx.fillText(`Level ${miniGameLevel - 1} Complete!`, miniGameCanvas.width / 2, miniGameCanvas.height / 2);
+
+    miniGameCtx.fillStyle = '#FFF';
+    miniGameCtx.font = '20px Arial';
+    miniGameCtx.fillText('Get ready for next level...', miniGameCanvas.width / 2, miniGameCanvas.height / 2 + 40);
+
+    // Wait 2 seconds then start next level
+    setTimeout(() => {
+      createLevel(miniGameLevel);
+      miniGamePlayer.x = 100;
+      miniGamePlayer.y = 350;
+      miniGamePlayer.velX = 0;
+      miniGamePlayer.velY = 0;
+      updateMiniGameUI();
+    }, 2000);
+  }
+}
+
+function gameOver() {
+  miniGameCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+  miniGameCtx.fillRect(0, 0, miniGameCanvas.width, miniGameCanvas.height);
+
+  miniGameCtx.fillStyle = '#FF4444';
+  miniGameCtx.font = 'bold 48px Arial';
+  miniGameCtx.textAlign = 'center';
+  miniGameCtx.fillText('GAME OVER', miniGameCanvas.width / 2, miniGameCanvas.height / 2 - 30);
+
+  miniGameCtx.fillStyle = '#FFF';
+  miniGameCtx.font = '24px Arial';
+  miniGameCtx.fillText(`Final Score: ${miniGameScore}`, miniGameCanvas.width / 2, miniGameCanvas.height / 2 + 20);
+
+  miniGameCtx.font = '18px Arial';
+  miniGameCtx.fillText('Close and reopen to try again', miniGameCanvas.width / 2, miniGameCanvas.height / 2 + 60);
+
+  stopMiniGame();
+}
+
+function miniGameLoop() {
+  if (!miniGameRunning) return;
+
+  updateMiniGame();
+  drawMiniGame();
+
+  miniGameAnimationId = requestAnimationFrame(miniGameLoop);
+}
