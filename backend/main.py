@@ -5,7 +5,7 @@ FastAPI + PostgreSQL
 
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Column, Integer, String, Text, TIMESTAMP, ARRAY, DateTime, Numeric, Float, text, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -767,6 +767,17 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
         expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/login")
+async def login_redirect(redirect: str = "/", source: str = None):
+    """
+    Login endpoint for Virtual Office integration
+    Redirects to the specified URL (for now, just redirects back)
+    Future: Can add authentication flow here
+    """
+    # For now, just redirect to the specified URL
+    # In the future, this can show a login page or handle OAuth
+    return RedirectResponse(url=redirect)
 
 @app.post("/api/auth/forgot-password")
 def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
