@@ -1460,14 +1460,32 @@ if (token && (userName || userEmail)) {
   // Show logged in state
   showLoggedInState(userData);
 
-  // Auto join with logged-in username
-  if (loginScreen.classList.contains('active')) {
-    usernameInput.value = userName || userEmail.split('@')[0];
-    // Optionally auto-join after login
-    // setTimeout(() => joinBtn.click(), 500);
-  }
-
   console.log('✅ Logged in with Planning Tool:', userData);
+
+  // Auto-join lobby after login
+  if (loginScreen.classList.contains('active')) {
+    const finalUsername = userName || userEmail.split('@')[0];
+    const room = 'lobby';
+
+    // Save to localStorage
+    localStorage.setItem('virtualOfficeUsername', finalUsername);
+    localStorage.setItem('virtualOfficeRoom', room);
+
+    // Get or create persistent userId
+    let userId;
+    const isGuest = sessionStorage.getItem('isGuest') === 'true';
+    const guestId = sessionStorage.getItem('guestId');
+
+    if (isGuest && guestId) {
+      userId = 'guest_' + guestId;
+    } else {
+      userId = getUserId();
+    }
+
+    // Auto-join lobby
+    console.log('🎮 Auto-joining lobby with username:', finalUsername);
+    socket.emit('join', { username: finalUsername, room, userId, status: userStatus });
+  }
 }
 
 // Planning Tool Login Button
