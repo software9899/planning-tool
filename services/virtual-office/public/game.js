@@ -1441,7 +1441,7 @@ if (checkPlanningToolAuth()) {
 // Handle OAuth callback
 const urlParams = new URLSearchParams(window.location.search);
 const token = urlParams.get('token');
-const userName = urlParams.get('name');
+const userName = urlParams.get('username') || urlParams.get('name'); // Support both 'username' and 'name'
 const userEmail = urlParams.get('email');
 
 if (token && (userName || userEmail)) {
@@ -1459,6 +1459,13 @@ if (token && (userName || userEmail)) {
 
   // Show logged in state
   showLoggedInState(userData);
+
+  // Auto join with logged-in username
+  if (loginScreen.classList.contains('active')) {
+    usernameInput.value = userName || userEmail.split('@')[0];
+    // Optionally auto-join after login
+    // setTimeout(() => joinBtn.click(), 500);
+  }
 
   console.log('✅ Logged in with Planning Tool:', userData);
 }

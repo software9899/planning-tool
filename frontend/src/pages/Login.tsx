@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { loginUser } from '../services/api';
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -11,6 +12,10 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Get redirect URL from query params
+  const redirectUrl = searchParams.get('redirect');
+  const source = searchParams.get('source');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -71,9 +76,16 @@ export default function Login() {
           role: userInfo.role || 'member'
         };
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+        // If redirecting to Virtual Office, pass user data via query params
+        if (redirectUrl && source === 'virtual-office') {
+          const redirectWithUser = `${redirectUrl}?username=${encodeURIComponent(currentUser.name)}&email=${encodeURIComponent(currentUser.email)}&token=${encodeURIComponent(response.access_token)}`;
+          window.location.href = redirectWithUser;
+          return;
+        }
       }
 
-      // Redirect to homepage on success
+      // Default: Redirect to homepage on success
       navigate('/');
       window.location.reload(); // Reload to update auth state
     } catch (err: any) {

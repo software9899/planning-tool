@@ -772,12 +772,11 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
 async def login_redirect(redirect: str = "/", source: str = None):
     """
     Login endpoint for Virtual Office integration
-    Redirects to the specified URL (for now, just redirects back)
-    Future: Can add authentication flow here
+    Redirects to frontend login page with callback URL
     """
-    # For now, just redirect to the specified URL
-    # In the future, this can show a login page or handle OAuth
-    return RedirectResponse(url=redirect)
+    # Redirect to frontend login page with redirect URL as query parameter
+    frontend_login = f"{FRONTEND_URL}/login?redirect={redirect}&source={source or ''}"
+    return RedirectResponse(url=frontend_login)
 
 @app.post("/api/auth/forgot-password")
 def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
