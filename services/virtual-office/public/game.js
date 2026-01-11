@@ -1429,7 +1429,8 @@ function checkPlanningToolAuth() {
 
       // Auto-join lobby
       console.log('🎮 Auto-joining lobby with saved user:', finalUsername);
-      socket.emit('join', { username: finalUsername, room, userId, status: userStatus });
+      const currentStatus = localStorage.getItem('userStatus') || '';
+      socket.emit('join', { username: finalUsername, room, userId, status: currentStatus });
 
       return true;
     } catch (e) {
@@ -1503,7 +1504,8 @@ if (token && (userName || userEmail)) {
 
   // Auto-join lobby
   console.log('🎮 Auto-joining lobby with username:', finalUsername);
-  socket.emit('join', { username: finalUsername, room, userId, status: userStatus });
+  const currentStatus = localStorage.getItem('userStatus') || '';
+  socket.emit('join', { username: finalUsername, room, userId, status: currentStatus });
 }
 
 // Planning Tool Login Button
