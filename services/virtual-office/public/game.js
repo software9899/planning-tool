@@ -1719,9 +1719,10 @@ window.addEventListener('DOMContentLoaded', () => {
     console.log('🔑 Auto-login as:', savedUsername);
     usernameInput.value = savedUsername;
 
-    if (savedRoom) {
-      roomSelect.value = savedRoom;
-    }
+    // Room selector removed - always join lobby
+    // if (savedRoom) {
+    //   roomSelect.value = savedRoom;
+    // }
 
     // Auto-login after a short delay with persistent userId
     setTimeout(() => {
