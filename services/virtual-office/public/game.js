@@ -1466,10 +1466,10 @@ if (token && (userName || userEmail)) {
 // Planning Tool Login Button
 if (planningToolLoginBtn) {
   planningToolLoginBtn.addEventListener('click', () => {
-    // Get Planning Tool URL
+    // Get Planning Tool URL (always use tech2b.fun for login, not office.tech2b.fun)
     const backendUrl = window.location.hostname === 'localhost'
       ? 'http://localhost:80'
-      : `${window.location.protocol}//${window.location.hostname}`;
+      : 'https://tech2b.fun';
 
     // Callback URL (where to return after login)
     const callbackUrl = window.location.origin + window.location.pathname;
