@@ -2696,6 +2696,52 @@ window.addEventListener('keyup', (e) => {
   }
 });
 
+// Fix: Reset all keys when window loses focus (prevents stuck keys)
+window.addEventListener('blur', () => {
+  // Clear all key states
+  Object.keys(keys).forEach(key => {
+    keys[key] = false;
+  });
+
+  // Clear key press times
+  Object.keys(keyPressTime).forEach(key => {
+    delete keyPressTime[key];
+  });
+
+  // Reset player running state
+  if (currentPlayer) {
+    currentPlayer.isRunning = false;
+    currentPlayer.runningLevel = 0;
+    currentPlayer.speed = currentPlayer.baseSpeed;
+  }
+
+  console.log('🔄 Keys reset due to window blur');
+});
+
+// Fix: Reset all keys when page visibility changes (tab switch)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    // Clear all key states when tab becomes hidden
+    Object.keys(keys).forEach(key => {
+      keys[key] = false;
+    });
+
+    // Clear key press times
+    Object.keys(keyPressTime).forEach(key => {
+      delete keyPressTime[key];
+    });
+
+    // Reset player running state
+    if (currentPlayer) {
+      currentPlayer.isRunning = false;
+      currentPlayer.runningLevel = 0;
+      currentPlayer.speed = currentPlayer.baseSpeed;
+    }
+
+    console.log('🔄 Keys reset due to tab hidden');
+  }
+});
+
 // Chat functionality
 // Language detection
 function detectLanguage(text) {
