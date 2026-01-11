@@ -1403,7 +1403,34 @@ function checkPlanningToolAuth() {
   if (token && userData) {
     try {
       const user = JSON.parse(userData);
-      showLoggedInState(user);
+
+      // Auto-join lobby without showing login screen
+      const finalUsername = user.name || user.email.split('@')[0];
+      const room = 'lobby';
+
+      // Save to localStorage
+      localStorage.setItem('virtualOfficeUsername', finalUsername);
+      localStorage.setItem('virtualOfficeRoom', room);
+
+      // Get or create persistent userId
+      let userId;
+      const isGuest = sessionStorage.getItem('isGuest') === 'true';
+      const guestId = sessionStorage.getItem('guestId');
+
+      if (isGuest && guestId) {
+        userId = 'guest_' + guestId;
+      } else {
+        userId = getUserId();
+      }
+
+      // Hide login screen and show game screen
+      loginScreen.classList.remove('active');
+      gameScreen.classList.add('active');
+
+      // Auto-join lobby
+      console.log('🎮 Auto-joining lobby with saved user:', finalUsername);
+      socket.emit('join', { username: finalUsername, room, userId, status: userStatus });
+
       return true;
     } catch (e) {
       console.error('Error parsing user data:', e);
@@ -1413,24 +1440,11 @@ function checkPlanningToolAuth() {
   return false;
 }
 
-function showLoggedInState(user) {
-  loggedInUsernameSpan.textContent = user.name || user.email;
-  userInfoDiv.style.display = 'block';
-  usernameInput.style.display = 'none';
-  joinBtn.textContent = 'เข้าร่วม Virtual Office';
-  planningToolLoginBtn.style.display = 'none';
-
-  // Pre-fill username
-  usernameInput.value = user.name || user.email.split('@')[0];
-}
-
 function clearPlanningToolAuth() {
   localStorage.removeItem('planningToolToken');
   localStorage.removeItem('planningToolUser');
-  userInfoDiv.style.display = 'none';
-  usernameInput.style.display = 'block';
-  planningToolLoginBtn.style.display = 'block';
-  joinBtn.textContent = 'เข้าร่วมแบบ Guest';
+  localStorage.removeItem('virtualOfficeUsername');
+  localStorage.removeItem('virtualOfficeRoom');
 }
 
 // Check on page load
@@ -1457,35 +1471,39 @@ if (token && (userName || userEmail)) {
   // Clean URL
   window.history.replaceState({}, document.title, window.location.pathname);
 
-  // Show logged in state
-  showLoggedInState(userData);
-
   console.log('✅ Logged in with Planning Tool:', userData);
 
-  // Auto-join lobby after login
-  if (loginScreen.classList.contains('active')) {
-    const finalUsername = userName || userEmail.split('@')[0];
-    const room = 'lobby';
+  // Auto-join lobby after login (skip login screen entirely)
+  const finalUsername = userName || userEmail.split('@')[0];
+  const room = 'lobby';
 
-    // Save to localStorage
-    localStorage.setItem('virtualOfficeUsername', finalUsername);
-    localStorage.setItem('virtualOfficeRoom', room);
+  // Save to localStorage
+  localStorage.setItem('virtualOfficeUsername', finalUsername);
+  localStorage.setItem('virtualOfficeRoom', room);
 
-    // Get or create persistent userId
-    let userId;
-    const isGuest = sessionStorage.getItem('isGuest') === 'true';
-    const guestId = sessionStorage.getItem('guestId');
+  // Get or create persistent userId
+  let userId;
+  const isGuest = sessionStorage.getItem('isGuest') === 'true';
+  const guestId = sessionStorage.getItem('guestId');
 
-    if (isGuest && guestId) {
-      userId = 'guest_' + guestId;
-    } else {
-      userId = getUserId();
-    }
-
-    // Auto-join lobby
-    console.log('🎮 Auto-joining lobby with username:', finalUsername);
-    socket.emit('join', { username: finalUsername, room, userId, status: userStatus });
+  if (isGuest && guestId) {
+    userId = 'guest_' + guestId;
+  } else {
+    userId = getUserId();
   }
+
+  // Hide login screen and show loading message
+  if (loginScreen.classList.contains('active')) {
+    loginScreen.classList.remove('active');
+    gameScreen.classList.add('active');
+
+    // Show loading state
+    console.log('⏳ Loading game...');
+  }
+
+  // Auto-join lobby
+  console.log('🎮 Auto-joining lobby with username:', finalUsername);
+  socket.emit('join', { username: finalUsername, room, userId, status: userStatus });
 }
 
 // Planning Tool Login Button
@@ -1512,7 +1530,8 @@ if (logoutBtn) {
   logoutBtn.addEventListener('click', () => {
     if (confirm('ต้องการ Logout จาก Planning Tool?')) {
       clearPlanningToolAuth();
-      alert('Logout สำเร็จ!');
+      // Reload page to show login screen
+      window.location.reload();
     }
   });
 }
