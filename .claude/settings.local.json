@@ -21,7 +21,8 @@
       "Bash(pip3 install:*)",
       "Bash(killall:*)",
       "Bash(kill:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(chmod:*)"
     ]
   }
 }

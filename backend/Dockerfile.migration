@@ -1,0 +1,21 @@
+# Dockerfile for Database Migration
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install PostgreSQL client and dependencies
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy migration script
+COPY migrate_bookmarks_tags.py .
+
+# Run migration on container start
+CMD ["python", "migrate_bookmarks_tags.py"]
