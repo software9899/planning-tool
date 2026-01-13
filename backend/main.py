@@ -220,7 +220,7 @@ class Bookmark(Base):
     favicon = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
     category = Column(String(255), nullable=True, default='Uncategorized')
-    tags = Column(ARRAY(Text), nullable=True)
+    tags = Column(JSONB, nullable=True, default=list)  # Changed from ARRAY to JSONB for better compatibility
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -2077,6 +2077,119 @@ def chat_with_npc(request: dict):
         response = random.choice(npc_responses)
 
     return {"response": response}
+
+# Study Mode API - Translation and Grammar Correction
+@app.post("/api/study/translate")
+def translate_text(request: dict):
+    """
+    Translate Thai to English
+    """
+    text = request.get("text", "")
+
+    if not text:
+        return {"error": "No text provided"}
+
+    # Simple translation using keyword mapping for demo
+    # In production, you would use a proper translation API
+    translations = {
+        "สวัสดี": "Hello",
+        "ขอบคุณ": "Thank you",
+        "ลาก่อน": "Goodbye",
+        "ยินดีต้อนรับ": "Welcome",
+        "สบายดีไหม": "How are you?",
+        "ทำงาน": "work",
+        "เรียน": "study",
+        "อ่าน": "read",
+        "เขียน": "write",
+        "พูด": "speak",
+        "ฟัง": "listen",
+        "หนังสือ": "book",
+        "โต๊ะ": "table",
+        "เก้าอี้": "chair",
+        "ห้อง": "room",
+        "บ้าน": "house",
+        "โรงเรียน": "school",
+    }
+
+    # Check if text is Thai (contains Thai characters)
+    import re
+    is_thai = bool(re.search(r'[\u0E00-\u0E7F]', text))
+
+    if is_thai:
+        # Simple word-by-word translation for demo
+        words = text.split()
+        translated_words = [translations.get(word, word) for word in words]
+        english_text = " ".join(translated_words)
+
+        return {
+            "original": text,
+            "translated": english_text,
+            "detected_language": "Thai",
+            "target_language": "English"
+        }
+    else:
+        return {
+            "error": "Text is not in Thai",
+            "original": text
+        }
+
+@app.post("/api/study/correct")
+def correct_english(request: dict):
+    """
+    Correct English grammar and spelling
+    """
+    text = request.get("text", "")
+
+    if not text:
+        return {"error": "No text provided"}
+
+    # Simple grammar corrections for common mistakes
+    corrections = {
+        "i am": "I am",
+        "i'm": "I'm",
+        "dont": "don't",
+        "cant": "can't",
+        "wont": "won't",
+        "didnt": "didn't",
+        "doesnt": "doesn't",
+        "isnt": "isn't",
+        "arent": "aren't",
+        "wasnt": "wasn't",
+        "werent": "weren't",
+        "hasnt": "hasn't",
+        "havent": "haven't",
+        "hadnt": "hadn't",
+    }
+
+    corrected_text = text
+    suggestions = []
+
+    # Apply basic corrections
+    for wrong, right in corrections.items():
+        if wrong in corrected_text.lower():
+            old_text = corrected_text
+            # Case-insensitive replacement
+            import re
+            corrected_text = re.sub(r'\b' + wrong + r'\b', right, corrected_text, flags=re.IGNORECASE)
+            if old_text != corrected_text:
+                suggestions.append(f"Changed '{wrong}' to '{right}'")
+
+    # Check for capitalization at start
+    if corrected_text and not corrected_text[0].isupper():
+        corrected_text = corrected_text[0].upper() + corrected_text[1:]
+        suggestions.append("Capitalized first letter")
+
+    # Check for period at end
+    if corrected_text and corrected_text[-1] not in ['.', '!', '?']:
+        corrected_text += '.'
+        suggestions.append("Added period at end")
+
+    return {
+        "original": text,
+        "corrected": corrected_text,
+        "suggestions": suggestions,
+        "has_corrections": len(suggestions) > 0
+    }
 
 if __name__ == "__main__":
     import uvicorn

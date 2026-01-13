@@ -8179,6 +8179,14 @@ function gameLoop() {
   // Draw UI overlay on top
   drawUI();
 
+  // Check if player is in Huddle Room (Study Mode area)
+  if (currentPlayer) {
+    const currentRoom = detectRoom(currentPlayer.x, currentPlayer.y);
+    if (currentRoom.id === 'huddle-room') {
+      drawStudyModeIndicator();
+    }
+  }
+
   // Update WebRTC proximity connections (every 30 frames = ~500ms at 60fps)
   // Always check proximity, even if mic is off (to receive audio from others)
   if (frameCount % 30 === 0) {
@@ -8897,3 +8905,324 @@ function miniGameLoop() {
 
   miniGameAnimationId = requestAnimationFrame(miniGameLoop);
 }
+
+// ========================
+// Study Mode - Translation & Grammar Correction
+// ========================
+
+let studyModeActive = false;
+let lastStudyModeRoom = null;
+
+// Draw Study Mode indicator on canvas
+function drawStudyModeIndicator() {
+  const padding = 20;
+  const boxWidth = 300;
+  const boxHeight = 60;
+  const x = canvas.width - boxWidth - padding;
+  const y = padding + 60; // Below room name
+
+  // Semi-transparent background
+  ctx.fillStyle = 'rgba(102, 126, 234, 0.95)';
+  ctx.fillRect(x, y, boxWidth, boxHeight);
+
+  // Border
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, boxWidth, boxHeight);
+
+  // Icon
+  ctx.font = '24px Arial';
+  ctx.fillStyle = '#fff';
+  ctx.fillText('📚', x + 15, y + 38);
+
+  // Text
+  ctx.font = 'bold 16px Arial';
+  ctx.fillText('Study Mode Active', x + 50, y + 25);
+
+  ctx.font = '12px Arial';
+  ctx.fillText('Press S to open', x + 50, y + 45);
+}
+
+// Open Study Mode modal
+function openStudyModeModal() {
+  // Remove existing modal if any
+  const existingModal = document.getElementById('study-mode-modal');
+  if (existingModal) {
+    existingModal.remove();
+  }
+
+  // Create modal
+  const modal = document.createElement('div');
+  modal.id = 'study-mode-modal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    max-width: 90vw;
+    max-height: 80vh;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    z-index: 10001;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  `;
+
+  modal.innerHTML = `
+    <div style="
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    ">
+      <div>
+        <h2 style="margin: 0; font-size: 24px; display: flex; align-items: center; gap: 10px;">
+          📚 Study Mode
+        </h2>
+        <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">
+          ไทย → English | English Grammar Correction
+        </p>
+      </div>
+      <button id="close-study-modal" style="
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid white;
+        color: white;
+        font-size: 24px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+      ">×</button>
+    </div>
+
+    <div style="padding: 24px; flex: 1; overflow-y: auto;">
+      <!-- Input Section -->
+      <div style="margin-bottom: 20px;">
+        <label style="
+          display: block;
+          font-weight: 600;
+          margin-bottom: 8px;
+          color: #333;
+          font-size: 14px;
+        ">✍️ Your Text:</label>
+        <textarea id="study-input" placeholder="พิมพ์ภาษาไทยเพื่อแปล หรือภาษาอังกฤษเพื่อแก้ไข..." style="
+          width: 100%;
+          min-height: 120px;
+          padding: 12px;
+          border: 2px solid #ddd;
+          border-radius: 8px;
+          font-size: 16px;
+          font-family: Arial, sans-serif;
+          resize: vertical;
+          box-sizing: border-box;
+        "></textarea>
+      </div>
+
+      <!-- Buttons -->
+      <div style="display: flex; gap: 12px; margin-bottom: 24px;">
+        <button id="translate-btn" style="
+          flex: 1;
+          padding: 12px 24px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        ">🔤 Translate (TH→EN)</button>
+        <button id="correct-btn" style="
+          flex: 1;
+          padding: 12px 24px;
+          background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        ">✏️ Correct English</button>
+      </div>
+
+      <!-- Result Section -->
+      <div id="study-result" style="display: none;">
+        <div style="
+          background: #f0f4ff;
+          padding: 16px;
+          border-radius: 8px;
+          border: 2px solid #667eea;
+        ">
+          <div style="
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #667eea;
+            font-size: 14px;
+          " id="result-label">Result:</div>
+          <div style="
+            font-size: 16px;
+            line-height: 1.6;
+            color: #333;
+            white-space: pre-wrap;
+          " id="result-text"></div>
+          <div id="suggestions-list" style="
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #d0d9ff;
+          "></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  studyModeActive = true;
+
+  // Add backdrop
+  const backdrop = document.createElement('div');
+  backdrop.id = 'study-mode-backdrop';
+  backdrop.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+  `;
+  document.body.appendChild(backdrop);
+
+  // Event listeners
+  document.getElementById('close-study-modal').addEventListener('click', closeStudyModeModal);
+  backdrop.addEventListener('click', closeStudyModeModal);
+
+  document.getElementById('translate-btn').addEventListener('click', async () => {
+    const text = document.getElementById('study-input').value.trim();
+    if (!text) {
+      alert('กรุณาพิมพ์ข้อความที่ต้องการแปล');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/study/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      // Show result
+      document.getElementById('result-label').textContent = `🔤 Translated (${data.detected_language} → ${data.target_language}):`;
+      document.getElementById('result-text').textContent = data.translated;
+      document.getElementById('suggestions-list').innerHTML = '';
+      document.getElementById('study-result').style.display = 'block';
+
+    } catch (error) {
+      console.error('Translation error:', error);
+      alert('เกิดข้อผิดพลาดในการแปล กรุณาลองใหม่อีกครั้ง');
+    }
+  });
+
+  document.getElementById('correct-btn').addEventListener('click', async () => {
+    const text = document.getElementById('study-input').value.trim();
+    if (!text) {
+      alert('Please enter text to correct');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/study/correct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      // Show result
+      document.getElementById('result-label').textContent = '✏️ Corrected English:';
+      document.getElementById('result-text').textContent = data.corrected;
+
+      // Show suggestions
+      const suggestionsList = document.getElementById('suggestions-list');
+      if (data.suggestions && data.suggestions.length > 0) {
+        suggestionsList.innerHTML = `
+          <div style="font-size: 13px; color: #667eea; font-weight: 600; margin-bottom: 8px;">
+            📝 Corrections made:
+          </div>
+          ${data.suggestions.map(s => `
+            <div style="font-size: 13px; color: #555; margin: 4px 0; padding-left: 16px;">
+              • ${s}
+            </div>
+          `).join('')}
+        `;
+      } else {
+        suggestionsList.innerHTML = `
+          <div style="font-size: 13px; color: #48bb78; font-weight: 600;">
+            ✅ No corrections needed - looks good!
+          </div>
+        `;
+      }
+
+      document.getElementById('study-result').style.display = 'block';
+
+    } catch (error) {
+      console.error('Correction error:', error);
+      alert('Error correcting text. Please try again.');
+    }
+  });
+
+  // Focus on input
+  document.getElementById('study-input').focus();
+}
+
+function closeStudyModeModal() {
+  const modal = document.getElementById('study-mode-modal');
+  const backdrop = document.getElementById('study-mode-backdrop');
+
+  if (modal) modal.remove();
+  if (backdrop) backdrop.remove();
+
+  studyModeActive = false;
+}
+
+// Add keyboard shortcut - S key to open Study Mode when in Huddle Room
+document.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 's' && !studyModeActive && currentPlayer) {
+    const currentRoom = detectRoom(currentPlayer.x, currentPlayer.y);
+    if (currentRoom.id === 'huddle-room') {
+      // Don't open if typing in chat or other input
+      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+        return;
+      }
+      e.preventDefault();
+      openStudyModeModal();
+    }
+  }
+
+  // ESC to close Study Mode
+  if (e.key === 'Escape' && studyModeActive) {
+    closeStudyModeModal();
+  }
+});

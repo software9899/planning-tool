@@ -1051,6 +1051,58 @@ app.delete('/api/collections/:name/members/:username', async (req, res) => {
   }
 });
 
+// Study Mode - Translate Thai to English
+app.post('/api/study/translate', async (req, res) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8002';
+    console.log(`🔤 Translating text:`, req.body.text);
+
+    const response = await fetch(`${backendUrl}/api/study/translate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(req.body),
+      timeout: 5000
+    });
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error translating:', error.message);
+    res.status(500).json({
+      error: true,
+      message: `Cannot connect to Planning Tool Backend: ${error.message}`
+    });
+  }
+});
+
+// Study Mode - Correct English grammar
+app.post('/api/study/correct', async (req, res) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8002';
+    console.log(`✏️  Correcting text:`, req.body.text);
+
+    const response = await fetch(`${backendUrl}/api/study/correct`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(req.body),
+      timeout: 5000
+    });
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error correcting:', error.message);
+    res.status(500).json({
+      error: true,
+      message: `Cannot connect to Planning Tool Backend: ${error.message}`
+    });
+  }
+});
+
 // Start server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
