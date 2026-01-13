@@ -196,8 +196,29 @@
       <div style="display: flex; height: calc(100% - 60px); overflow: hidden;">
         <!-- Main Bookmark Area -->
         <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-          <!-- Toolbar -->
-          <div id="bookmark-toolbar" style="padding: 12px; border-bottom: 1px solid #e0e0e0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #fafafa;">
+          <!-- Toolbar (Categories) -->
+          <div id="bookmark-toolbar" style="padding: 12px; border-bottom: 1px solid #e0e0e0; background: #fafafa; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <!-- Category tabs (left side) -->
+            <div id="category-tabs" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <!-- Categories will be dynamically added here -->
+            </div>
+
+            <!-- Separator -->
+            <div style="width: 1px; height: 24px; background: #d0d0d0; margin: 0 4px;"></div>
+
+            <!-- Action buttons (right side) -->
+            <button class="toolbar-btn" id="add-category-btn" title="Add Category" style="background: #667eea; color: white; border-color: #667eea;">
+              <span style="font-size: 14px;">📁</span>
+              <span style="font-size: 11px; margin-left: 4px;">ADD CATEGORY</span>
+            </button>
+            <button class="toolbar-btn" id="add-section-btn" title="Add Section" style="background: #10b981; color: white; border-color: #10b981;">
+              <span style="font-size: 14px;">➕</span>
+              <span style="font-size: 11px; margin-left: 4px;">ADD SECTION</span>
+            </button>
+            <button class="toolbar-btn" id="share-category-btn" title="Share Category" style="background: #667eea; color: white; border-color: #667eea; margin-left: auto;">
+              <span style="font-size: 14px;">👥</span>
+              <span style="font-size: 11px; margin-left: 4px;">SHARE</span>
+            </button>
             <button class="toolbar-btn" id="expand-all-btn" title="Expand All">
               <span style="font-size: 14px;">📂</span>
               <span style="font-size: 11px; margin-left: 4px;">EXPAND</span>
@@ -205,10 +226,6 @@
             <button class="toolbar-btn" id="collapse-all-btn" title="Collapse All">
               <span style="font-size: 14px;">📁</span>
               <span style="font-size: 11px; margin-left: 4px;">COLLAPSE</span>
-            </button>
-            <button class="toolbar-btn" id="add-collection-btn" title="Add Collection" style="background: #10b981; color: white; border-color: #10b981;">
-              <span style="font-size: 14px;">➕</span>
-              <span style="font-size: 11px; margin-left: 4px;">ADD COLLECTION</span>
             </button>
           </div>
 

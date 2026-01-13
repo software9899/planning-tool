@@ -219,10 +219,34 @@ class Bookmark(Base):
     url = Column(Text, nullable=False)
     favicon = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
+    category = Column(String(255), nullable=True, default='Uncategorized')
     tags = Column(ARRAY(Text), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class Collection(Base):
+    __tablename__ = "collections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, unique=True)
+    category = Column(String(255), nullable=True, default='General')
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class CollectionMember(Base):
+    __tablename__ = "collection_members"
+
+    id = Column(Integer, primary_key=True, index=True)
+    collection_id = Column(Integer, ForeignKey("collections.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(50), default="member")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('collection_id', 'user_id', name='unique_collection_member'),
+    )
 
 # Create all tables
 Base.metadata.create_all(bind=engine)
@@ -473,6 +497,7 @@ class BookmarkCreate(BaseModel):
     url: str
     favicon: Optional[str] = None
     description: Optional[str] = None
+    category: Optional[str] = 'Uncategorized'
     tags: Optional[List[str]] = []
 
 class BookmarkUpdate(BaseModel):
@@ -480,6 +505,7 @@ class BookmarkUpdate(BaseModel):
     url: Optional[str] = None
     favicon: Optional[str] = None
     description: Optional[str] = None
+    category: Optional[str] = None
     tags: Optional[List[str]] = None
 
 class BookmarkResponse(BaseModel):
@@ -488,8 +514,51 @@ class BookmarkResponse(BaseModel):
     url: str
     favicon: Optional[str]
     description: Optional[str]
+    category: Optional[str]
     tags: Optional[List[str]]
     user_id: Optional[int]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class CollectionCreate(BaseModel):
+    name: str
+    category: Optional[str] = 'General'
+
+class CollectionResponse(BaseModel):
+    id: int
+    name: str
+    category: Optional[str]
+    owner_id: Optional[int]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class CollectionMemberAdd(BaseModel):
+    username: str
+    role: Optional[str] = "member"
+
+class CollectionMemberResponse(BaseModel):
+    id: int
+    collection_id: int
+    user_id: int
+    username: str
+    role: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class CollectionWithMembers(BaseModel):
+    id: int
+    name: str
+    category: Optional[str]
+    owner_id: Optional[int]
+    members: List[CollectionMemberResponse]
     created_at: datetime
     updated_at: datetime
 
@@ -1760,6 +1829,7 @@ def create_bookmark(bookmark: BookmarkCreate, db: Session = Depends(get_db)):
         url=bookmark.url,
         favicon=bookmark.favicon,
         description=bookmark.description,
+        category=bookmark.category,
         tags=bookmark.tags,
         user_id=None  # You can add user authentication later
     )
@@ -1783,6 +1853,8 @@ def update_bookmark(bookmark_id: int, bookmark: BookmarkUpdate, db: Session = De
         db_bookmark.favicon = bookmark.favicon
     if bookmark.description is not None:
         db_bookmark.description = bookmark.description
+    if bookmark.category is not None:
+        db_bookmark.category = bookmark.category
     if bookmark.tags is not None:
         db_bookmark.tags = bookmark.tags
 
@@ -1801,6 +1873,210 @@ def delete_bookmark(bookmark_id: int, db: Session = Depends(get_db)):
     db.delete(db_bookmark)
     db.commit()
     return {"message": "Bookmark deleted successfully"}
+
+# ==================== Collections API ====================
+
+@app.get("/api/collections", response_model=List[CollectionResponse])
+def get_collections(db: Session = Depends(get_db)):
+    """Get all collections"""
+    collections = db.query(Collection).order_by(Collection.created_at.desc()).all()
+    return collections
+
+@app.post("/api/collections", response_model=CollectionResponse, status_code=201)
+def create_collection(collection: CollectionCreate, db: Session = Depends(get_db)):
+    """Create a new collection"""
+    existing = db.query(Collection).filter(Collection.name == collection.name).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Collection name already exists")
+
+    db_collection = Collection(
+        name=collection.name,
+        category=collection.category,
+        owner_id=None
+    )
+    db.add(db_collection)
+    db.commit()
+    db.refresh(db_collection)
+    return db_collection
+
+@app.put("/api/collections/{collection_name}")
+def update_collection(collection_name: str, updates: dict, db: Session = Depends(get_db)):
+    """Update a collection"""
+    collection = db.query(Collection).filter(Collection.name == collection_name).first()
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    # Update category if provided
+    if 'category' in updates:
+        collection.category = updates['category']
+
+    collection.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(collection)
+    return collection
+
+@app.get("/api/collections/{collection_name}", response_model=CollectionWithMembers)
+def get_collection(collection_name: str, db: Session = Depends(get_db)):
+    """Get a collection by name with its members"""
+    collection = db.query(Collection).filter(Collection.name == collection_name).first()
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    members = db.query(CollectionMember, User).join(
+        User, CollectionMember.user_id == User.id
+    ).filter(
+        CollectionMember.collection_id == collection.id
+    ).all()
+
+    member_responses = [
+        {
+            "id": member.CollectionMember.id,
+            "collection_id": member.CollectionMember.collection_id,
+            "user_id": member.CollectionMember.user_id,
+            "username": member.User.name,
+            "role": member.CollectionMember.role,
+            "created_at": member.CollectionMember.created_at
+        }
+        for member in members
+    ]
+
+    return {
+        "id": collection.id,
+        "name": collection.name,
+        "category": collection.category,
+        "owner_id": collection.owner_id,
+        "members": member_responses,
+        "created_at": collection.created_at,
+        "updated_at": collection.updated_at
+    }
+
+@app.post("/api/collections/{collection_name}/members", response_model=CollectionMemberResponse, status_code=201)
+def add_member_to_collection(
+    collection_name: str,
+    member: CollectionMemberAdd,
+    db: Session = Depends(get_db)
+):
+    """Add a member to a collection"""
+    collection = db.query(Collection).filter(Collection.name == collection_name).first()
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    user = db.query(User).filter(User.name == member.username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    existing_member = db.query(CollectionMember).filter(
+        CollectionMember.collection_id == collection.id,
+        CollectionMember.user_id == user.id
+    ).first()
+
+    if existing_member:
+        raise HTTPException(status_code=400, detail="User is already a member of this collection")
+
+    db_member = CollectionMember(
+        collection_id=collection.id,
+        user_id=user.id,
+        role=member.role
+    )
+    db.add(db_member)
+    db.commit()
+    db.refresh(db_member)
+
+    return {
+        "id": db_member.id,
+        "collection_id": db_member.collection_id,
+        "user_id": db_member.user_id,
+        "username": user.name,
+        "role": db_member.role,
+        "created_at": db_member.created_at
+    }
+
+@app.delete("/api/collections/{collection_name}/members/{username}")
+def remove_member_from_collection(
+    collection_name: str,
+    username: str,
+    db: Session = Depends(get_db)
+):
+    """Remove a member from a collection"""
+    collection = db.query(Collection).filter(Collection.name == collection_name).first()
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    user = db.query(User).filter(User.name == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    member = db.query(CollectionMember).filter(
+        CollectionMember.collection_id == collection.id,
+        CollectionMember.user_id == user.id
+    ).first()
+
+    if not member:
+        raise HTTPException(status_code=404, detail="User is not a member of this collection")
+
+    db.delete(member)
+    db.commit()
+
+    return {"message": "Member removed successfully"}
+
+@app.delete("/api/collections/{collection_name}")
+def delete_collection(collection_name: str, db: Session = Depends(get_db)):
+    """Delete a collection"""
+    collection = db.query(Collection).filter(Collection.name == collection_name).first()
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    db.delete(collection)
+    db.commit()
+
+    return {"message": "Collection deleted successfully"}
+
+# NPC Chat API
+@app.post("/api/chat/npc")
+def chat_with_npc(request: dict):
+    """
+    Chat with NPC using simple AI responses
+    """
+    npc_name = request.get("npc_name", "NPC")
+    message = request.get("message", "")
+    history = request.get("history", [])
+
+    # Simple AI response based on NPC personality
+    responses = {
+        "เจ้านายห้อง Game": [
+            "ยินดีต้อนรับสู่ Game Room! ที่นี่เป็นพื้นที่สำหรับพักผ่อนและเล่นเกมครับ 🎮",
+            "คุณสนใจเล่นเกมอะไรไหม? เรามีมินิเกมในห้องนี้ด้วยนะ!",
+            "ที่ Game Room นี้ คุณสามารถพักผ่อน หรือเล่นเกมกับเพื่อนร่วมงานได้เลย 😊",
+            "อย่าลืมพักสายตาบ้างนะครับ เล่นเกมนานๆ ต้องพักด้วย!",
+            "ถ้าต้องการอะไร บอกผมได้เลยนะครับ ผมคือเจ้านายห้องนี้ 👑"
+        ]
+    }
+
+    # Get appropriate response
+    npc_responses = responses.get(npc_name, [
+        f"สวัสดีครับ! ผมคือ {npc_name} มีอะไรให้ช่วยไหม?",
+        "ยินดีต้อนรับครับ!",
+        "มีคำถามอะไรไหมครับ?"
+    ])
+
+    # Simple context-aware responses
+    message_lower = message.lower()
+    if any(word in message_lower for word in ["สวัสดี", "hello", "hi", "หวัดดี"]):
+        response = f"สวัสดีครับ! ยินดีที่ได้พบคุณที่ {npc_name} 😊"
+    elif any(word in message_lower for word in ["เกม", "game", "เล่น"]):
+        response = "เรามีมินิเกมในห้องนี้นะครับ! คุณสามารถเล่นเพื่อคลายเครียดได้เลย 🎮"
+    elif any(word in message_lower for word in ["ทำงาน", "work", "งาน"]):
+        response = "Game Room เป็นที่พักผ่อนสำหรับคนทำงานครับ พักผ่อนดีๆ แล้วค่อยกลับไปทำงานต่อนะ 💪"
+    elif any(word in message_lower for word in ["ขอบคุณ", "thank", "thx"]):
+        response = "ยินดีครับ! มีอะไรให้ช่วยอีกบอกได้เลยนะ 😊"
+    elif any(word in message_lower for word in ["ลาก่อน", "bye", "บาย"]):
+        response = "ลาก่อนครับ! กลับมาเล่นใหม่นะ 👋"
+    else:
+        # Random response from list
+        import random
+        response = random.choice(npc_responses)
+
+    return {"response": response}
 
 if __name__ == "__main__":
     import uvicorn

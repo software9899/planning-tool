@@ -15,6 +15,7 @@ class Bookmark(Base):
     url = Column(Text, nullable=False)
     favicon = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
+    category = Column(String(255), nullable=True, default='Uncategorized')
     tags = Column(ARRAY(Text), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

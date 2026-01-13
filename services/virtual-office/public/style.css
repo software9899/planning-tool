@@ -1802,3 +1802,50 @@ body {
 .tab-add-btn:hover {
   background: rgba(102, 126, 234, 0.1);
 }
+
+/* ========== Drag and Drop Animations ========== */
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Dragging state */
+.tab-item[draggable="true"] {
+  cursor: grab;
+  transition: all 0.2s;
+}
+
+.tab-item[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.tab-item[draggable="true"]:hover {
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+/* Collection drop zone highlight */
+.collection-header {
+  transition: all 0.2s;
+}
+
+.collection-header:hover {
+  background: #f5f5f5;
+}

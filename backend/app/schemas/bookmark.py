@@ -12,6 +12,7 @@ class BookmarkCreate(BaseModel):
     url: str
     favicon: Optional[str] = None
     description: Optional[str] = None
+    category: Optional[str] = 'Uncategorized'
     tags: Optional[List[str]] = []
 
 
@@ -21,6 +22,7 @@ class BookmarkUpdate(BaseModel):
     url: Optional[str] = None
     favicon: Optional[str] = None
     description: Optional[str] = None
+    category: Optional[str] = None
     tags: Optional[List[str]] = None
 
 
@@ -31,6 +33,7 @@ class BookmarkResponse(BaseModel):
     url: str
     favicon: Optional[str]
     description: Optional[str]
+    category: Optional[str]
     tags: Optional[List[str]]
     user_id: Optional[int]
     created_at: datetime

@@ -1358,6 +1358,8 @@ class Player {
   }
 }
 
+// NPC Boss removed
+
 // Join game
 joinBtn.addEventListener('click', () => {
   const username = usernameInput.value.trim();
@@ -2605,6 +2607,8 @@ window.addEventListener('keydown', (e) => {
     console.log('🏠 Cmd/Ctrl+H: Teleporting to spawn point');
     e.preventDefault();
   }
+
+  // NPC interaction removed
 
   // Emergency reset on Escape key (cancel jump, reset states)
   if (e.key === 'Escape' && currentPlayer) {
@@ -6682,75 +6686,225 @@ if (refreshBookmarksBtn) {
 }
 
 // Load bookmarks from Planning Tool API
+// State for active category
+let activeCategory = 'Personal';
+let allCollections = [];
+
 async function loadBookmarks() {
-  const bookmarkList = document.getElementById('bookmark-list');
-  if (!bookmarkList) return;
-
-  // Show loading
-  bookmarkList.innerHTML = '<div style="padding: 40px 20px; text-align: center; color: #999; font-size: 14px;">⏳ กำลังโหลด...</div>';
-
   try {
-    // Fetch bookmarks from local proxy (which forwards to Planning Tool Backend)
-    const response = await fetch('/api/bookmarks');
+    // Fetch all collections
+    const collectionsResponse = await fetch('/api/collections');
+    if (!collectionsResponse.ok) {
+      throw new Error('Failed to fetch collections');
+    }
+    allCollections = await collectionsResponse.json();
 
-    if (!response.ok) {
+    // Fetch all bookmarks
+    const bookmarksResponse = await fetch('/api/bookmarks');
+    if (!bookmarksResponse.ok) {
       throw new Error('Failed to fetch bookmarks');
     }
+    const bookmarksData = await bookmarksResponse.json();
+    const bookmarks = bookmarksData.bookmarks || [];
 
-    const data = await response.json();
-    const bookmarks = data.bookmarks || [];
+    // Build categories from collections
+    loadCategories();
 
-    bookmarkList.innerHTML = '';
+    // Load sections for active category
+    loadSections();
 
-    // Check if there's an error from backend
-    if (data.error) {
-      const errorMsg = document.createElement('div');
-      errorMsg.style.cssText = 'padding: 40px 20px; text-align: center; font-size: 14px;';
-      errorMsg.innerHTML = `
-        <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
-        <div style="color: #ff5252; font-weight: 600; margin-bottom: 8px;">ไม่สามารถเชื่อมต่อ Backend ได้</div>
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px;">${data.message || 'Unknown error'}</div>
-        <div style="color: #999; font-size: 11px; margin-top: 8px;">Backend: ${data.backendUrl || 'Unknown'}</div>
-        <button onclick="loadBookmarks()" style="margin-top: 16px; padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">
-          🔄 ลองอีกครั้ง
-        </button>
-      `;
-      bookmarkList.appendChild(errorMsg);
-      return;
-    }
-
-    if (bookmarks.length === 0) {
-      const emptyMsg = document.createElement('div');
-      emptyMsg.style.cssText = 'padding: 40px 20px; text-align: center; color: #999; font-size: 14px;';
-      emptyMsg.textContent = 'ยังไม่มี Bookmark';
-      bookmarkList.appendChild(emptyMsg);
-      return;
-    }
-
-    // Group bookmarks by category
-    const groupedBookmarks = {};
-    bookmarks.forEach(bookmark => {
-      const category = bookmark.category || 'Uncategorized';
-      if (!groupedBookmarks[category]) {
-        groupedBookmarks[category] = [];
-      }
-      groupedBookmarks[category].push(bookmark);
-    });
-
-    // Display collections
-    Object.entries(groupedBookmarks).forEach(([category, items]) => {
-      createBookmarkCollection(category, items);
-    });
-
-    console.log('🔖 Loaded', bookmarks.length, 'bookmarks in', Object.keys(groupedBookmarks).length, 'collections');
+    console.log('🔖 Loaded', allCollections.length, 'sections and', bookmarks.length, 'bookmarks');
 
   } catch (error) {
     console.error('❌ Error loading bookmarks:', error);
+    const bookmarkList = document.getElementById('bookmark-list');
+    if (bookmarkList) {
+      bookmarkList.innerHTML = `
+        <div style="padding: 40px 20px; text-align: center; color: #ff5252; font-size: 14px;">
+          <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
+          <div>ไม่สามารถโหลด Bookmarks ได้</div>
+          <div style="font-size: 12px; margin-top: 8px; color: #999;">กรุณาตรวจสอบว่า Planning Tool API ทำงานอยู่</div>
+        </div>
+      `;
+    }
+  }
+}
+
+// Load categories from collections
+function loadCategories() {
+  const categoryTabs = document.getElementById('category-tabs');
+  if (!categoryTabs) return;
+
+  // Get unique categories and sort them (newest first, except Personal)
+  const otherCategories = [...new Set(allCollections.map(c => c.category).filter(c => c && c !== 'Personal'))];
+  otherCategories.reverse(); // Newest categories appear on the left
+  const categories = ['Personal', ...otherCategories];
+
+  categoryTabs.innerHTML = '';
+
+  categories.forEach(category => {
+    const tab = document.createElement('button');
+    tab.className = 'toolbar-btn';
+    tab.innerHTML = `
+      <span style="font-size: 14px;">📁</span>
+      <span style="font-size: 11px; margin-left: 4px;">${category}</span>
+    `;
+    tab.style.cssText = `
+      ${activeCategory === category ? 'background: #667eea; color: white; border-color: #667eea;' : ''}
+    `;
+
+    // Single click - switch category
+    tab.addEventListener('click', () => {
+      activeCategory = category;
+      loadCategories();
+      loadSections();
+    });
+
+    // Double click - rename category (except Personal)
+    if (category !== 'Personal') {
+      tab.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        renameCategory(category);
+      });
+      tab.title = `${category} (Double-click to rename)`;
+    } else {
+      tab.title = category;
+    }
+
+    categoryTabs.appendChild(tab);
+  });
+}
+
+// Rename category function
+async function renameCategory(oldCategoryName) {
+  const newCategoryName = prompt(`Rename category "${oldCategoryName}" to:`, oldCategoryName);
+
+  if (!newCategoryName || newCategoryName.trim() === '' || newCategoryName.trim() === oldCategoryName) {
+    return;
+  }
+
+  const trimmedName = newCategoryName.trim();
+
+  try {
+    console.log(`🔄 Renaming category from "${oldCategoryName}" to "${trimmedName}"`);
+
+    // Update all collections that belong to this category
+    const collectionsToUpdate = allCollections.filter(c => c.category === oldCategoryName);
+
+    for (const collection of collectionsToUpdate) {
+      const response = await fetch(`/api/collections/${encodeURIComponent(collection.name)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          category: trimmedName
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update collection: ${collection.name}`);
+      }
+
+      // Update in local array
+      collection.category = trimmedName;
+    }
+
+    // Update active category if it was the one being renamed
+    if (activeCategory === oldCategoryName) {
+      activeCategory = trimmedName;
+    }
+
+    // Reload categories and sections
+    loadCategories();
+    loadSections();
+    showNotification(`✅ Renamed category to "${trimmedName}"`, 'success');
+    console.log('✅ Category renamed successfully');
+
+  } catch (error) {
+    console.error('❌ Error renaming category:', error);
+    showNotification(`❌ ${error.message}`, 'error');
+  }
+}
+
+// Load sections for active category
+async function loadSections() {
+  const bookmarkList = document.getElementById('bookmark-list');
+  if (!bookmarkList) return;
+
+  bookmarkList.innerHTML = '<div style="padding: 40px 20px; text-align: center; color: #999; font-size: 14px;">⏳ กำลังโหลด...</div>';
+
+  try {
+    // Filter collections by active category
+    let sections = allCollections.filter(c => (c.category || 'Personal') === activeCategory);
+
+    // Ensure default section exists (section name = category name)
+    const defaultSectionName = activeCategory;
+    const hasDefaultSection = sections.some(s => s.name === defaultSectionName);
+
+    if (!hasDefaultSection && sections.length === 0) {
+      // Create default section automatically (only if category is completely empty)
+      try {
+        const response = await fetch('/api/collections', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: defaultSectionName,
+            category: activeCategory
+          })
+        });
+
+        if (response.ok) {
+          const newSection = await response.json();
+          allCollections.push(newSection);
+          sections.push(newSection);
+          console.log('✅ Auto-created default section:', defaultSectionName);
+        }
+      } catch (error) {
+        console.error('❌ Error creating default section:', error);
+      }
+    }
+
+    bookmarkList.innerHTML = '';
+
+    // Fetch bookmarks for each section
+    const bookmarksResponse = await fetch('/api/bookmarks');
+    const bookmarksData = await bookmarksResponse.json();
+    const allBookmarks = bookmarksData.bookmarks || [];
+
+    // Group bookmarks by section (collection name)
+    const bookmarksBySection = {};
+    allBookmarks.forEach(bookmark => {
+      const sectionName = bookmark.category || 'Uncategorized';
+      if (!bookmarksBySection[sectionName]) {
+        bookmarksBySection[sectionName] = [];
+      }
+      bookmarksBySection[sectionName].push(bookmark);
+    });
+
+    // Sort sections: default section first, then others
+    sections.sort((a, b) => {
+      if (a.name === defaultSectionName) return -1;
+      if (b.name === defaultSectionName) return 1;
+      return 0;
+    });
+
+    // Display each section
+    sections.forEach(section => {
+      const sectionBookmarks = bookmarksBySection[section.name] || [];
+      createBookmarkCollection(section.name, sectionBookmarks);
+    });
+
+    console.log('📂 Loaded', sections.length, 'sections for category:', activeCategory);
+
+  } catch (error) {
+    console.error('❌ Error loading sections:', error);
     bookmarkList.innerHTML = `
       <div style="padding: 40px 20px; text-align: center; color: #ff5252; font-size: 14px;">
         <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
-        <div>ไม่สามารถโหลด Bookmarks ได้</div>
-        <div style="font-size: 12px; margin-top: 8px; color: #999;">กรุณาตรวจสอบว่า Planning Tool API ทำงานอยู่</div>
+        <div>ไม่สามารถโหลด Sections ได้</div>
       </div>
     `;
   }
@@ -6767,44 +6921,146 @@ function createBookmarkCollection(category, bookmarks) {
   // Collection header
   const header = document.createElement('div');
   header.className = 'collection-header';
-  header.innerHTML = `
+
+  const leftSection = document.createElement('div');
+  leftSection.style.cssText = 'display: flex; align-items: center; gap: 8px; flex: 1;';
+  leftSection.innerHTML = `
     <span class="collection-icon">▼</span>
     <span class="collection-title">${category}</span>
     <span class="collection-count">${bookmarks.length}</span>
   `;
 
+  // Delete button
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'collection-delete-btn';
+  deleteBtn.innerHTML = '🗑️ Delete';
+  deleteBtn.title = 'Delete this section';
+  deleteBtn.style.cssText = `
+    padding: 4px 12px;
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid #ef4444;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 8px;
+  `;
+
+  deleteBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+
+    // Confirm deletion
+    if (!confirm(`คุณต้องการลบ section "${category}" ใช่หรือไม่?\n\nBookmarks ทั้งหมดใน section นี้จะถูกลบด้วย`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/collections/${encodeURIComponent(category)}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete collection');
+      }
+
+      // Remove from local array
+      allCollections = allCollections.filter(c => c.name !== category);
+
+      // Reload sections
+      loadSections();
+      showNotification(`✅ ลบ section "${category}" เรียบร้อยแล้ว`, 'success');
+    } catch (error) {
+      console.error('❌ Error deleting section:', error);
+      showNotification(`❌ ไม่สามารถลบ section ได้: ${error.message}`, 'error');
+    }
+  });
+
+  deleteBtn.addEventListener('mouseenter', () => {
+    deleteBtn.style.background = '#ef4444';
+    deleteBtn.style.color = 'white';
+  });
+
+  deleteBtn.addEventListener('mouseleave', () => {
+    deleteBtn.style.background = 'rgba(239, 68, 68, 0.1)';
+    deleteBtn.style.color = '#ef4444';
+  });
+
+  header.appendChild(leftSection);
+  header.appendChild(deleteBtn);
+
+  // Make header droppable
+  header.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    header.style.background = '#e0e7ff';
+    header.style.borderColor = '#667eea';
+    header.style.transform = 'scale(1.02)';
+  });
+
+  header.addEventListener('dragleave', (e) => {
+    header.style.background = '';
+    header.style.borderColor = '';
+    header.style.transform = '';
+  });
+
+  header.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    header.style.background = '';
+    header.style.borderColor = '';
+    header.style.transform = '';
+
+    try {
+      const tabData = JSON.parse(e.dataTransfer.getData('application/json'));
+      console.log('📥 Dropped tab to collection:', category, tabData.title);
+
+      // Add to bookmarks with this category
+      await addTabToBookmarks(tabData, category);
+    } catch (error) {
+      console.error('Error dropping tab:', error);
+    }
+  });
+
   // Collection items container
   const itemsContainer = document.createElement('div');
   itemsContainer.className = 'collection-items';
 
-  // Add bookmark items
-  bookmarks.forEach(bookmark => {
-    const item = document.createElement('div');
-    item.className = 'bookmark-item';
+  // Add bookmark items or empty message
+  if (bookmarks.length === 0) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.style.cssText = 'padding: 16px; text-align: center; color: #999; font-size: 12px; background: #f9f9f9; border-radius: 6px; margin: 8px 0;';
+    emptyMsg.textContent = 'ยังไม่มี bookmarks ใน collection นี้';
+    itemsContainer.appendChild(emptyMsg);
+  } else {
+    bookmarks.forEach(bookmark => {
+      const item = document.createElement('div');
+      item.className = 'bookmark-item';
 
-    const favicon = document.createElement('img');
-    favicon.className = 'bookmark-favicon';
-    favicon.src = bookmark.favicon || `https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=32`;
-    favicon.onerror = () => {
-      favicon.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">🔖</text></svg>';
-    };
+      const favicon = document.createElement('img');
+      favicon.className = 'bookmark-favicon';
+      favicon.src = bookmark.favicon || `https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=32`;
+      favicon.onerror = () => {
+        favicon.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">🔖</text></svg>';
+      };
 
-    const content = document.createElement('div');
-    content.className = 'bookmark-content';
-    content.innerHTML = `
-      <div class="bookmark-title">${bookmark.title || 'Untitled'}</div>
-      <div class="bookmark-url">${bookmark.url}</div>
-    `;
+      const content = document.createElement('div');
+      content.className = 'bookmark-content';
+      content.innerHTML = `
+        <div class="bookmark-title">${bookmark.title || 'Untitled'}</div>
+        <div class="bookmark-url">${bookmark.url}</div>
+      `;
 
-    item.appendChild(favicon);
-    item.appendChild(content);
+      item.appendChild(favicon);
+      item.appendChild(content);
 
-    item.addEventListener('click', () => {
-      window.open(bookmark.url, '_blank');
+      item.addEventListener('click', () => {
+        window.open(bookmark.url, '_blank');
+      });
+
+      itemsContainer.appendChild(item);
     });
-
-    itemsContainer.appendChild(item);
-  });
+  }
 
   // Toggle collapse/expand
   header.addEventListener('click', () => {
@@ -6847,10 +7103,85 @@ document.getElementById('collapse-all-btn')?.addEventListener('click', () => {
 });
 
 // Add collection button
-document.getElementById('add-collection-btn')?.addEventListener('click', () => {
-  const collectionName = prompt('ชื่อ Collection ใหม่:');
-  if (collectionName && collectionName.trim()) {
-    createBookmarkCollection(collectionName.trim(), []);
+// Add category button
+document.getElementById('add-category-btn')?.addEventListener('click', async () => {
+  const categoryName = prompt('ชื่อ Category ใหม่:');
+  if (categoryName && categoryName.trim()) {
+    console.log('📁 Creating new category:', categoryName.trim());
+
+    try {
+      // Create default section for the new category (section name = category name)
+      const response = await fetch('/api/collections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: categoryName.trim(),
+          category: categoryName.trim()
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to create category');
+      }
+
+      const newSection = await response.json();
+      allCollections.push(newSection);
+
+      // Switch to new category
+      activeCategory = categoryName.trim();
+      loadCategories();
+      loadSections();
+      showNotification(`✅ Created category: ${categoryName.trim()}`, 'success');
+      console.log('✅ Category and default section created successfully');
+    } catch (error) {
+      console.error('❌ Error creating category:', error);
+      showNotification(`❌ ${error.message}`, 'error');
+    }
+  }
+});
+
+// Share category button
+document.getElementById('share-category-btn')?.addEventListener('click', () => {
+  openShareCategoryModal(activeCategory);
+});
+
+// Add section button (was add-collection-btn)
+document.getElementById('add-section-btn')?.addEventListener('click', async () => {
+  const sectionName = prompt(`ชื่อ Section ใหม่ใน Category "${activeCategory}":`);
+  if (sectionName && sectionName.trim()) {
+    console.log('📁 Creating new section:', sectionName.trim(), 'in category:', activeCategory);
+
+    // Create collection (section) in database with category
+    try {
+      const response = await fetch('/api/collections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: sectionName.trim(),
+          category: activeCategory
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to create section');
+      }
+
+      const newSection = await response.json();
+      allCollections.push(newSection);
+
+      loadSections();
+      showNotification(`✅ Created section: ${sectionName.trim()}`, 'success');
+      console.log('✅ Section created successfully');
+    } catch (error) {
+      console.error('❌ Error creating section:', error);
+      showNotification(`❌ ${error.message}`, 'error');
+    }
   }
 });
 
@@ -6895,6 +7226,9 @@ function handleTabsResponse(data) {
   }
 }
 
+// State for collapsed windows in Open Tabs
+const collapsedWindows = new Set();
+
 function displayBrowserTabs(tabs) {
   const tabsList = document.getElementById('open-tabs-list');
   if (!tabsList) return;
@@ -6918,57 +7252,124 @@ function displayBrowserTabs(tabs) {
 
   // Display tabs grouped by window
   Object.entries(tabsByWindow).forEach(([windowId, windowTabs]) => {
-    // Window header
+    const isCollapsed = collapsedWindows.has(windowId);
+
+    // Window header with collapse icon
     const windowHeader = document.createElement('div');
     windowHeader.className = 'window-header';
-    windowHeader.textContent = `Window ${windowId} (${windowTabs.length} tabs)`;
+    windowHeader.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    `;
+
+    // Header content
+    const headerContent = document.createElement('span');
+    headerContent.textContent = `Window ${windowId} (${windowTabs.length} tabs)`;
+
+    // Collapse icon
+    const collapseIcon = document.createElement('span');
+    collapseIcon.style.cssText = `
+      font-size: 12px;
+      transition: transform 0.2s;
+      ${isCollapsed ? '' : 'transform: rotate(90deg);'}
+    `;
+    collapseIcon.textContent = '▶';
+
+    windowHeader.appendChild(headerContent);
+    windowHeader.appendChild(collapseIcon);
+
+    // Toggle collapse on click
+    windowHeader.addEventListener('click', () => {
+      if (collapsedWindows.has(windowId)) {
+        collapsedWindows.delete(windowId);
+      } else {
+        collapsedWindows.add(windowId);
+      }
+      displayBrowserTabs(tabs); // Refresh display
+    });
+
     tabsList.appendChild(windowHeader);
 
-    // Window tabs
-    windowTabs.forEach(tab => {
-      const tabItem = document.createElement('div');
-      tabItem.className = 'tab-item';
+    // Window tabs container (hidden if collapsed)
+    if (!isCollapsed) {
+      const tabsContainer = document.createElement('div');
+      tabsContainer.className = 'window-tabs-container';
 
-      // Favicon
-      const favicon = document.createElement('img');
-      favicon.className = 'tab-favicon';
-      favicon.src = tab.favIconUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">🌐</text></svg>';
-      favicon.onerror = () => {
-        favicon.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">🌐</text></svg>';
-      };
+      windowTabs.forEach(tab => {
+        const tabItem = document.createElement('div');
+        tabItem.className = 'tab-item';
+        tabItem.draggable = true; // Make draggable
 
-      // Title
-      const title = document.createElement('div');
-      title.className = 'tab-title';
-      title.textContent = tab.title || 'Untitled';
-      title.title = tab.url; // Show URL on hover
+        // Store tab data
+        tabItem.dataset.tabData = JSON.stringify(tab);
 
-      // Add button
-      const addBtn = document.createElement('button');
-      addBtn.className = 'tab-add-btn';
-      addBtn.textContent = '⭐';
-      addBtn.title = 'Add to bookmarks';
-      addBtn.addEventListener('click', async () => {
-        await addTabToBookmarks(tab);
+        // Drag start
+        tabItem.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('application/json', JSON.stringify(tab));
+          e.dataTransfer.effectAllowed = 'copy';
+          tabItem.style.opacity = '0.5';
+          console.log('🎯 Drag started:', tab.title);
+        });
+
+        // Drag end
+        tabItem.addEventListener('dragend', (e) => {
+          tabItem.style.opacity = '1';
+        });
+
+        // Favicon
+        const favicon = document.createElement('img');
+        favicon.className = 'tab-favicon';
+        favicon.src = tab.favIconUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">🌐</text></svg>';
+        favicon.onerror = () => {
+          favicon.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">🌐</text></svg>';
+        };
+
+        // Title
+        const title = document.createElement('div');
+        title.className = 'tab-title';
+        title.textContent = tab.title || 'Untitled';
+        title.title = tab.url; // Show URL on hover
+
+        // Drag handle icon
+        const dragHandle = document.createElement('span');
+        dragHandle.style.cssText = 'cursor: grab; font-size: 14px; color: #999; margin-right: 4px;';
+        dragHandle.textContent = '⋮⋮';
+        dragHandle.title = 'Drag to collection';
+
+        // Add button
+        const addBtn = document.createElement('button');
+        addBtn.className = 'tab-add-btn';
+        addBtn.textContent = '⭐';
+        addBtn.title = 'Add to bookmarks';
+        addBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await addTabToBookmarks(tab);
+        });
+
+        tabItem.appendChild(dragHandle);
+        tabItem.appendChild(favicon);
+        tabItem.appendChild(title);
+        tabItem.appendChild(addBtn);
+
+        // Click to focus tab
+        tabItem.addEventListener('click', (e) => {
+          if (e.target !== addBtn && e.target !== dragHandle) {
+            window.open(tab.url, '_blank');
+          }
+        });
+
+        tabsContainer.appendChild(tabItem);
       });
 
-      tabItem.appendChild(favicon);
-      tabItem.appendChild(title);
-      tabItem.appendChild(addBtn);
-
-      // Click to focus tab
-      tabItem.addEventListener('click', (e) => {
-        if (e.target !== addBtn) {
-          window.open(tab.url, '_blank');
-        }
-      });
-
-      tabsList.appendChild(tabItem);
-    });
+      tabsList.appendChild(tabsContainer);
+    }
   });
 }
 
-async function addTabToBookmarks(tab) {
+async function addTabToBookmarks(tab, category = 'Uncategorized') {
   try {
     const response = await fetch('/api/bookmarks', {
       method: 'POST',
@@ -6977,20 +7378,624 @@ async function addTabToBookmarks(tab) {
         title: tab.title,
         url: tab.url,
         favicon: tab.favIconUrl,
-        category: 'Uncategorized'
+        category: category
       })
     });
 
     if (response.ok) {
-      alert(`✅ เพิ่ม "${tab.title}" ไปยัง Bookmarks แล้ว!`);
-      loadBookmarks(); // Refresh bookmarks list
+      const data = await response.json();
+      console.log('✅ Bookmark added:', data);
+
+      // Emit socket event for real-time sync
+      if (socket && socket.connected) {
+        socket.emit('bookmarkAdded', {
+          collectionName: category,
+          bookmark: data
+        });
+      }
+
+      // Show success notification
+      showNotification(`✅ เพิ่ม "${tab.title}" ไปยัง ${category}!`, 'success');
+
+      // Refresh bookmarks list
+      loadBookmarks();
     } else {
-      alert('❌ ไม่สามารถเพิ่ม bookmark ได้');
+      showNotification('❌ ไม่สามารถเพิ่ม bookmark ได้', 'error');
     }
   } catch (error) {
     console.error('Error adding bookmark:', error);
-    alert('❌ เกิดข้อผิดพลาด: ' + error.message);
+    showNotification('❌ เกิดข้อผิดพลาด: ' + error.message, 'error');
   }
+}
+
+// Show notification helper
+function showNotification(message, type = 'info') {
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#667eea'};
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 10000;
+    animation: slideIn 0.3s ease-out;
+  `;
+  notification.textContent = message;
+  document.body.appendChild(notification);
+
+  // Remove after 3 seconds
+  setTimeout(() => {
+    notification.style.animation = 'slideOut 0.3s ease-out';
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
+}
+
+// Open share category modal
+function openShareCategoryModal(categoryName) {
+  console.log('👥 Opening share modal for category:', categoryName);
+
+  // Get all sections in this category
+  const sectionsInCategory = allCollections.filter(c => (c.category || 'Personal') === categoryName);
+
+  if (sectionsInCategory.length === 0) {
+    showNotification('❌ ไม่มี sections ใน category นี้', 'error');
+    return;
+  }
+
+  // Create modal overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+    animation: fadeIn 0.2s ease-out;
+  `;
+
+  // Create modal content
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: scaleIn 0.2s ease-out;
+  `;
+
+  modal.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 style="margin: 0; font-size: 24px; color: #1f2937;">👥 Share Category</h2>
+      <button id="close-share-modal" style="background: transparent; border: none; font-size: 28px; cursor: pointer; color: #6b7280; padding: 0; line-height: 1;">×</button>
+    </div>
+
+    <div style="background: #f0f4ff; padding: 16px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #667eea;">
+      <div style="font-weight: 600; color: #667eea; margin-bottom: 4px;">Category: ${categoryName}</div>
+      <div style="font-size: 12px; color: #6b7280;">แชร์ทุก sections (${sectionsInCategory.length} sections) ใน category นี้</div>
+      <div style="font-size: 11px; color: #999; margin-top: 8px;">
+        Sections: ${sectionsInCategory.map(s => s.name).join(', ')}
+      </div>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 8px; font-size: 13px;">Add Friend by Username</label>
+      <div style="display: flex; gap: 8px;">
+        <input
+          type="text"
+          id="friend-username-input"
+          placeholder="Enter username..."
+          style="flex: 1; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; outline: none;"
+        />
+        <button id="add-member-btn" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; white-space: nowrap;">
+          ➕ Add
+        </button>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button id="cancel-share-btn" style="padding: 10px 20px; background: #f3f4f6; color: #374151; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">
+        Close
+      </button>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Close handlers
+  const closeModal = () => overlay.remove();
+  document.getElementById('close-share-modal').addEventListener('click', closeModal);
+  document.getElementById('cancel-share-btn').addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModal();
+  });
+
+  // Add member handler - will add to all sections in category
+  document.getElementById('add-member-btn').addEventListener('click', async () => {
+    const username = document.getElementById('friend-username-input').value.trim();
+    if (username) {
+      await addMemberToCategorySections(categoryName, username, sectionsInCategory);
+      document.getElementById('friend-username-input').value = '';
+      closeModal();
+    }
+  });
+}
+
+// Add member to all sections in a category
+async function addMemberToCategorySections(categoryName, username, sections) {
+  console.log('➕ Adding member:', username, 'to all sections in category:', categoryName);
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const section of sections) {
+    try {
+      const response = await fetch(`/api/collections/${encodeURIComponent(section.name)}/members`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          username: username,
+          role: 'member'
+        })
+      });
+
+      if (response.ok) {
+        successCount++;
+        // Emit socket event for real-time sync
+        if (socket && socket.connected) {
+          socket.emit('memberAddedToCollection', {
+            collectionName: section.name,
+            username
+          });
+        }
+      } else {
+        failCount++;
+        console.error('Failed to add member to section:', section.name);
+      }
+    } catch (error) {
+      failCount++;
+      console.error('Error adding member to section:', section.name, error);
+    }
+  }
+
+  if (successCount > 0) {
+    showNotification(`✅ แชร์ ${successCount} sections กับ ${username} เรียบร้อยแล้ว!`, 'success');
+  }
+  if (failCount > 0) {
+    showNotification(`⚠️ ไม่สามารถแชร์ ${failCount} sections ได้`, 'error');
+  }
+}
+
+// Open share collection modal
+function openShareCollectionModal(collectionName) {
+  console.log('👥 Opening share modal for:', collectionName);
+
+  // Create modal overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+    animation: fadeIn 0.2s ease-out;
+  `;
+
+  // Create modal content
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: scaleIn 0.2s ease-out;
+  `;
+
+  modal.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 style="margin: 0; font-size: 24px; color: #1f2937;">👥 Share Collection</h2>
+      <button id="close-share-modal" style="background: transparent; border: none; font-size: 28px; cursor: pointer; color: #6b7280; padding: 0; line-height: 1;">×</button>
+    </div>
+
+    <div style="background: #f0f4ff; padding: 16px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #667eea;">
+      <div style="font-weight: 600; color: #667eea; margin-bottom: 4px;">Collection: ${collectionName}</div>
+      <div style="font-size: 12px; color: #6b7280;">Share this collection with your Virtual Office friends</div>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 8px; font-size: 13px;">Add Friend by Username</label>
+      <div style="display: flex; gap: 8px;">
+        <input
+          type="text"
+          id="friend-username-input"
+          placeholder="Enter username..."
+          style="flex: 1; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; outline: none;"
+        />
+        <button id="add-member-btn" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; white-space: nowrap;">
+          ➕ Add
+        </button>
+      </div>
+    </div>
+
+    <div id="members-list" style="margin-bottom: 20px;">
+      <div style="font-weight: 600; color: #374151; margin-bottom: 12px; font-size: 13px; display: flex; justify-content: space-between; align-items: center;">
+        <span>Members (Loading...)</span>
+      </div>
+      <div id="members-container" style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="padding: 20px; text-align: center; color: #999; font-size: 12px;">
+          ⏳ Loading members...
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+      <button id="cancel-share-btn" style="padding: 10px 20px; background: #f3f4f6; color: #374151; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;">
+        Close
+      </button>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  // Close handlers
+  const closeModal = () => overlay.remove();
+  document.getElementById('close-share-modal').addEventListener('click', closeModal);
+  document.getElementById('cancel-share-btn').addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModal();
+  });
+
+  // Add member handler
+  document.getElementById('add-member-btn').addEventListener('click', async () => {
+    const username = document.getElementById('friend-username-input').value.trim();
+    if (username) {
+      await addMemberToCollection(collectionName, username);
+      document.getElementById('friend-username-input').value = '';
+    }
+  });
+
+  // Load current members
+  loadCollectionMembers(collectionName);
+}
+
+// Add member to collection
+async function addMemberToCollection(collectionName, username) {
+  console.log('➕ Adding member:', username, 'to', collectionName);
+
+  try {
+    const response = await fetch(`/api/collections/${encodeURIComponent(collectionName)}/members`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: username,
+        role: 'member'
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to add member');
+    }
+
+    // Emit socket event for real-time sync
+    if (socket && socket.connected) {
+      socket.emit('memberAddedToCollection', {
+        collectionName,
+        username
+      });
+    }
+
+    showNotification(`✅ Added ${username} to ${collectionName}!`, 'success');
+
+    // Reload members list
+    loadCollectionMembers(collectionName);
+  } catch (error) {
+    console.error('❌ Error adding member:', error);
+    showNotification(`❌ ${error.message}`, 'error');
+  }
+}
+
+// Load collection members
+async function loadCollectionMembers(collectionName) {
+  const container = document.getElementById('members-container');
+  if (!container) return;
+
+  try {
+    const response = await fetch(`/api/collections/${encodeURIComponent(collectionName)}`);
+
+    if (!response.ok) {
+      throw new Error('Failed to load members');
+    }
+
+    const data = await response.json();
+    const members = data.members || [];
+
+    // Update member count in header
+    const memberCountSpan = container.closest('#members-list').querySelector('span');
+    if (memberCountSpan) {
+      memberCountSpan.textContent = `Members (${members.length})`;
+    }
+
+    if (members.length === 0) {
+      container.innerHTML = `
+        <div style="padding: 16px; background: #f9f9f9; border-radius: 8px; text-align: center; color: #999; font-size: 12px;">
+          <div style="font-size: 32px; margin-bottom: 8px;">👤</div>
+          <div>This is your private collection</div>
+          <div style="margin-top: 8px; font-size: 11px;">Add friends to share bookmarks</div>
+        </div>
+      `;
+      return;
+    }
+
+    // Display members
+    container.innerHTML = members.map(member => `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 12px;">
+            ${member.username.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <div style="font-weight: 600; color: #1f2937; font-size: 13px;">${member.username}</div>
+            <div style="font-size: 11px; color: #6b7280;">${member.role}</div>
+          </div>
+        </div>
+        <button
+          onclick="removeMemberFromCollection('${collectionName}', '${member.username}')"
+          style="padding: 6px 12px; background: #fee; color: #dc2626; border: 1px solid #fecaca; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;">
+          🗑️ Remove
+        </button>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('❌ Error loading members:', error);
+    container.innerHTML = `
+      <div style="padding: 16px; background: #fee; border-radius: 8px; text-align: center; color: #dc2626; font-size: 12px;">
+        ❌ Failed to load members
+      </div>
+    `;
+  }
+}
+
+// Remove member from collection
+async function removeMemberFromCollection(collectionName, username) {
+  console.log('🗑️  Removing member:', username, 'from', collectionName);
+
+  if (!confirm(`Are you sure you want to remove ${username} from ${collectionName}?`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/api/collections/${encodeURIComponent(collectionName)}/members/${encodeURIComponent(username)}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to remove member');
+    }
+
+    showNotification(`✅ Removed ${username} from ${collectionName}`, 'success');
+
+    // Reload members list
+    loadCollectionMembers(collectionName);
+  } catch (error) {
+    console.error('❌ Error removing member:', error);
+    showNotification(`❌ ${error.message}`, 'error');
+  }
+}
+
+// Open NPC Chat Modal
+let npcChatHistory = [];
+function openNPCChatModal(npc) {
+  console.log('💬 Opening chat with NPC:', npc.name);
+
+  // Create modal overlay
+  const overlay = document.createElement('div');
+  overlay.id = 'npc-chat-modal-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10002;
+    animation: fadeIn 0.2s ease-out;
+  `;
+
+  // Create modal content
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: scaleIn 0.2s ease-out;
+  `;
+
+  modal.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 style="margin: 0; font-size: 24px; color: #1f2937;">👑 ${npc.name}</h2>
+      <button id="close-npc-modal" style="background: transparent; border: none; font-size: 28px; cursor: pointer; color: #6b7280; padding: 0; line-height: 1;">×</button>
+    </div>
+
+    <div style="background: #f0f4ff; padding: 16px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #667eea;">
+      <div style="font-size: 14px; color: #374151;">${npc.greeting}</div>
+    </div>
+
+    <div id="npc-chat-messages" style="flex: 1; overflow-y: auto; margin-bottom: 20px; max-height: 400px; padding: 10px; background: #f9fafb; border-radius: 8px;">
+      <!-- Messages will appear here -->
+    </div>
+
+    <div style="display: flex; gap: 8px;">
+      <input
+        type="text"
+        id="npc-chat-input"
+        placeholder="พิมพ์ข้อความ..."
+        style="flex: 1; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; outline: none;"
+      />
+      <button id="npc-send-btn" style="padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; white-space: nowrap;">
+        ส่ง 📤
+      </button>
+    </div>
+  `;
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  const chatMessages = document.getElementById('npc-chat-messages');
+  const chatInput = document.getElementById('npc-chat-input');
+  const sendBtn = document.getElementById('npc-send-btn');
+
+  // Close handlers
+  const closeModal = () => {
+    overlay.remove();
+    npcChatHistory = []; // Clear history when closing
+  };
+  document.getElementById('close-npc-modal').addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModal();
+  });
+
+  // Send message function
+  const sendMessage = async () => {
+    const message = chatInput.value.trim();
+    if (!message) return;
+
+    // Add user message to chat
+    const userMsg = document.createElement('div');
+    userMsg.style.cssText = `
+      background: #667eea;
+      color: white;
+      padding: 10px 14px;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      max-width: 80%;
+      margin-left: auto;
+      word-wrap: break-word;
+    `;
+    userMsg.textContent = message;
+    chatMessages.appendChild(userMsg);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    chatInput.value = '';
+    chatInput.disabled = true;
+    sendBtn.disabled = true;
+
+    // Add to history
+    npcChatHistory.push({ role: 'user', content: message });
+
+    try {
+      // Call AI API
+      const response = await fetch('http://localhost:8002/api/chat/npc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          npc_name: npc.name,
+          message: message,
+          history: npcChatHistory
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response from NPC');
+      }
+
+      const data = await response.json();
+      const npcResponse = data.response;
+
+      // Add NPC response to chat
+      const npcMsg = document.createElement('div');
+      npcMsg.style.cssText = `
+        background: #f3f4f6;
+        color: #1f2937;
+        padding: 10px 14px;
+        border-radius: 12px;
+        margin-bottom: 10px;
+        max-width: 80%;
+        margin-right: auto;
+        word-wrap: break-word;
+      `;
+      npcMsg.textContent = npcResponse;
+      chatMessages.appendChild(npcMsg);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      // Add to history
+      npcChatHistory.push({ role: 'assistant', content: npcResponse });
+
+    } catch (error) {
+      console.error('❌ Error chatting with NPC:', error);
+      const errorMsg = document.createElement('div');
+      errorMsg.style.cssText = `
+        background: #fee2e2;
+        color: #991b1b;
+        padding: 10px 14px;
+        border-radius: 12px;
+        margin-bottom: 10px;
+        max-width: 80%;
+        margin-right: auto;
+        word-wrap: break-word;
+      `;
+      errorMsg.textContent = '❌ ขออภัย เกิดข้อผิดพลาดในการตอบกลับ';
+      chatMessages.appendChild(errorMsg);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    } finally {
+      chatInput.disabled = false;
+      sendBtn.disabled = false;
+      chatInput.focus();
+    }
+  };
+
+  // Send on button click
+  sendBtn.addEventListener('click', sendMessage);
+
+  // Send on Enter key
+  chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
+  });
+
+  // Focus input
+  chatInput.focus();
 }
 
 function showTabsError() {
@@ -7138,6 +8143,8 @@ function gameLoop() {
       }
     }
   });
+
+  // NPCs removed
 
   // Draw target position indicator
   if (targetPosition) {
@@ -7427,6 +8434,45 @@ socket.on('connect', () => {
   if (currentPlayer) {
     console.log('✅ Reconnected to server');
   }
+});
+
+// Collection/Bookmark real-time sync listeners
+socket.on('collectionBookmarkAdded', ({ collectionName, bookmark }) => {
+  console.log('📚 Bookmark added to shared collection:', collectionName, bookmark);
+  showNotification(`📚 New bookmark in ${collectionName}: ${bookmark.title}`, 'info');
+
+  // Reload bookmarks if bookmark panel is open
+  const bookmarkPanel = document.getElementById('bookmark-panel');
+  if (bookmarkPanel && bookmarkPanel.style.display !== 'none') {
+    loadBookmarks();
+  }
+});
+
+socket.on('collectionBookmarkRemoved', ({ collectionName, bookmarkId }) => {
+  console.log('🗑️  Bookmark removed from shared collection:', collectionName, bookmarkId);
+  showNotification(`🗑️  Bookmark removed from ${collectionName}`, 'info');
+
+  // Reload bookmarks if bookmark panel is open
+  const bookmarkPanel = document.getElementById('bookmark-panel');
+  if (bookmarkPanel && bookmarkPanel.style.display !== 'none') {
+    loadBookmarks();
+  }
+});
+
+socket.on('addedToCollection', ({ collectionName }) => {
+  console.log('👥 Added to collection:', collectionName);
+  showNotification(`🎉 You've been added to ${collectionName}!`, 'success');
+
+  // Reload bookmarks if bookmark panel is open
+  const bookmarkPanel = document.getElementById('bookmark-panel');
+  if (bookmarkPanel && bookmarkPanel.style.display !== 'none') {
+    loadBookmarks();
+  }
+});
+
+socket.on('collectionMemberAdded', ({ collectionName, username }) => {
+  console.log('👥 Member added to collection:', username, collectionName);
+  showNotification(`👥 ${username} joined ${collectionName}`, 'info');
 });
 
 // ========================================

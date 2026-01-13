@@ -28,6 +28,7 @@ def create_bookmark(bookmark: BookmarkCreate, db: Session = Depends(get_db)):
         url=bookmark.url,
         favicon=bookmark.favicon,
         description=bookmark.description,
+        category=bookmark.category,
         tags=bookmark.tags,
         user_id=None
     )

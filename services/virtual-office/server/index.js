@@ -648,6 +648,90 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Bookmark/Collection real-time sync
+  socket.on('bookmarkAdded', async ({ collectionName, bookmark }) => {
+    try {
+      console.log(`📚 Bookmark added to ${collectionName}, broadcasting to members`);
+
+      // Fetch collection members from backend
+      const response = await fetch(`${backendUrl}/api/collections/${encodeURIComponent(collectionName)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const memberUsernames = data.members.map(m => m.username);
+
+        // Broadcast to all connected players who are members of this collection
+        players.forEach((player, playerId) => {
+          if (memberUsernames.includes(player.username) && playerId !== socket.id) {
+            io.to(playerId).emit('collectionBookmarkAdded', {
+              collectionName,
+              bookmark
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error broadcasting bookmark addition:', error);
+    }
+  });
+
+  socket.on('bookmarkRemoved', async ({ collectionName, bookmarkId }) => {
+    try {
+      console.log(`🗑️  Bookmark removed from ${collectionName}, broadcasting to members`);
+
+      // Fetch collection members from backend
+      const response = await fetch(`${backendUrl}/api/collections/${encodeURIComponent(collectionName)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const memberUsernames = data.members.map(m => m.username);
+
+        // Broadcast to all connected players who are members of this collection
+        players.forEach((player, playerId) => {
+          if (memberUsernames.includes(player.username) && playerId !== socket.id) {
+            io.to(playerId).emit('collectionBookmarkRemoved', {
+              collectionName,
+              bookmarkId
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error broadcasting bookmark removal:', error);
+    }
+  });
+
+  socket.on('memberAddedToCollection', async ({ collectionName, username }) => {
+    try {
+      console.log(`👥 Member ${username} added to ${collectionName}, broadcasting`);
+
+      // Find the new member's socket and notify them
+      players.forEach((player, playerId) => {
+        if (player.username === username) {
+          io.to(playerId).emit('addedToCollection', {
+            collectionName
+          });
+        }
+      });
+
+      // Notify other members
+      const response = await fetch(`${backendUrl}/api/collections/${encodeURIComponent(collectionName)}`);
+      if (response.ok) {
+        const data = await response.json();
+        const memberUsernames = data.members.map(m => m.username);
+
+        players.forEach((player, playerId) => {
+          if (memberUsernames.includes(player.username) && playerId !== socket.id) {
+            io.to(playerId).emit('collectionMemberAdded', {
+              collectionName,
+              username
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error broadcasting member addition:', error);
+    }
+  });
+
   // Disconnect
   socket.on('disconnect', () => {
     const player = players.get(socket.id);
@@ -758,6 +842,211 @@ app.post('/api/bookmarks', async (req, res) => {
       error: true,
       message: `Cannot connect to Planning Tool Backend: ${error.message}`,
       backendUrl: process.env.BACKEND_URL || 'http://localhost:8002'
+    });
+  }
+});
+
+// Collections API Routes
+// GET all collections
+app.get('/api/collections', async (req, res) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8002';
+    console.log(`📡 Fetching collections from: ${backendUrl}/api/collections`);
+
+    const response = await fetch(`${backendUrl}/api/collections`, {
+      timeout: 5000
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend responded with status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log(`✅ Successfully fetched ${data.length || 0} collections`);
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error fetching collections from backend:', error.message);
+    res.json([]);
+  }
+});
+
+// POST create collection
+app.post('/api/collections', async (req, res) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8002';
+    console.log(`📝 Creating collection via: ${backendUrl}/api/collections`);
+
+    const response = await fetch(`${backendUrl}/api/collections`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(req.body),
+      timeout: 5000
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return res.status(response.status).json(errorData);
+    }
+
+    const data = await response.json();
+    console.log(`✅ Collection created successfully:`, data);
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error creating collection:', error.message);
+    res.status(500).json({
+      error: true,
+      message: `Cannot connect to Planning Tool Backend: ${error.message}`
+    });
+  }
+});
+
+// GET collection with members
+app.get('/api/collections/:name', async (req, res) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8002';
+    const collectionName = req.params.name;
+    console.log(`📡 Fetching collection: ${collectionName}`);
+
+    const response = await fetch(`${backendUrl}/api/collections/${encodeURIComponent(collectionName)}`, {
+      timeout: 5000
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return res.status(response.status).json(errorData);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error fetching collection:', error.message);
+    res.status(500).json({
+      error: true,
+      message: `Cannot connect to Planning Tool Backend: ${error.message}`
+    });
+  }
+});
+
+// PUT update collection
+app.put('/api/collections/:name', async (req, res) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8002';
+    const collectionName = req.params.name;
+    console.log(`✏️  Updating collection: ${collectionName}`);
+
+    const response = await fetch(`${backendUrl}/api/collections/${encodeURIComponent(collectionName)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(req.body),
+      timeout: 5000
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return res.status(response.status).json(errorData);
+    }
+
+    const data = await response.json();
+    console.log(`✅ Collection updated successfully:`, data);
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error updating collection:', error.message);
+    res.status(500).json({
+      error: true,
+      message: `Cannot connect to Planning Tool Backend: ${error.message}`
+    });
+  }
+});
+
+// POST add member to collection
+app.post('/api/collections/:name/members', async (req, res) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8002';
+    const collectionName = req.params.name;
+    console.log(`👥 Adding member to collection: ${collectionName}`);
+
+    const response = await fetch(`${backendUrl}/api/collections/${encodeURIComponent(collectionName)}/members`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(req.body),
+      timeout: 5000
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return res.status(response.status).json(errorData);
+    }
+
+    const data = await response.json();
+    console.log(`✅ Member added successfully:`, data);
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error adding member:', error.message);
+    res.status(500).json({
+      error: true,
+      message: `Cannot connect to Planning Tool Backend: ${error.message}`
+    });
+  }
+});
+
+// DELETE collection
+app.delete('/api/collections/:name', async (req, res) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8002';
+    const collectionName = req.params.name;
+    console.log(`🗑️  Deleting collection: ${collectionName}`);
+
+    const response = await fetch(`${backendUrl}/api/collections/${encodeURIComponent(collectionName)}`, {
+      method: 'DELETE',
+      timeout: 5000
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return res.status(response.status).json(errorData);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error deleting collection:', error.message);
+    res.status(500).json({
+      error: true,
+      message: `Cannot connect to Planning Tool Backend: ${error.message}`
+    });
+  }
+});
+
+// DELETE remove member from collection
+app.delete('/api/collections/:name/members/:username', async (req, res) => {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8002';
+    const { name, username } = req.params;
+    console.log(`🗑️  Removing member ${username} from collection: ${name}`);
+
+    const response = await fetch(`${backendUrl}/api/collections/${encodeURIComponent(name)}/members/${encodeURIComponent(username)}`, {
+      method: 'DELETE',
+      timeout: 5000
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return res.status(response.status).json(errorData);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Error removing member:', error.message);
+    res.status(500).json({
+      error: true,
+      message: `Cannot connect to Planning Tool Backend: ${error.message}`
     });
   }
 });
