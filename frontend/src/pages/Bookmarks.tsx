@@ -26,12 +26,13 @@ export default function Bookmarks() {
   const [showError, setShowError] = useState(false);
   const [showAllWindows, setShowAllWindows] = useState(true);
   const [currentWindowId, setCurrentWindowId] = useState<number | null>(null);
+  const [showInstallModal, setShowInstallModal] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadBookmarks();
     setupExtensionListener();
-    loadBrowserTabs();
+    // ไม่ auto-load browser tabs - ให้ผู้ใช้คลิก Refresh Tabs เอง
   }, []);
 
   const setupExtensionListener = () => {
@@ -283,6 +284,18 @@ export default function Bookmarks() {
           onChange={(e) => setSearchTerm(e.target.value)}
         />
         <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            className="add-btn"
+            onClick={() => setShowInstallModal(true)}
+            style={{
+              background: '#10b981',
+              color: 'white',
+              border: '2px solid #10b981',
+              fontWeight: '600'
+            }}
+          >
+            📥 Download Chrome Extension
+          </button>
           {browserTabs.length > 0 && (
             <button
               className="add-btn"
@@ -314,8 +327,28 @@ export default function Bookmarks() {
           padding: '16px',
           borderRadius: '8px',
           marginBottom: '20px',
-          borderLeft: '4px solid #c00'
+          borderLeft: '4px solid #c00',
+          position: 'relative'
         }}>
+          <button
+            onClick={() => setShowError(false)}
+            style={{
+              position: 'absolute',
+              top: '12px',
+              right: '12px',
+              background: 'transparent',
+              border: 'none',
+              fontSize: '20px',
+              cursor: 'pointer',
+              color: '#c00',
+              padding: '0',
+              lineHeight: 1,
+              fontWeight: 'bold'
+            }}
+            title="ปิด"
+          >
+            ×
+          </button>
           <strong>⚠️ ไม่สามารถเชื่อมต่อกับ Chrome Extension</strong><br />
           กรุณาตรวจสอบว่าได้ติดตั้ง "Planning Tool - Tab Manager" Extension และเปิดใช้งานแล้ว<br />
           <small>หรือใช้งานหน้านี้โดยไม่ต้องมี Extension (แสดงเฉพาะ Bookmarks ที่บันทึกไว้)</small>
@@ -532,6 +565,174 @@ export default function Bookmarks() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Installation Modal */}
+      {showInstallModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+          onClick={() => setShowInstallModal(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '16px',
+              padding: '40px',
+              maxWidth: '700px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              position: 'relative',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowInstallModal(false)}
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                background: 'transparent',
+                border: 'none',
+                fontSize: '28px',
+                cursor: 'pointer',
+                color: '#6b7280',
+                padding: '5px',
+                lineHeight: 1
+              }}
+            >
+              ×
+            </button>
+
+            <h2 style={{ fontSize: '32px', fontWeight: '700', color: '#1f2937', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              📥 Install Chrome Extension
+            </h2>
+            <p style={{ color: '#6b7280', marginBottom: '30px', fontSize: '16px' }}>
+              Planning Tool - Tab Manager Extension สำหรับจัดการและ bookmark tabs
+            </p>
+
+            <div style={{ marginBottom: '30px' }}>
+              <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#1f2937', marginBottom: '15px' }}>
+                🚀 วิธีติดตั้ง Extension
+              </h3>
+              <ol style={{ paddingLeft: '20px', lineHeight: '2', color: '#374151' }}>
+                <li>
+                  <strong>เปิดหน้า Extensions</strong>
+                  <ul style={{ paddingLeft: '20px', marginTop: '8px' }}>
+                    <li>Chrome: ไปที่ <code style={{ background: '#f3f4f6', padding: '2px 8px', borderRadius: '4px', color: '#667eea' }}>chrome://extensions/</code></li>
+                    <li>Edge: ไปที่ <code style={{ background: '#f3f4f6', padding: '2px 8px', borderRadius: '4px', color: '#667eea' }}>edge://extensions/</code></li>
+                  </ul>
+                </li>
+                <li style={{ marginTop: '12px' }}>
+                  <strong>เปิด Developer Mode</strong>
+                  <p style={{ marginTop: '8px', color: '#6b7280', fontSize: '14px' }}>
+                    Toggle สวิตช์ "Developer mode" ที่มุมบนขวา
+                  </p>
+                </li>
+                <li style={{ marginTop: '12px' }}>
+                  <strong>Load Extension</strong>
+                  <ul style={{ paddingLeft: '20px', marginTop: '8px' }}>
+                    <li>คลิกปุ่ม "Load unpacked"</li>
+                    <li>เลือกโฟลเดอร์: <code style={{ background: '#f3f4f6', padding: '2px 8px', borderRadius: '4px', fontSize: '12px', color: '#667eea', wordBreak: 'break-all' }}>chrome-extensions/planning-tool-tab-manager</code></li>
+                  </ul>
+                </li>
+                <li style={{ marginTop: '12px' }}>
+                  <strong>Pin Extension (แนะนำ)</strong>
+                  <p style={{ marginTop: '8px', color: '#6b7280', fontSize: '14px' }}>
+                    คลิกที่ไอคอน puzzle (Extensions) ใน toolbar → หา "Planning Tool - Tab Manager" → คลิก pin 📌
+                  </p>
+                </li>
+              </ol>
+            </div>
+
+            <div style={{ marginBottom: '30px', background: '#f0fdf4', padding: '20px', borderRadius: '12px', border: '2px solid #86efac' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#166534', marginBottom: '10px' }}>
+                ✨ Features
+              </h3>
+              <ul style={{ paddingLeft: '20px', lineHeight: '1.8', color: '#166534', marginBottom: 0 }}>
+                <li>📂 View all open tabs in your browser</li>
+                <li>☑️ Multi-select tabs to bookmark</li>
+                <li>💾 Save tabs as bookmarks with custom names</li>
+                <li>⭐ Manage and organize your bookmarks</li>
+                <li>📂 Restore all tabs from a bookmark instantly</li>
+                <li>❌ Close selected tabs quickly</li>
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'space-between', alignItems: 'center' }}>
+              <a
+                href="/planning-tool-tab-manager.zip"
+                download="planning-tool-tab-manager.zip"
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: '8px',
+                  border: '2px solid #10b981',
+                  background: '#10b981',
+                  color: 'white',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s'
+                }}
+              >
+                📦 Download Extension (.zip)
+              </a>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => setShowInstallModal(false)}
+                  style={{
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    border: '2px solid #e5e7eb',
+                    background: 'white',
+                    color: '#374151',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  ปิด
+                </button>
+                <button
+                  onClick={() => {
+                    window.open('https://chrome.google.com/webstore/category/extensions', '_blank');
+                  }}
+                  style={{
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#667eea',
+                    color: 'white',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  เปิด Chrome Extensions →
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

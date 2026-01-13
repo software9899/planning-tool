@@ -15,7 +15,13 @@
       "Bash(done)",
       "Bash(node:*)",
       "Bash(ln:*)",
-      "Bash(docker logs:*)"
+      "Bash(docker logs:*)",
+      "Bash(zip:*)",
+      "Bash(python3 -m uvicorn:*)",
+      "Bash(pip3 install:*)",
+      "Bash(killall:*)",
+      "Bash(kill:*)",
+      "Bash(lsof:*)"
     ]
   }
 }

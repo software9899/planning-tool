@@ -6571,18 +6571,25 @@ document.querySelectorAll('.sidebar-item[data-tab]').forEach(item => {
     document.getElementById('calendar-panel').style.display = 'none';
     document.getElementById('bookmark-panel').style.display = 'none';
 
+    // Get chat expand button
+    const chatExpandBtn = document.getElementById('chat-expand-btn');
+
     // Show selected panel
     if (tab === 'chat') {
       document.getElementById('chat-panel').style.display = 'flex';
+      if (chatExpandBtn) chatExpandBtn.style.display = 'flex';
     } else if (tab === 'activity') {
       document.getElementById('activity-panel').style.display = 'flex';
-      updateActivityTab();
+      if (chatExpandBtn) chatExpandBtn.style.display = 'flex';
     } else if (tab === 'calendar') {
       document.getElementById('calendar-panel').style.display = 'flex';
-      updateCalendarPanel();
+      if (chatExpandBtn) chatExpandBtn.style.display = 'flex';
     } else if (tab === 'files') {
       document.getElementById('bookmark-panel').style.display = 'flex';
+      // Hide chat expand button when bookmark panel is open
+      if (chatExpandBtn) chatExpandBtn.style.display = 'none';
       loadBookmarks();
+      loadBrowserTabs(); // Auto-load browser tabs when bookmark panel opens
     }
   });
 });
@@ -6659,6 +6666,9 @@ if (toggleBookmarkPanelBtn && bookmarkPanel && bookmarkSidebarItem) {
   toggleBookmarkPanelBtn.addEventListener('click', () => {
     bookmarkPanel.style.display = 'none';
     bookmarkSidebarItem.classList.remove('active');
+    // Show chat expand button when bookmark panel is closed
+    const chatExpandBtn = document.getElementById('chat-expand-btn');
+    if (chatExpandBtn) chatExpandBtn.style.display = 'flex';
     console.log('🔖 Bookmark panel hidden');
   });
 }
@@ -6717,70 +6727,22 @@ async function loadBookmarks() {
       return;
     }
 
-    // Display bookmarks
+    // Group bookmarks by category
+    const groupedBookmarks = {};
     bookmarks.forEach(bookmark => {
-      const item = document.createElement('div');
-      item.className = 'bookmark-item';
-      item.style.cssText = `
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        padding: 12px;
-        border-radius: 8px;
-        background: white;
-        margin-bottom: 8px;
-        cursor: pointer;
-        transition: all 0.2s;
-        border: 1px solid #e0e0e0;
-      `;
-
-      // Favicon
-      const favicon = document.createElement('img');
-      favicon.style.cssText = 'width: 20px; height: 20px; flex-shrink: 0; margin-top: 2px;';
-      favicon.src = bookmark.favicon || `https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=32`;
-      favicon.onerror = () => {
-        favicon.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">🔖</text></svg>';
-      };
-
-      // Content
-      const content = document.createElement('div');
-      content.style.cssText = 'flex: 1; min-width: 0;';
-
-      const title = document.createElement('div');
-      title.style.cssText = 'font-weight: 600; color: #333; font-size: 13px; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
-      title.textContent = bookmark.title || 'Untitled';
-
-      const url = document.createElement('div');
-      url.style.cssText = 'font-size: 11px; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
-      url.textContent = bookmark.url;
-
-      content.appendChild(title);
-      content.appendChild(url);
-
-      item.appendChild(favicon);
-      item.appendChild(content);
-
-      // Click to open
-      item.addEventListener('click', () => {
-        window.open(bookmark.url, '_blank');
-      });
-
-      // Hover effect
-      item.addEventListener('mouseenter', () => {
-        item.style.background = '#f5f5ff';
-        item.style.borderColor = '#667eea';
-        item.style.transform = 'translateX(4px)';
-      });
-      item.addEventListener('mouseleave', () => {
-        item.style.background = 'white';
-        item.style.borderColor = '#e0e0e0';
-        item.style.transform = 'translateX(0)';
-      });
-
-      bookmarkList.appendChild(item);
+      const category = bookmark.category || 'Uncategorized';
+      if (!groupedBookmarks[category]) {
+        groupedBookmarks[category] = [];
+      }
+      groupedBookmarks[category].push(bookmark);
     });
 
-    console.log('🔖 Loaded', bookmarks.length, 'bookmarks');
+    // Display collections
+    Object.entries(groupedBookmarks).forEach(([category, items]) => {
+      createBookmarkCollection(category, items);
+    });
+
+    console.log('🔖 Loaded', bookmarks.length, 'bookmarks in', Object.keys(groupedBookmarks).length, 'collections');
 
   } catch (error) {
     console.error('❌ Error loading bookmarks:', error);
@@ -6793,6 +6755,295 @@ async function loadBookmarks() {
     `;
   }
 }
+
+// Create bookmark collection (category)
+function createBookmarkCollection(category, bookmarks) {
+  const bookmarkList = document.getElementById('bookmark-list');
+  if (!bookmarkList) return;
+
+  const collection = document.createElement('div');
+  collection.className = 'bookmark-collection';
+
+  // Collection header
+  const header = document.createElement('div');
+  header.className = 'collection-header';
+  header.innerHTML = `
+    <span class="collection-icon">▼</span>
+    <span class="collection-title">${category}</span>
+    <span class="collection-count">${bookmarks.length}</span>
+  `;
+
+  // Collection items container
+  const itemsContainer = document.createElement('div');
+  itemsContainer.className = 'collection-items';
+
+  // Add bookmark items
+  bookmarks.forEach(bookmark => {
+    const item = document.createElement('div');
+    item.className = 'bookmark-item';
+
+    const favicon = document.createElement('img');
+    favicon.className = 'bookmark-favicon';
+    favicon.src = bookmark.favicon || `https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=32`;
+    favicon.onerror = () => {
+      favicon.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">🔖</text></svg>';
+    };
+
+    const content = document.createElement('div');
+    content.className = 'bookmark-content';
+    content.innerHTML = `
+      <div class="bookmark-title">${bookmark.title || 'Untitled'}</div>
+      <div class="bookmark-url">${bookmark.url}</div>
+    `;
+
+    item.appendChild(favicon);
+    item.appendChild(content);
+
+    item.addEventListener('click', () => {
+      window.open(bookmark.url, '_blank');
+    });
+
+    itemsContainer.appendChild(item);
+  });
+
+  // Toggle collapse/expand
+  header.addEventListener('click', () => {
+    const icon = header.querySelector('.collection-icon');
+    if (itemsContainer.classList.contains('collapsed')) {
+      itemsContainer.classList.remove('collapsed');
+      icon.textContent = '▼';
+      icon.classList.remove('collapsed');
+    } else {
+      itemsContainer.classList.add('collapsed');
+      icon.textContent = '▶';
+      icon.classList.add('collapsed');
+    }
+  });
+
+  collection.appendChild(header);
+  collection.appendChild(itemsContainer);
+  bookmarkList.appendChild(collection);
+}
+
+// Expand/Collapse all collections
+document.getElementById('expand-all-btn')?.addEventListener('click', () => {
+  document.querySelectorAll('.collection-items').forEach(items => {
+    items.classList.remove('collapsed');
+  });
+  document.querySelectorAll('.collection-icon').forEach(icon => {
+    icon.textContent = '▼';
+    icon.classList.remove('collapsed');
+  });
+});
+
+document.getElementById('collapse-all-btn')?.addEventListener('click', () => {
+  document.querySelectorAll('.collection-items').forEach(items => {
+    items.classList.add('collapsed');
+  });
+  document.querySelectorAll('.collection-icon').forEach(icon => {
+    icon.textContent = '▶';
+    icon.classList.add('collapsed');
+  });
+});
+
+// Add collection button
+document.getElementById('add-collection-btn')?.addEventListener('click', () => {
+  const collectionName = prompt('ชื่อ Collection ใหม่:');
+  if (collectionName && collectionName.trim()) {
+    createBookmarkCollection(collectionName.trim(), []);
+  }
+});
+
+// Setup extension listener for browser tabs
+let extensionReady = false;
+let browserTabsTimeoutRef = null;
+
+function setupBrowserTabsListener() {
+  window.addEventListener('message', (event) => {
+    if (event.data.type === 'TAB_MANAGER_READY') {
+      console.log('✅ Tab Manager Extension is ready');
+      extensionReady = true;
+    }
+
+    if (event.data.type === 'TAB_MANAGER_RESPONSE') {
+      handleTabsResponse(event.data);
+    }
+  });
+}
+
+function handleTabsResponse(data) {
+  console.log('📨 Received tabs response:', data);
+
+  // Clear timeout
+  if (browserTabsTimeoutRef) {
+    clearTimeout(browserTabsTimeoutRef);
+    browserTabsTimeoutRef = null;
+  }
+
+  const tabsList = document.getElementById('open-tabs-list');
+  if (!tabsList) return;
+
+  if (data.error) {
+    console.error('❌ Extension error:', data.error);
+    showTabsError();
+    return;
+  }
+
+  if (data.action === 'getTabs' && data.data && data.data.tabs) {
+    console.log('✅ Got tabs from extension:', data.data.tabs.length);
+    displayBrowserTabs(data.data.tabs);
+  }
+}
+
+function displayBrowserTabs(tabs) {
+  const tabsList = document.getElementById('open-tabs-list');
+  if (!tabsList) return;
+
+  tabsList.innerHTML = '';
+
+  if (tabs.length === 0) {
+    tabsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #999; font-size: 12px;">ไม่มี tabs ที่เปิดอยู่</div>';
+    return;
+  }
+
+  // Group tabs by window
+  const tabsByWindow = {};
+  tabs.forEach(tab => {
+    const winId = tab.windowId || 0;
+    if (!tabsByWindow[winId]) {
+      tabsByWindow[winId] = [];
+    }
+    tabsByWindow[winId].push(tab);
+  });
+
+  // Display tabs grouped by window
+  Object.entries(tabsByWindow).forEach(([windowId, windowTabs]) => {
+    // Window header
+    const windowHeader = document.createElement('div');
+    windowHeader.className = 'window-header';
+    windowHeader.textContent = `Window ${windowId} (${windowTabs.length} tabs)`;
+    tabsList.appendChild(windowHeader);
+
+    // Window tabs
+    windowTabs.forEach(tab => {
+      const tabItem = document.createElement('div');
+      tabItem.className = 'tab-item';
+
+      // Favicon
+      const favicon = document.createElement('img');
+      favicon.className = 'tab-favicon';
+      favicon.src = tab.favIconUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">🌐</text></svg>';
+      favicon.onerror = () => {
+        favicon.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">🌐</text></svg>';
+      };
+
+      // Title
+      const title = document.createElement('div');
+      title.className = 'tab-title';
+      title.textContent = tab.title || 'Untitled';
+      title.title = tab.url; // Show URL on hover
+
+      // Add button
+      const addBtn = document.createElement('button');
+      addBtn.className = 'tab-add-btn';
+      addBtn.textContent = '⭐';
+      addBtn.title = 'Add to bookmarks';
+      addBtn.addEventListener('click', async () => {
+        await addTabToBookmarks(tab);
+      });
+
+      tabItem.appendChild(favicon);
+      tabItem.appendChild(title);
+      tabItem.appendChild(addBtn);
+
+      // Click to focus tab
+      tabItem.addEventListener('click', (e) => {
+        if (e.target !== addBtn) {
+          window.open(tab.url, '_blank');
+        }
+      });
+
+      tabsList.appendChild(tabItem);
+    });
+  });
+}
+
+async function addTabToBookmarks(tab) {
+  try {
+    const response = await fetch('/api/bookmarks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: tab.title,
+        url: tab.url,
+        favicon: tab.favIconUrl,
+        category: 'Uncategorized'
+      })
+    });
+
+    if (response.ok) {
+      alert(`✅ เพิ่ม "${tab.title}" ไปยัง Bookmarks แล้ว!`);
+      loadBookmarks(); // Refresh bookmarks list
+    } else {
+      alert('❌ ไม่สามารถเพิ่ม bookmark ได้');
+    }
+  } catch (error) {
+    console.error('Error adding bookmark:', error);
+    alert('❌ เกิดข้อผิดพลาด: ' + error.message);
+  }
+}
+
+function showTabsError() {
+  const tabsList = document.getElementById('open-tabs-list');
+  if (!tabsList) return;
+
+  tabsList.innerHTML = `
+    <div style="padding: 20px; text-align: center; color: #ff5252; font-size: 12px;">
+      <div style="font-size: 32px; margin-bottom: 10px;">⚠️</div>
+      <div style="margin-bottom: 10px;">ไม่สามารถเชื่อมต่อ Extension</div>
+      <div style="color: #999; margin-bottom: 15px;">กรุณาติดตั้ง Chrome Extension</div>
+      <a href="/planning-tool-tab-manager.zip" download style="display: inline-block; padding: 8px 16px; background: #10b981; color: white; text-decoration: none; border-radius: 6px; font-size: 11px; font-weight: 600;">
+        📥 Download Extension
+      </a>
+    </div>
+  `;
+}
+
+// Load browser tabs
+function loadBrowserTabs() {
+  const tabsList = document.getElementById('open-tabs-list');
+  if (!tabsList) return;
+
+  tabsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #999; font-size: 12px;">⏳ Loading tabs...</div>';
+
+  // Clear any existing timeout
+  if (browserTabsTimeoutRef) {
+    clearTimeout(browserTabsTimeoutRef);
+    browserTabsTimeoutRef = null;
+  }
+
+  // Send request to Extension
+  console.log('📤 Sending getTabs request to Extension...');
+  window.postMessage({
+    type: 'TAB_MANAGER_REQUEST',
+    action: 'getTabs'
+  }, '*');
+
+  // Set timeout for no response
+  browserTabsTimeoutRef = setTimeout(() => {
+    console.error('⏱️ TIMEOUT: No response from Extension after 5 seconds');
+    showTabsError();
+    browserTabsTimeoutRef = null;
+  }, 5000);
+}
+
+// Initialize extension listener
+setupBrowserTabsListener();
+
+// Refresh tabs button
+document.getElementById('refresh-tabs-btn')?.addEventListener('click', () => {
+  loadBrowserTabs();
+});
 
 // Game loop
 let frameCount = 0;

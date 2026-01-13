@@ -187,13 +187,49 @@
       <div class="chat-panel-header">
         <h2>Bookmarks</h2>
         <div class="header-actions">
+          <a href="/planning-tool-tab-manager.zip" download="planning-tool-tab-manager.zip" class="icon-btn" title="ดาวน์โหลด Chrome Extension" style="text-decoration: none; display: flex; align-items: center; justify-content: center;">📥</a>
           <button class="icon-btn" id="refresh-bookmarks-btn" title="รีเฟรช">🔄</button>
           <button class="icon-btn" id="toggle-bookmark-panel-btn">◀</button>
         </div>
       </div>
 
-      <div id="bookmark-list" style="overflow-y: auto; height: calc(100% - 60px); padding: 10px;">
-        <!-- Bookmarks will be listed here -->
+      <div style="display: flex; height: calc(100% - 60px); overflow: hidden;">
+        <!-- Main Bookmark Area -->
+        <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+          <!-- Toolbar -->
+          <div id="bookmark-toolbar" style="padding: 12px; border-bottom: 1px solid #e0e0e0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #fafafa;">
+            <button class="toolbar-btn" id="expand-all-btn" title="Expand All">
+              <span style="font-size: 14px;">📂</span>
+              <span style="font-size: 11px; margin-left: 4px;">EXPAND</span>
+            </button>
+            <button class="toolbar-btn" id="collapse-all-btn" title="Collapse All">
+              <span style="font-size: 14px;">📁</span>
+              <span style="font-size: 11px; margin-left: 4px;">COLLAPSE</span>
+            </button>
+            <button class="toolbar-btn" id="add-collection-btn" title="Add Collection" style="background: #10b981; color: white; border-color: #10b981;">
+              <span style="font-size: 14px;">➕</span>
+              <span style="font-size: 11px; margin-left: 4px;">ADD COLLECTION</span>
+            </button>
+          </div>
+
+          <!-- Bookmarks List -->
+          <div id="bookmark-list" style="flex: 1; overflow-y: auto; padding: 10px;">
+            <!-- Collections will be listed here -->
+          </div>
+        </div>
+
+        <!-- Open Tabs Sidebar (Right) -->
+        <div id="open-tabs-sidebar" style="width: 350px; border-left: 1px solid #e0e0e0; background: #fafafa; display: flex; flex-direction: column; overflow: hidden;">
+          <div style="padding: 12px; border-bottom: 1px solid #e0e0e0; font-weight: 600; font-size: 13px; color: #333; display: flex; justify-content: space-between; align-items: center;">
+            <span>OPEN TABS</span>
+            <button class="icon-btn" id="refresh-tabs-btn" title="Refresh Tabs" style="font-size: 14px; padding: 4px;">🔄</button>
+          </div>
+          <div id="open-tabs-list" style="flex: 1; overflow-y: auto; padding: 8px;">
+            <div style="padding: 20px; text-align: center; color: #999; font-size: 12px;">
+              ⏳ Loading tabs...
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

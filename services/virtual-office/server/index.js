@@ -699,7 +699,7 @@ app.get('/api/rooms', (req, res) => {
 // Proxy to Planning Tool Backend API - GET bookmarks
 app.get('/api/bookmarks', async (req, res) => {
   try {
-    const backendUrl = process.env.BACKEND_URL || 'http://backend:8002';
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8002';
     console.log(`📡 Fetching bookmarks from: ${backendUrl}/api/bookmarks`);
 
     const response = await fetch(`${backendUrl}/api/bookmarks`, {
@@ -715,7 +715,7 @@ app.get('/api/bookmarks', async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error('❌ Error fetching bookmarks from backend:', error.message);
-    console.error('   Backend URL:', process.env.BACKEND_URL || 'http://backend:8002');
+    console.error('   Backend URL:', process.env.BACKEND_URL || 'http://localhost:8002');
     console.error('   Make sure the Planning Tool Backend is running and accessible');
 
     // Return empty bookmarks instead of error (graceful degradation)
@@ -723,7 +723,7 @@ app.get('/api/bookmarks', async (req, res) => {
       bookmarks: [],
       error: true,
       message: `Cannot connect to Planning Tool Backend: ${error.message}`,
-      backendUrl: process.env.BACKEND_URL || 'http://backend:8002'
+      backendUrl: process.env.BACKEND_URL || 'http://localhost:8002'
     });
   }
 });
@@ -731,7 +731,7 @@ app.get('/api/bookmarks', async (req, res) => {
 // Proxy to Planning Tool Backend API - POST bookmark (for Chrome Extension)
 app.post('/api/bookmarks', async (req, res) => {
   try {
-    const backendUrl = process.env.BACKEND_URL || 'http://backend:8002';
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8002';
     console.log(`📝 Creating bookmark via: ${backendUrl}/api/bookmarks`);
     console.log(`📋 Bookmark data:`, req.body);
 
@@ -753,11 +753,11 @@ app.post('/api/bookmarks', async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error('❌ Error creating bookmark:', error.message);
-    console.error('   Backend URL:', process.env.BACKEND_URL || 'http://backend:8002');
+    console.error('   Backend URL:', process.env.BACKEND_URL || 'http://localhost:8002');
     res.status(500).json({
       error: true,
       message: `Cannot connect to Planning Tool Backend: ${error.message}`,
-      backendUrl: process.env.BACKEND_URL || 'http://backend:8002'
+      backendUrl: process.env.BACKEND_URL || 'http://localhost:8002'
     });
   }
 });
