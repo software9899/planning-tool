@@ -22,7 +22,8 @@
       "Bash(killall:*)",
       "Bash(kill:*)",
       "Bash(lsof:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(alembic init:*)"
     ]
   }
 }

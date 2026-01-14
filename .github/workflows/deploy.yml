@@ -1,0 +1,96 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  DEPLOY_PATH: /root/planning-tool
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DO_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DO_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Digital Ocean
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          ssh -i ~/.ssh/deploy_key root@$DO_HOST << 'ENDSSH'
+            set -e
+
+            echo "📦 Deploying Planning Tool..."
+            cd ${{ env.DEPLOY_PATH }}
+
+            # Pull latest changes
+            echo "⬇️ Pulling latest code..."
+            git fetch origin
+            git reset --hard origin/main
+
+            # Run deployment script
+            echo "🚀 Running deployment script..."
+            chmod +x deploy.sh
+            ./deploy.sh --auto
+
+            # Verify deployment
+            echo "✅ Verifying deployment..."
+            sleep 10
+
+            if curl -sSf http://localhost/health > /dev/null; then
+              echo "✅ Health check passed"
+              exit 0
+            else
+              echo "❌ Health check failed"
+              exit 1
+            fi
+          ENDSSH
+
+      - name: Verify HTTPS endpoint
+        env:
+          DOMAIN: ${{ secrets.DOMAIN }}
+        run: |
+          echo "🔐 Testing HTTPS endpoint..."
+          for i in {1..5}; do
+            if curl -sSfk "https://$DOMAIN/health" > /dev/null; then
+              echo "✅ HTTPS endpoint is healthy"
+              exit 0
+            fi
+            echo "⏳ Waiting for HTTPS... (attempt $i/5)"
+            sleep 10
+          done
+          echo "⚠️ HTTPS endpoint not responding (may need DNS propagation)"
+          exit 0  # Don't fail deployment if HTTPS isn't ready yet
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "### ✅ Deployment Successful! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed to:** https://${{ secrets.DOMAIN }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Deployment failed
+        if: failure()
+        run: |
+          echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please check the logs above for details." >> $GITHUB_STEP_SUMMARY
+          echo "You may need to manually SSH to the server to investigate." >> $GITHUB_STEP_SUMMARY

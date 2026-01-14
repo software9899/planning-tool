@@ -1,0 +1,47 @@
+Generic single-database configuration for Planning Tool.
+
+This directory contains database migration files managed by Alembic.
+
+## Usage
+
+### Create a new migration
+```bash
+alembic revision -m "description of changes"
+```
+
+### Auto-generate migration from model changes
+```bash
+alembic revision --autogenerate -m "description of changes"
+```
+
+### Apply migrations
+```bash
+alembic upgrade head
+```
+
+### Rollback one migration
+```bash
+alembic downgrade -1
+```
+
+### Show migration history
+```bash
+alembic history
+```
+
+### Show current revision
+```bash
+alembic current
+```
+
+## Environment Variables
+
+Make sure DATABASE_URL is set before running migrations:
+```bash
+export DATABASE_URL="postgresql://user:password@host:5432/database"
+```
+
+Or create a .env file with:
+```
+DATABASE_URL=postgresql://user:password@host:5432/database
+```

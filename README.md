@@ -25,34 +25,58 @@ Planning Tool is a modern, microservices-based platform for project management, 
 
 ### Prerequisites
 
-- Docker & Docker Compose
-- Node.js 18+ (for local development)
-- Python 3.11+ (for local development)
+- Docker & Docker Compose (for Docker setup)
+- Node.js 18+ (for native development)
+- Python 3.11+ (for native development)
 
-### Installation
+### Local Development (Docker - Recommended)
 
-1. **Clone the repository**
-   ```bash
-   git clone <your-repo-url>
-   cd PT
-   ```
+**Super Quick Start:**
 
-2. **Configure environment**
-   ```bash
-   cp .env.development .env
-   # Edit .env with your configuration
-   ```
+```bash
+# Clone and start everything in 3 commands
+git clone <your-repo-url>
+cd planning-tool
+./start-local.sh
+```
 
-3. **Start services**
-   ```bash
-   docker-compose up -d
-   ```
+**Access your applications:**
+- 🌐 Frontend: http://localhost:3001
+- 📡 Backend API: http://localhost:8002
+- 📚 API Docs: http://localhost:8002/docs
+- 🎮 Virtual Office: http://localhost:3000
 
-4. **Access applications**
-   - Frontend: http://localhost
-   - Backend API: http://localhost:8002
-   - Virtual Office: http://localhost:3000
-   - API Docs: http://localhost:8002/docs
+**Default admin login:**
+- Email: `admin@planningtool.com`
+- Password: `admin123`
+
+**Stop services:**
+```bash
+./stop-local.sh           # Stop (keep data)
+./stop-local.sh --clean   # Stop and delete data
+```
+
+**See [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) for detailed local setup guide.**
+
+### Native Development (Without Docker)
+
+For running services directly on your machine:
+
+```bash
+# Backend
+cd backend && pip install -r requirements.txt
+uvicorn main:app --reload --port 8002
+
+# Frontend
+cd frontend && npm install
+npm run dev
+
+# Virtual Office
+cd services/virtual-office && npm install
+npm run dev
+```
+
+See [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) for complete native setup.
 
 ## Project Structure
 
@@ -181,31 +205,57 @@ See [API Contract](plugin-sdk/docs/API_CONTRACT.md) for complete API documentati
 
 ## Deployment
 
-### Development
+### Local Development
 
 ```bash
-docker-compose up -d
+# Start all services with Docker Compose
+docker compose up -d
+
+# Access applications
+# - Frontend: http://localhost:3001
+# - Backend API: http://localhost:8002
+# - Virtual Office: http://localhost:3000
 ```
 
-### Production
+### Production Deployment
 
-1. **Update environment variables**
-   ```bash
-   cp .env.production .env
-   # Edit .env and update all secrets!
-   ```
+**One-command deployment to Digital Ocean:**
 
-2. **Build and deploy**
-   ```bash
-   docker-compose up -d --build
-   ```
+```bash
+# Clone repository on your server
+git clone <your-repo-url>
+cd planning-tool
 
-3. **Setup SSL** (recommended)
-   ```bash
-   bash scripts/setup-https.sh
-   ```
+# Run deployment script (handles everything automatically)
+./deploy.sh
+```
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+The deployment script will:
+- ✅ Check prerequisites (Docker, DNS, disk space)
+- ✅ Generate secure configuration (.env)
+- ✅ Obtain SSL certificates (Let's Encrypt)
+- ✅ Build and start all 8 Docker services
+- ✅ Initialize databases with migrations
+- ✅ Verify deployment health
+
+**Production Architecture:**
+- Single Docker Compose file for all services
+- Nginx reverse proxy with automatic SSL
+- PostgreSQL + MongoDB databases
+- Automated backups and health monitoring
+- CI/CD with GitHub Actions
+
+**See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for complete production deployment guide.**
+
+### CI/CD (GitHub Actions)
+
+Automatic deployment on `git push`:
+
+1. Configure GitHub Secrets (DO_SSH_KEY, DO_HOST, DOMAIN)
+2. Push to main branch: `git push origin main`
+3. GitHub Actions automatically deploys to production
+
+See [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
 
 ## Configuration
 
@@ -315,11 +365,22 @@ See [docs/](docs/) for more troubleshooting guides.
 
 ## Documentation
 
-- [Project Structure](PROJECT_STRUCTURE.md) - Detailed project structure
-- [Plugin SDK Guide](plugin-sdk/docs/PLUGIN_SDK_GUIDE.md) - Plugin development
-- [API Contract](plugin-sdk/docs/API_CONTRACT.md) - API specifications
-- [Deployment Guide](DEPLOYMENT.md) - Production deployment
-- [Docker Guide](docs/DOCKER_GUIDE.md) - Docker setup
+### Getting Started
+
+- [💻 Local Development](docs/LOCAL_DEVELOPMENT.md) - Run locally with Docker or native
+- [🚀 Production Deployment](docs/DEPLOYMENT.md) - Deploy to Digital Ocean
+
+### Development Guides
+
+- [📁 Project Structure](PROJECT_STRUCTURE.md) - Detailed project structure
+- [🔌 Plugin SDK Guide](plugin-sdk/docs/PLUGIN_SDK_GUIDE.md) - Plugin development
+- [📡 API Contract](plugin-sdk/docs/API_CONTRACT.md) - API specifications
+
+### Operations
+
+- [🗄️ Database Migrations](backend/alembic/README) - Alembic migration guide
+- [💾 Backup & Restore](scripts/) - Backup and restore scripts
+- [❤️ Health Monitoring](scripts/health-check.sh) - Automated health checks
 
 ## License
 

@@ -1,0 +1,145 @@
+services:
+  # ==========================================================================
+  # DATABASES
+  # ==========================================================================
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: planning-tool-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: planning_tool
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+      - ./backend/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    ports:
+      - "5432:5432"  # Expose for local access
+    networks:
+      - planning-network-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:6
+    container_name: virtual-office-db-dev
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: virtual_office
+    volumes:
+      - mongodb-dev-data:/data/db
+    ports:
+      - "27017:27017"  # Expose for local access
+    networks:
+      - planning-network-dev
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================================
+  # APPLICATION SERVICES
+  # ==========================================================================
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: planning-tool-backend-dev
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/planning_tool
+      PLUGINS_DIR: /app/plugins
+      PYTHONUNBUFFERED: 1
+      JWT_SECRET: dev-secret-key-change-in-production
+      FRONTEND_URL: http://localhost:3001
+    volumes:
+      - ./backend:/app  # Mount for hot reload
+      - ./plugins:/app/plugins:ro
+      - ./backend/uploads:/app/uploads
+    ports:
+      - "8002:8002"  # Expose directly
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - planning-network-dev
+    command: uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: planning-tool-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "3001:80"  # Expose directly
+    networks:
+      - planning-network-dev
+
+  virtual-office:
+    build:
+      context: ./services/virtual-office
+      dockerfile: Dockerfile
+    container_name: virtual-office-server-dev
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      MONGODB_URI: mongodb://mongodb:27017/virtual-office
+      BACKEND_URL: http://backend:8002
+      NODE_ENV: development
+    volumes:
+      - ./services/virtual-office:/app  # Mount for hot reload
+      - virtual-office-node-modules:/app/node_modules  # Named volume for node_modules
+    ports:
+      - "3000:3000"  # Expose directly
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - planning-network-dev
+    command: node --watch server/index.js
+
+  # ==========================================================================
+  # WEBRTC TURN SERVER (Optional for local)
+  # ==========================================================================
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: planning-tool-coturn-dev
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./services/virtual-office/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command:
+      - "-c"
+      - "/etc/coturn/turnserver.conf"
+    profiles:
+      - optional  # Only start with: docker compose --profile optional up
+
+# ==========================================================================
+# NETWORKS
+# ==========================================================================
+
+networks:
+  planning-network-dev:
+    driver: bridge
+    name: planning-network-dev
+
+# ==========================================================================
+# VOLUMES
+# ==========================================================================
+
+volumes:
+  postgres-dev-data:
+    name: planning-tool-postgres-dev-data
+  mongodb-dev-data:
+    name: virtual-office-mongodb-dev-data
+  virtual-office-node-modules:
+    name: virtual-office-node-modules-dev
