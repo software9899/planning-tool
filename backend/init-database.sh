@@ -31,13 +31,20 @@ echo ""
 
 # Find PostgreSQL container
 echo -e "${BLUE}🔍 Finding PostgreSQL container...${NC}"
-POSTGRES_CONTAINER=$(docker ps --format "{{.Names}}" | grep -i postgres | head -1)
+POSTGRES_CONTAINER=$(docker ps --format "{{.Names}}" | grep -E "postgres|planning-tool-db|db" | grep -v mongodb | head -1)
 
 if [ -z "$POSTGRES_CONTAINER" ]; then
     echo -e "${RED}❌ PostgreSQL container not found${NC}"
     echo ""
     docker ps --format "table {{.Names}}\t{{.Image}}"
-    exit 1
+    echo ""
+    echo "Please specify container name manually:"
+    read -p "PostgreSQL container name: " POSTGRES_CONTAINER
+
+    if [ -z "$POSTGRES_CONTAINER" ]; then
+        echo "Cancelled."
+        exit 1
+    fi
 fi
 
 echo -e "${GREEN}✅ Found: $POSTGRES_CONTAINER${NC}"
