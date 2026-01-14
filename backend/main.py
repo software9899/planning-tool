@@ -1961,12 +1961,12 @@ def add_member_to_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
-    # Search by email or username
+    # Search by email or name
     user = db.query(User).filter(
-        (User.email == member.username) | (User.username == member.username)
+        (User.email == member.username) | (User.name == member.username)
     ).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found with that email or username")
+        raise HTTPException(status_code=404, detail="User not found with that email or name")
 
     existing_member = db.query(CollectionMember).filter(
         CollectionMember.collection_id == collection.id,
@@ -1979,7 +1979,7 @@ def add_member_to_collection(
             "id": existing_member.id,
             "collection_id": existing_member.collection_id,
             "user_id": existing_member.user_id,
-            "username": user.username,
+            "username": user.name,
             "role": existing_member.role,
             "created_at": existing_member.created_at
         }
