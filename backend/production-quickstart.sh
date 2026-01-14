@@ -26,16 +26,21 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Check if Docker Compose is installed
-if ! command -v docker-compose &> /dev/null; then
+# Check if Docker Compose is installed (support both v1 and v2)
+DOCKER_COMPOSE_CMD=""
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+    echo -e "${GREEN}✅ Docker Compose (v1) installed${NC}"
+elif docker compose version &> /dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD="docker compose"
+    echo -e "${GREEN}✅ Docker Compose (v2) installed${NC}"
+else
     echo -e "${RED}❌ Docker Compose is not installed${NC}"
-    echo "Please install Docker Compose first:"
-    echo "  sudo apt-get update"
-    echo "  sudo apt-get install docker-compose-plugin"
+    echo ""
+    echo "Please run: sudo ./install-docker.sh"
+    echo "Or install manually: sudo apt-get install docker-compose-plugin"
     exit 1
 fi
-
-echo -e "${GREEN}✅ Docker and Docker Compose are installed${NC}"
 echo ""
 
 # Get database credentials
@@ -107,11 +112,11 @@ echo ""
 
 # Build and start backend
 echo -e "${BLUE}🔨 Building backend image...${NC}"
-docker-compose -f docker-compose.prod.yml build backend
+$DOCKER_COMPOSE_CMD -f docker-compose.prod.yml build backend
 
 echo ""
 echo -e "${BLUE}🚀 Starting backend...${NC}"
-docker-compose -f docker-compose.prod.yml up -d backend
+$DOCKER_COMPOSE_CMD -f docker-compose.prod.yml up -d backend
 
 echo ""
 echo -e "${BLUE}⏳ Waiting for backend to be ready...${NC}"
@@ -136,7 +141,7 @@ if [ $attempt -eq $max_attempts ]; then
     echo -e "${RED}❌ Backend failed to start${NC}"
     echo ""
     echo "View logs with:"
-    echo "  docker-compose -f docker-compose.prod.yml logs backend"
+    echo "  $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml logs backend"
     exit 1
 fi
 
@@ -148,9 +153,9 @@ echo ""
 echo "Backend is running on: http://localhost:8002"
 echo ""
 echo "Useful commands:"
-echo "  View logs:    docker-compose -f docker-compose.prod.yml logs -f backend"
-echo "  Stop:         docker-compose -f docker-compose.prod.yml down"
-echo "  Restart:      docker-compose -f docker-compose.prod.yml restart backend"
-echo "  Shell access: docker-compose -f docker-compose.prod.yml exec backend bash"
+echo "  View logs:    $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml logs -f backend"
+echo "  Stop:         $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml down"
+echo "  Restart:      $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml restart backend"
+echo "  Shell access: $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml exec backend bash"
 echo ""
 echo "=========================================="

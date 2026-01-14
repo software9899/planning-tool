@@ -16,6 +16,17 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Detect Docker Compose command (v1 or v2)
+DOCKER_COMPOSE_CMD=""
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null 2>&1; then
+    DOCKER_COMPOSE_CMD="docker compose"
+else
+    echo -e "${RED}❌ Docker Compose is not installed${NC}"
+    exit 1
+fi
+
 # Check if .env file exists
 if [ ! -f .env ]; then
     echo -e "${RED}❌ Error: .env file not found${NC}"
@@ -50,10 +61,10 @@ read -p "Run database migration? (yes/no): " -r
 echo
 if [[ $REPLY =~ ^[Yy]es$ ]]; then
     echo "🔄 Building migration image..."
-    docker-compose -f docker-compose.prod.yml build migration
+    $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml build migration
 
     echo "🔄 Running migration..."
-    docker-compose -f docker-compose.prod.yml --profile migration run --rm migration
+    $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml --profile migration run --rm migration
 
     echo -e "${GREEN}✅ Migration completed${NC}"
 else
@@ -68,7 +79,7 @@ echo "========================================"
 echo ""
 
 echo "🔨 Building Docker image..."
-docker-compose -f docker-compose.prod.yml build backend
+$DOCKER_COMPOSE_CMD -f docker-compose.prod.yml build backend
 
 # Step 3: Stop old container
 echo ""
@@ -79,7 +90,7 @@ echo ""
 
 if [ "$(docker ps -q -f name=planning-tool-backend-prod)" ]; then
     echo "🛑 Stopping old container..."
-    docker-compose -f docker-compose.prod.yml down
+    $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml down
     echo -e "${GREEN}✅ Old container stopped${NC}"
 else
     echo "ℹ️  No running container found"
@@ -93,7 +104,7 @@ echo "========================================"
 echo ""
 
 echo "🚀 Starting backend..."
-docker-compose -f docker-compose.prod.yml up -d backend
+$DOCKER_COMPOSE_CMD -f docker-compose.prod.yml up -d backend
 
 # Step 5: Wait for health check
 echo ""
@@ -121,7 +132,7 @@ done
 
 if [ $attempt -eq $max_attempts ]; then
     echo -e "${RED}❌ Backend health check failed${NC}"
-    echo "Check logs with: docker-compose -f docker-compose.prod.yml logs backend"
+    echo "Check logs with: $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml logs backend"
     exit 1
 fi
 
@@ -132,18 +143,18 @@ echo "Deployment Complete! ✅"
 echo "========================================"
 echo ""
 
-docker-compose -f docker-compose.prod.yml ps
+$DOCKER_COMPOSE_CMD -f docker-compose.prod.yml ps
 
 echo ""
 echo "📊 Backend logs:"
-docker-compose -f docker-compose.prod.yml logs --tail=20 backend
+$DOCKER_COMPOSE_CMD -f docker-compose.prod.yml logs --tail=20 backend
 
 echo ""
 echo "=========================================="
 echo "Useful Commands:"
 echo "=========================================="
-echo "View logs:        docker-compose -f docker-compose.prod.yml logs -f backend"
-echo "Stop backend:     docker-compose -f docker-compose.prod.yml down"
-echo "Restart backend:  docker-compose -f docker-compose.prod.yml restart backend"
-echo "Backend shell:    docker-compose -f docker-compose.prod.yml exec backend bash"
+echo "View logs:        $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml logs -f backend"
+echo "Stop backend:     $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml down"
+echo "Restart backend:  $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml restart backend"
+echo "Backend shell:    $DOCKER_COMPOSE_CMD -f docker-compose.prod.yml exec backend bash"
 echo "=========================================="
