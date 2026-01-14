@@ -539,7 +539,7 @@ class CollectionResponse(BaseModel):
         from_attributes = True
 
 class CollectionMemberAdd(BaseModel):
-    username: str
+    username: str  # Can be email or username
     role: Optional[str] = "member"
 
 class CollectionMemberResponse(BaseModel):
@@ -1961,9 +1961,12 @@ def add_member_to_collection(
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
 
-    user = db.query(User).filter(User.name == member.username).first()
+    # Search by email or username
+    user = db.query(User).filter(
+        (User.email == member.username) | (User.username == member.username)
+    ).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User not found with that email or username")
 
     existing_member = db.query(CollectionMember).filter(
         CollectionMember.collection_id == collection.id,

@@ -7492,12 +7492,12 @@ function openShareCategoryModal(categoryName) {
     </div>
 
     <div style="margin-bottom: 20px;">
-      <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 8px; font-size: 13px;">Add Friend by Username</label>
+      <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 8px; font-size: 13px;">Add Friend by Email</label>
       <div style="display: flex; gap: 8px;">
         <input
-          type="text"
+          type="email"
           id="friend-username-input"
-          placeholder="Enter username..."
+          placeholder="Enter email..."
           style="flex: 1; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; outline: none;"
         />
         <button id="add-member-btn" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; white-space: nowrap;">
@@ -7628,12 +7628,12 @@ function openShareCollectionModal(collectionName) {
     </div>
 
     <div style="margin-bottom: 20px;">
-      <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 8px; font-size: 13px;">Add Friend by Username</label>
+      <label style="display: block; font-weight: 600; color: #374151; margin-bottom: 8px; font-size: 13px;">Add Friend by Email</label>
       <div style="display: flex; gap: 8px;">
         <input
-          type="text"
+          type="email"
           id="friend-username-input"
-          placeholder="Enter username..."
+          placeholder="Enter email..."
           style="flex: 1; padding: 10px 12px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px; outline: none;"
         />
         <button id="add-member-btn" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; white-space: nowrap;">
