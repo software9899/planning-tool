@@ -1974,7 +1974,15 @@ def add_member_to_collection(
     ).first()
 
     if existing_member:
-        raise HTTPException(status_code=400, detail="User is already a member of this collection")
+        # User is already a member - return success (idempotent)
+        return {
+            "id": existing_member.id,
+            "collection_id": existing_member.collection_id,
+            "user_id": existing_member.user_id,
+            "username": user.username,
+            "role": existing_member.role,
+            "created_at": existing_member.created_at
+        }
 
     db_member = CollectionMember(
         collection_id=collection.id,
@@ -1989,7 +1997,7 @@ def add_member_to_collection(
         "id": db_member.id,
         "collection_id": db_member.collection_id,
         "user_id": db_member.user_id,
-        "username": user.name,
+        "username": user.username,
         "role": db_member.role,
         "created_at": db_member.created_at
     }
