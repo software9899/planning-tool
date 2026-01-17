@@ -95,6 +95,42 @@ else
 fi
 
 ################################################################################
+# FIREWALL SETUP (UFW)
+################################################################################
+
+if command -v ufw &> /dev/null; then
+    log_info "Configuring firewall (UFW)..."
+
+    # Check if UFW is active
+    UFW_STATUS=$(ufw status | head -1)
+
+    if [[ "$UFW_STATUS" == "Status: inactive" ]]; then
+        log_info "Enabling UFW firewall..."
+        ufw --force enable
+    fi
+
+    # Allow required ports
+    ufw allow 22/tcp comment 'SSH' > /dev/null 2>&1
+    ufw allow 80/tcp comment 'HTTP' > /dev/null 2>&1
+    ufw allow 443/tcp comment 'HTTPS' > /dev/null 2>&1
+    ufw allow 3478/tcp comment 'TURN Server TCP' > /dev/null 2>&1
+    ufw allow 3478/udp comment 'TURN Server UDP' > /dev/null 2>&1
+    ufw allow 49152:65535/udp comment 'WebRTC UDP' > /dev/null 2>&1
+
+    # Reload UFW
+    ufw reload > /dev/null 2>&1
+
+    log_success "Firewall configured:"
+    log_info "  - 22/tcp   (SSH)"
+    log_info "  - 80/tcp   (HTTP)"
+    log_info "  - 443/tcp  (HTTPS)"
+    log_info "  - 3478     (TURN Server)"
+    log_info "  - 49152-65535/udp (WebRTC)"
+else
+    log_warning "UFW not found. Please configure firewall manually."
+fi
+
+################################################################################
 # ENVIRONMENT SETUP
 ################################################################################
 
