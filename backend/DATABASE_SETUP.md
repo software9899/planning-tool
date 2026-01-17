@@ -1,144 +1,101 @@
 # Database Setup Guide
 
-## Prerequisites
+## Docker Setup (Recommended)
 
-- PostgreSQL installed and running
-- Python virtual environment activated
+Database is automatically initialized when running with Docker Compose.
 
-## Initial Setup (For New Team Members)
+### Start with Docker
+
+```bash
+# Development
+docker compose -f docker-compose.dev.yml up -d
+
+# Production
+docker compose -f docker-compose.prod.yml up -d
+```
+
+The `init-db.sql` script runs automatically on first startup and creates:
+- All tables
+- Sample users with passwords
+- Sample teams and tasks
+- Default settings
+
+### Login Credentials
+
+| Email | Password | Role |
+|-------|----------|------|
+| admin@example.com | admin123 | admin |
+| toffee2@example.com | password123 | developer |
+| natchapon@example.com | password123 | developer |
+| test1@example.com | password123 | qa |
+| test2@example.com | password123 | designer |
+
+## Local Development (Without Docker)
 
 ### 1. Create Database
 
 ```bash
-# Login to PostgreSQL
-psql -U postgres
-
-# Create database
-CREATE DATABASE planning_tool;
-
-# Exit PostgreSQL
-\q
+psql -U postgres -c "CREATE DATABASE planning_tool;"
 ```
 
-### 2. Install Dependencies
+### 2. Run Init Script
 
 ```bash
-# Activate virtual environment
-source venv/bin/activate
-
-# Install requirements
-pip install -r requirements.txt
+psql -U postgres -d planning_tool -f init-db.sql
 ```
 
-### 3. Run Seed Data Script
-
-```bash
-# This will create tables and populate initial data
-python seed_data.py
-```
-
-### 4. Start the Backend
+### 3. Start Backend
 
 ```bash
 python main.py
 ```
 
-### 5. Login Credentials
+## Reset Database
 
-After seeding, you can login with:
+### Docker
 
-- **Admin Account**
-  - Email: `admin@example.com`
-  - Password: `admin123`
+```bash
+# Stop containers and remove volume
+docker compose -f docker-compose.prod.yml down
+docker volume rm planning-tool-postgres-data
 
-- **Developer Account**
-  - Email: `toffee2@example.com`
-  - Password: `password123`
+# Start fresh
+docker compose -f docker-compose.prod.yml up -d
+```
 
-- **Another Developer**
-  - Email: `natchapon@example.com`
-  - Password: `password123`
+### Local
+
+```bash
+psql -U postgres -c "DROP DATABASE IF EXISTS planning_tool;"
+psql -U postgres -c "CREATE DATABASE planning_tool;"
+psql -U postgres -d planning_tool -f init-db.sql
+```
 
 ## Database Schema Updates
 
-### Adding New Columns (Manual Method)
-
-If you add new columns to models (like `position` or `line_manager`):
-
-1. Create a migration script:
+### Adding New Columns
 
 ```python
-# Example: add_new_field.py
 from sqlalchemy import create_engine, text
 
 engine = create_engine('postgresql://postgres:postgres123@localhost:5432/planning_tool')
 
 with engine.connect() as conn:
-    try:
-        conn.execute(text('ALTER TABLE users ADD COLUMN IF NOT EXISTS new_field VARCHAR(255)'))
-        conn.commit()
-        print('✅ Column added successfully!')
-    except Exception as e:
-        print(f'❌ Error: {e}')
-        conn.rollback()
-```
-
-2. Run the script:
-
-```bash
-python add_new_field.py
-```
-
-## Reset Database
-
-If you need to start fresh:
-
-```bash
-# Drop and recreate database
-psql -U postgres -c "DROP DATABASE IF EXISTS planning_tool;"
-psql -U postgres -c "CREATE DATABASE planning_tool;"
-
-# Run seed script again
-python seed_data.py
+    conn.execute(text('ALTER TABLE users ADD COLUMN IF NOT EXISTS new_field VARCHAR(255)'))
+    conn.commit()
 ```
 
 ## Troubleshooting
 
 ### Can't connect to PostgreSQL
 
-- Check if PostgreSQL is running: `brew services list` (Mac) or `systemctl status postgresql` (Linux)
-- Verify connection string in `.env` or code
+- Check if container is running: `docker ps`
+- Check logs: `docker logs planning-tool-db`
 - Default connection: `postgresql://postgres:postgres123@localhost:5432/planning_tool`
-
-### "Table already exists" error
-
-The seed script checks for existing data and skips if found. To force reset, use the "Reset Database" steps above.
 
 ### Different password for PostgreSQL
 
-Update `DATABASE_URL` in:
-1. `main.py`
-2. `seed_data.py`
-3. Any migration scripts
-
-Or use environment variable:
+Set environment variable:
 ```bash
 export DATABASE_URL="postgresql://username:password@localhost:5432/planning_tool"
 ```
-
-## Future: Using Alembic Migrations
-
-For better database version control, we can set up Alembic:
-
-```bash
-# Initialize Alembic
-alembic init alembic
-
-# Create migration
-alembic revision --autogenerate -m "Add new field"
-
-# Apply migration
-alembic upgrade head
-```
-
-This is recommended for production but optional for development.

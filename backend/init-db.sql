@@ -275,24 +275,51 @@ CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key);
 -- SAMPLE DATA
 -- ============================================================================
 
--- Insert default admin user (password: admin123)
-INSERT INTO users (name, email, password_hash, role)
-VALUES ('Admin User', 'admin@planningtool.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5OMxo8Y8SKSCO', 'admin')
+-- Insert all users with passwords
+-- Password for admin: admin123
+-- Password for others: password123
+INSERT INTO users (name, email, password_hash, role, position)
+VALUES
+    ('Admin User', 'admin@example.com', '$2b$12$R.qu4.IwBPsFvYURYsKNfOofVQqaj3bV75Fz1KDr/PKkTSz2LTqmW', 'admin', 'System Administrator'),
+    ('Toffee2', 'toffee2@example.com', '$2b$12$J6gIGBKYIISPRuJRnp97behR2SLchrnyufu0ws0Mv7w9nmtz2n4bW', 'developer', 'Senior Developer'),
+    ('Natchapon Wanichkamonnan', 'natchapon@example.com', '$2b$12$J6gIGBKYIISPRuJRnp97behR2SLchrnyufu0ws0Mv7w9nmtz2n4bW', 'developer', 'Developer'),
+    ('Test User 1', 'test1@example.com', '$2b$12$J6gIGBKYIISPRuJRnp97behR2SLchrnyufu0ws0Mv7w9nmtz2n4bW', 'qa', 'QA Engineer'),
+    ('Test User 2', 'test2@example.com', '$2b$12$J6gIGBKYIISPRuJRnp97behR2SLchrnyufu0ws0Mv7w9nmtz2n4bW', 'designer', 'UI/UX Designer')
 ON CONFLICT (email) DO NOTHING;
 
--- Insert sample users
-INSERT INTO users (name, email, role)
-VALUES
-    ('John Doe', 'john@example.com', 'member'),
-    ('Jane Smith', 'jane@example.com', 'member')
-ON CONFLICT (email) DO NOTHING;
+-- Set line_manager for Natchapon (reports to Toffee2)
+UPDATE users SET line_manager = (SELECT id FROM users WHERE email = 'toffee2@example.com')
+WHERE email = 'natchapon@example.com';
 
 -- Insert sample teams
-INSERT INTO teams (name, description)
+INSERT INTO teams (name, icon, description)
 VALUES
-    ('Development', 'Development team'),
-    ('Design', 'Design team'),
-    ('QA', 'Quality Assurance team')
+    ('Development', '💻', 'Development team'),
+    ('Design', '🎨', 'Design team'),
+    ('QA', '🧪', 'Quality Assurance team')
+ON CONFLICT DO NOTHING;
+
+-- Add users to teams
+INSERT INTO team_members (team_id, user_id)
+SELECT t.id, u.id FROM teams t, users u
+WHERE (t.name = 'Development' AND u.email IN ('toffee2@example.com', 'natchapon@example.com'))
+   OR (t.name = 'Design' AND u.email = 'test2@example.com')
+   OR (t.name = 'QA' AND u.email = 'test1@example.com')
+ON CONFLICT (team_id, user_id) DO NOTHING;
+
+-- Insert sample tasks
+INSERT INTO tasks (title, description, status, priority, assigned_to, tags, estimate_hours)
+VALUES
+    ('Setup Development Environment', 'Install dependencies and configure development tools', 'done', 'high',
+     (SELECT id FROM users WHERE email = 'toffee2@example.com'), ARRAY['setup', 'dev'], NULL),
+    ('Implement User Authentication', 'Add login and registration functionality', 'in_progress', 'high',
+     (SELECT id FROM users WHERE email = 'toffee2@example.com'), ARRAY['auth', 'backend'], 8),
+    ('Design Dashboard UI', 'Create mockups for the main dashboard', 'todo', 'medium',
+     (SELECT id FROM users WHERE email = 'test2@example.com'), ARRAY['design', 'ui'], 16),
+    ('Write API Documentation', 'Document all API endpoints', 'todo', 'medium',
+     (SELECT id FROM users WHERE email = 'natchapon@example.com'), ARRAY['documentation', 'api'], NULL),
+    ('Setup Testing Framework', 'Configure pytest and write initial tests', 'in_progress', 'high',
+     (SELECT id FROM users WHERE email = 'test1@example.com'), ARRAY['testing', 'qa'], 12)
 ON CONFLICT DO NOTHING;
 
 -- Insert default settings
