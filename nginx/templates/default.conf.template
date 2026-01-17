@@ -1,4 +1,6 @@
-# HTTP Server - Redirect to HTTPS and serve ACME challenge
+# ============================================
+# HTTP Server - Redirect to HTTPS (Main Domain)
+# ============================================
 server {
     listen 80;
     listen [::]:80;
@@ -9,20 +11,41 @@ server {
         root /var/www/certbot;
     }
 
-    # Health check endpoint (bypass redirect)
+    # Health check endpoint
     location /health {
         access_log off;
         return 200 "healthy\n";
         add_header Content-Type text/plain;
     }
 
-    # Redirect all other HTTP traffic to HTTPS
+    # Redirect to HTTPS
     location / {
         return 301 https://$host$request_uri;
     }
 }
 
-# HTTPS Server - Main application
+# ============================================
+# HTTP Server - Redirect to HTTPS (Office Subdomain)
+# ============================================
+server {
+    listen 80;
+    listen [::]:80;
+    server_name office.${DOMAIN};
+
+    # Let's Encrypt ACME challenge
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    # Redirect to HTTPS
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# ============================================
+# HTTPS Server - Main Application (tech2b.fun)
+# ============================================
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
@@ -39,9 +62,6 @@ server {
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
     ssl_prefer_server_ciphers off;
-
-    # HSTS (uncomment after testing)
-    # add_header Strict-Transport-Security "max-age=63072000" always;
 
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
@@ -73,45 +93,7 @@ server {
         proxy_read_timeout 300s;
     }
 
-    # Virtual Office - Main application
-    location /plugin/virtual-office/ {
-        proxy_pass http://virtual-office:3000/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # WebSocket support
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-
-        # Timeouts for WebSocket
-        proxy_connect_timeout 7d;
-        proxy_send_timeout 7d;
-        proxy_read_timeout 7d;
-    }
-
-    # Virtual Office - Socket.IO WebSocket
-    location /socket.io/ {
-        proxy_pass http://virtual-office:3000/socket.io/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # WebSocket support
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-
-        # Timeouts for WebSocket
-        proxy_connect_timeout 7d;
-        proxy_send_timeout 7d;
-        proxy_read_timeout 7d;
-    }
-
-    # Frontend - React SPA (catch-all, must be last)
+    # Frontend - React SPA (catch-all)
     location / {
         proxy_pass http://frontend:80/;
         proxy_http_version 1.1;
@@ -130,5 +112,82 @@ server {
         proxy_pass http://frontend:80;
         expires 1y;
         add_header Cache-Control "public, immutable";
+    }
+}
+
+# ============================================
+# HTTPS Server - Virtual Office (office.tech2b.fun)
+# ============================================
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name office.${DOMAIN};
+
+    # SSL Configuration (ใช้ wildcard หรือ cert แยก)
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:50m;
+    ssl_session_tickets off;
+
+    # Modern SSL configuration
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
+    ssl_prefer_server_ciphers off;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Client body size
+    client_max_body_size 100M;
+
+    # Virtual Office API (proxy to backend)
+    location /api/ {
+        proxy_pass http://backend:8002/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Socket.IO WebSocket
+    location /socket.io/ {
+        proxy_pass http://virtual-office:3000/socket.io/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Timeouts for WebSocket
+        proxy_connect_timeout 7d;
+        proxy_send_timeout 7d;
+        proxy_read_timeout 7d;
+    }
+
+    # Virtual Office - Main (catch-all)
+    location / {
+        proxy_pass http://virtual-office:3000/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Timeouts for WebSocket
+        proxy_connect_timeout 7d;
+        proxy_send_timeout 7d;
+        proxy_read_timeout 7d;
     }
 }
