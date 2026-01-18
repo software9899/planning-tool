@@ -1,30 +1,4 @@
 # ============================================
-# Subdomain to Service Mapping
-# ============================================
-# เพิ่ม subdomain ใหม่ที่นี่ (subdomain → service:port)
-map $subdomain $backend_service {
-    default         frontend:80;
-    www             frontend:80;
-    office          virtual-office:3000;
-    api             backend:8002;
-    # เพิ่มได้เลย เช่น:
-    # blog          blog-service:3000;
-    # admin         admin-service:8080;
-}
-
-# Extract subdomain from host
-map $host $subdomain {
-    ~^(?<sub>[^.]+)\.${DOMAIN}$  $sub;
-    default                       www;
-}
-
-# Check if service needs WebSocket
-map $subdomain $needs_websocket {
-    default  0;
-    office   1;
-}
-
-# ============================================
 # HTTP Server - Redirect ALL to HTTPS
 # ============================================
 server {
@@ -32,14 +6,12 @@ server {
     listen [::]:80;
     server_name ${DOMAIN} *.${DOMAIN};
 
-    # Health check endpoint
     location /health {
         access_log off;
         return 200 "healthy\n";
         add_header Content-Type text/plain;
     }
 
-    # Redirect to HTTPS
     location / {
         return 301 https://$host$request_uri;
     }
@@ -53,7 +25,6 @@ server {
     listen [::]:443 ssl http2;
     server_name ${DOMAIN} www.${DOMAIN};
 
-    # SSL Configuration
     ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
     ssl_session_timeout 1d;
@@ -63,21 +34,18 @@ server {
     ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
     ssl_prefer_server_ciphers off;
 
-    # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
 
     client_max_body_size 100M;
 
-    # Health check
     location /health {
         access_log off;
         return 200 "healthy\n";
         add_header Content-Type text/plain;
     }
 
-    # Backend API
     location /api/ {
         proxy_pass http://backend:8002/api/;
         proxy_http_version 1.1;
@@ -90,7 +58,6 @@ server {
         proxy_read_timeout 300s;
     }
 
-    # Frontend
     location / {
         proxy_pass http://frontend:80/;
         proxy_http_version 1.1;
@@ -104,14 +71,13 @@ server {
 }
 
 # ============================================
-# HTTPS Server - ALL Subdomains (*.tech2b.fun)
+# HTTPS Server - Virtual Office (office.tech2b.fun)
 # ============================================
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name *.${DOMAIN};
+    server_name office.${DOMAIN};
 
-    # SSL Configuration (Wildcard)
     ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
     ssl_session_timeout 1d;
@@ -121,14 +87,12 @@ server {
     ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
     ssl_prefer_server_ciphers off;
 
-    # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
 
     client_max_body_size 100M;
 
-    # Backend API (available on all subdomains)
     location /api/ {
         proxy_pass http://backend:8002/api/;
         proxy_http_version 1.1;
@@ -138,9 +102,8 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Socket.IO (for WebSocket services)
     location /socket.io/ {
-        proxy_pass http://$backend_service/socket.io/;
+        proxy_pass http://virtual-office:3000/socket.io/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -153,16 +116,13 @@ server {
         proxy_read_timeout 7d;
     }
 
-    # Main - Route to service based on subdomain
     location / {
-        proxy_pass http://$backend_service/;
+        proxy_pass http://virtual-office:3000/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
-        # WebSocket support (for services that need it)
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_connect_timeout 7d;
