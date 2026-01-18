@@ -25,6 +25,7 @@ from auth import UserRegister, UserLogin, Token, get_password_hash, verify_passw
 
 # Import routers
 from app.routes.subscription import router as subscription_router
+from app.routes.guest import router as guest_router
 
 # Database Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres123@localhost:5432/planning_tool")
@@ -76,6 +77,7 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
     title = Column(String(500), nullable=False)
     description = Column(Text)
     status = Column(String(50), default="todo")
@@ -95,8 +97,10 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+    tenant_role = Column(String(50), default="member")
     name = Column(String(255), nullable=False)
-    email = Column(String(255), unique=True, nullable=False)
+    email = Column(String(255), nullable=False)
     password_hash = Column(String(255))
     role = Column(String(50), default="member")
     position = Column(String(255), nullable=True)
@@ -150,6 +154,7 @@ class Team(Base):
     __tablename__ = "teams"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
     name = Column(String(255), nullable=False)
     icon = Column(String(10), nullable=True)
     description = Column(Text, nullable=True)
@@ -586,6 +591,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(subscription_router)
+app.include_router(guest_router)
 
 # Exception handler for validation errors
 @app.exception_handler(RequestValidationError)

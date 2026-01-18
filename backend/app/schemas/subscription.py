@@ -1,10 +1,11 @@
 """
 Subscription and AI Provider schemas
 """
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, field_serializer
+from typing import Optional, Dict, Any, List, Union
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
 
 # ============================================================================
@@ -41,7 +42,7 @@ class PlanResponse(BaseModel):
 class TenantResponse(BaseModel):
     """Schema for tenant response"""
     id: int
-    uuid: Optional[str]
+    uuid: Optional[UUID] = None
     name: str
     slug: str
     domain: Optional[str]
@@ -58,6 +59,10 @@ class TenantResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+    @field_serializer('uuid')
+    def serialize_uuid(self, uuid: Optional[UUID]) -> Optional[str]:
+        return str(uuid) if uuid else None
 
 
 class TenantUpdate(BaseModel):

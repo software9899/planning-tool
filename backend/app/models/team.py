@@ -11,6 +11,7 @@ class Team(Base):
     __tablename__ = "teams"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
     name = Column(String(255), nullable=False)
     icon = Column(String(10), nullable=True)
     description = Column(Text, nullable=True)

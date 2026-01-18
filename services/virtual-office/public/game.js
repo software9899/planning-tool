@@ -1559,6 +1559,167 @@ if (guestLinkBtn) {
   });
 }
 
+// ============ Guest Trial Feature ============
+const guestTrialBtn = document.getElementById('guest-trial-btn');
+const guestTrialInfo = document.getElementById('guest-trial-info');
+const guestRemainingUses = document.getElementById('guest-remaining-uses');
+
+// Backend API URL for guest trial
+const BACKEND_API_URL = window.location.hostname === 'localhost'
+  ? 'http://localhost:8002'
+  : `${window.location.protocol}//${window.location.hostname.replace('office.', '')}/api`.replace('/api', '');
+
+// Check for existing guest trial session
+function checkGuestTrialSession() {
+  const guestSession = sessionStorage.getItem('guestTrialSession');
+  if (guestSession) {
+    try {
+      const session = JSON.parse(guestSession);
+      // Check if session is still valid
+      if (new Date(session.expires_at) > new Date()) {
+        updateGuestTrialUI(session);
+        return session;
+      } else {
+        // Session expired, clear it
+        sessionStorage.removeItem('guestTrialSession');
+      }
+    } catch (e) {
+      sessionStorage.removeItem('guestTrialSession');
+    }
+  }
+  return null;
+}
+
+// Update UI for guest trial
+function updateGuestTrialUI(session) {
+  if (guestTrialInfo) {
+    guestTrialInfo.style.display = 'block';
+  }
+  if (guestRemainingUses) {
+    guestRemainingUses.textContent = session.remaining_uses;
+  }
+  if (guestTrialBtn) {
+    guestTrialBtn.textContent = '🎁 ทดลองต่อ (' + session.remaining_uses + ' ครั้ง)';
+    if (session.remaining_uses <= 0) {
+      guestTrialBtn.disabled = true;
+      guestTrialBtn.textContent = '⚠️ หมดสิทธิ์ทดลอง';
+      guestTrialBtn.style.background = '#ccc';
+    }
+  }
+}
+
+// Guest Trial Button Handler
+if (guestTrialBtn) {
+  // Check for existing session on load
+  const existingSession = checkGuestTrialSession();
+
+  guestTrialBtn.addEventListener('click', async () => {
+    try {
+      guestTrialBtn.disabled = true;
+      guestTrialBtn.textContent = '⏳ กำลังเข้าสู่ระบบ...';
+
+      let session = checkGuestTrialSession();
+
+      if (!session) {
+        // Create new guest session
+        const response = await fetch(`${BACKEND_API_URL}/api/guest/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!response.ok) {
+          throw new Error('ไม่สามารถสร้าง session ได้');
+        }
+
+        session = await response.json();
+        sessionStorage.setItem('guestTrialSession', JSON.stringify(session));
+        console.log('🎁 Guest trial session created:', session);
+      }
+
+      // Store guest info
+      sessionStorage.setItem('isGuest', 'true');
+      sessionStorage.setItem('isGuestTrial', 'true');
+      sessionStorage.setItem('guestId', session.session_id);
+
+      // Update UI
+      updateGuestTrialUI(session);
+
+      // Set username and auto-join
+      if (usernameInput) {
+        usernameInput.value = session.username;
+      }
+
+      // Auto-join lobby
+      const room = 'lobby';
+      const userId = 'guest_trial_' + session.session_id.substring(0, 16);
+
+      // Hide login screen
+      loginScreen.classList.remove('active');
+      gameScreen.classList.add('active');
+
+      // Join the game
+      socket.emit('join', {
+        username: session.username,
+        room,
+        userId,
+        status: '🎁 ทดลองใช้งาน'
+      });
+
+      console.log('🎮 Guest trial user joined:', session.username);
+
+    } catch (error) {
+      console.error('❌ Guest trial error:', error);
+      alert('❌ เกิดข้อผิดพลาด: ' + error.message);
+      guestTrialBtn.disabled = false;
+      guestTrialBtn.textContent = '🎁 ทดลองใช้ฟรี (10 ครั้ง)';
+    }
+  });
+}
+
+// Detect Thai characters
+function containsThai(text) {
+  return /[\u0E00-\u0E7F]/.test(text);
+}
+
+// Translate Thai text for guest trial users
+async function translateForGuestTrial(text) {
+  const guestSession = sessionStorage.getItem('guestTrialSession');
+  if (!guestSession) return null;
+
+  try {
+    const session = JSON.parse(guestSession);
+
+    const response = await fetch(`${BACKEND_API_URL}/api/guest/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: text,
+        session_id: session.session_id
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Translation failed');
+    }
+
+    const result = await response.json();
+
+    // Update session with new usage count
+    session.usage_count = result.usage_count;
+    session.remaining_uses = result.remaining_uses;
+    sessionStorage.setItem('guestTrialSession', JSON.stringify(session));
+
+    // Update UI
+    updateGuestTrialUI(session);
+
+    return result;
+  } catch (error) {
+    console.error('❌ Translation error:', error);
+    return null;
+  }
+}
+
 // Generate or get persistent user ID
 function getUserId() {
   let userId = localStorage.getItem('virtualOfficeUserId');
@@ -2848,6 +3009,8 @@ async function sendMessage() {
   if (!message) return;
 
   let finalMessage = message;
+  let translationResult = null;
+  const isGuestTrial = sessionStorage.getItem('isGuestTrial') === 'true';
 
   // If translator mode is ON, translate and correct grammar with AI
   if (translatorMode && aiApiKey) {
@@ -2868,10 +3031,34 @@ async function sendMessage() {
       finalMessage = message;
     }
   }
+  // Guest Trial: Auto-translate Thai messages
+  else if (isGuestTrial && containsThai(message)) {
+    try {
+      // Show loading indicator
+      chatInput.value = '🌐 กำลังแปล...';
+      chatInput.disabled = true;
+
+      translationResult = await translateForGuestTrial(message);
+
+      chatInput.disabled = false;
+
+      if (translationResult && translationResult.translated) {
+        // Format: Original Thai + English translation
+        finalMessage = message + '\n🌐 ' + translationResult.translated;
+        console.log('🎁 Guest trial translation:', message, '->', translationResult.translated);
+      }
+    } catch (error) {
+      console.error('❌ Guest trial translation error:', error);
+      chatInput.disabled = false;
+      finalMessage = message;
+    }
+  }
 
   // Save to history (save ORIGINAL message with translation if translator mode was used)
   if (translatorMode && aiApiKey && finalMessage !== message) {
     saveChatHistory(message, finalMessage); // Save original with translation
+  } else if (translationResult) {
+    saveChatHistory(message, translationResult.translated); // Save with guest translation
   } else {
     saveChatHistory(message); // Save original message only
   }

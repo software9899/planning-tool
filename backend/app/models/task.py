@@ -2,7 +2,7 @@
 Task model
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, ARRAY, Numeric
+from sqlalchemy import Column, Integer, String, Text, DateTime, ARRAY, Numeric, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from app.utils.database import Base
 
@@ -12,6 +12,7 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
     title = Column(String(500), nullable=False)
     description = Column(Text)
     status = Column(String(50), default="todo")

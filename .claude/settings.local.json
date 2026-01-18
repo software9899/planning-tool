@@ -23,7 +23,8 @@
       "Bash(kill:*)",
       "Bash(lsof:*)",
       "Bash(chmod:*)",
-      "Bash(alembic init:*)"
+      "Bash(alembic init:*)",
+      "Bash(docker compose:*)"
     ]
   }
 }

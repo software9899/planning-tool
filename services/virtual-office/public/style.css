@@ -117,6 +117,17 @@ body {
   box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
 }
 
+/* Guest Trial Button */
+.guest-trial-btn {
+  background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%) !important;
+  margin-bottom: 15px;
+}
+
+.guest-trial-btn:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
+}
+
 /* Secondary Button */
 .secondary-btn {
   background: #f44336 !important;

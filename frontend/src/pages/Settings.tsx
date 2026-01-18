@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAllSettings, updateSetting, getSetting, getSubscriptionInfo, getAIProviderKeys, createAIProviderKey, deleteAIProviderKey, testAIProviderKey, type SubscriptionInfo, type AIProviderKey, type AIProviderKeyCreate } from '../services/api';
+import { getAllSettings, updateSetting, getSetting, getSubscriptionInfo, getAIProviderKeys, createAIProviderKey, deleteAIProviderKey, testAIProviderKey, getGuestTrialStats, getGuestTrials, getGuestTranslationLogs, type SubscriptionInfo, type AIProviderKey, type AIProviderKeyCreate, type GuestTrialStats, type GuestTrialAdmin, type GuestTranslationLog } from '../services/api';
 import Modal from '../components/Modal';
 import { getAvailablePlugins, isPluginEnabled, togglePlugin, loadPluginFiles, unloadPluginFiles, type PluginMetadata } from '../utils/pluginLoader';
 
@@ -48,14 +48,18 @@ export default function Settings() {
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
   const [aiKeys, setAIKeys] = useState<AIProviderKey[]>([]);
   const [showAddKeyModal, setShowAddKeyModal] = useState(false);
-  const [newKeyData, setNewKeyData] = useState<AIProviderKeyCreate>({
+  const [newKeyData, setNewKeyData] = useState<Omit<AIProviderKeyCreate, 'name'> & { name?: string }>({
     provider: 'openai',
-    name: '',
     api_key: '',
     model: ''
   });
-  const [testingKey, setTestingKey] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [addingKey, setAddingKey] = useState(false);
+
+  // Guest Trial Admin state
+  const [guestTrialStats, setGuestTrialStats] = useState<GuestTrialStats | null>(null);
+  const [guestTrials, setGuestTrials] = useState<GuestTrialAdmin[]>([]);
+  const [translationLogs, setTranslationLogs] = useState<GuestTranslationLog[]>([]);
+  const [showTranslationLogs, setShowTranslationLogs] = useState(false);
 
   const showModal = (title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
     setModalContent({ title, message, type });
@@ -93,61 +97,73 @@ export default function Settings() {
       setSubscriptionInfo(info);
       const keys = await getAIProviderKeys();
       setAIKeys(keys);
+
+      // Load guest trial data
+      const stats = await getGuestTrialStats();
+      setGuestTrialStats(stats);
+      const trials = await getGuestTrials(0, 20);
+      setGuestTrials(trials);
+      const logs = await getGuestTranslationLogs(0, 50);
+      setTranslationLogs(logs);
     } catch (error) {
       console.error('Failed to load subscription data:', error);
     }
   };
 
   const handleAddAIKey = async () => {
-    if (!newKeyData.name || !newKeyData.api_key) {
-      showModal('Error', 'Please fill in all required fields', 'error');
-      return;
-    }
-
-    try {
-      await createAIProviderKey(newKeyData);
-      setShowAddKeyModal(false);
-      setNewKeyData({ provider: 'openai', name: '', api_key: '', model: '' });
-      setTestResult(null);
-      await loadSubscriptionData();
-      showModal('Success', 'AI API key added successfully', 'success');
-    } catch (error: any) {
-      showModal('Error', error.message || 'Failed to add API key', 'error');
-    }
-  };
-
-  const handleDeleteAIKey = async (keyId: number, keyName: string) => {
-    if (!confirm(`Are you sure you want to delete "${keyName}"?`)) return;
-
-    try {
-      await deleteAIProviderKey(keyId);
-      await loadSubscriptionData();
-      showModal('Success', 'AI API key deleted successfully', 'success');
-    } catch (error: any) {
-      showModal('Error', error.message || 'Failed to delete API key', 'error');
-    }
-  };
-
-  const handleTestAIKey = async () => {
     if (!newKeyData.api_key) {
-      setTestResult({ success: false, message: 'Please enter an API key' });
+      showModal('Error', 'กรุณาใส่ API Key', 'error');
       return;
     }
 
-    setTestingKey(true);
-    setTestResult(null);
+    setAddingKey(true);
 
     try {
-      const result = await testAIProviderKey({
+      // Test connection first
+      const testResult = await testAIProviderKey({
         provider: newKeyData.provider,
         api_key: newKeyData.api_key,
         model: newKeyData.model || undefined
       });
-      setTestResult(result);
+
+      if (!testResult.success) {
+        showModal('Error', 'ตรวจสอบ Provider หรือ API Key อีกครั้ง', 'error');
+        setAddingKey(false);
+        return;
+      }
+
+      // Auto-generate name from provider
+      const providerNames: Record<string, string> = {
+        openai: 'OpenAI',
+        anthropic: 'Anthropic Claude',
+        google: 'Google Gemini',
+        azure: 'Azure OpenAI',
+        custom: 'Custom'
+      };
+      const autoName = newKeyData.name || `${providerNames[newKeyData.provider] || newKeyData.provider} Key`;
+
+      // Add the key
+      await createAIProviderKey({ ...newKeyData, name: autoName });
+      setShowAddKeyModal(false);
+      setNewKeyData({ provider: 'openai', api_key: '', model: '' });
+      await loadSubscriptionData();
+      showModal('Success', 'เพิ่ม API Key สำเร็จ', 'success');
     } catch (error: any) {
-      setTestResult({ success: false, message: error.message || 'Connection test failed' });
+      showModal('Error', 'ตรวจสอบ Provider หรือ API Key อีกครั้ง', 'error');
     } finally {
-      setTestingKey(false);
+      setAddingKey(false);
+    }
+  };
+
+  const handleDeleteAIKey = async (keyId: number, keyName: string) => {
+    if (!confirm(`ต้องการลบ "${keyName}" ใช่หรือไม่?`)) return;
+
+    try {
+      await deleteAIProviderKey(keyId);
+      await loadSubscriptionData();
+      showModal('Success', 'ลบ API Key สำเร็จ', 'success');
+    } catch (error: any) {
+      showModal('Error', error.message || 'ไม่สามารถลบ API Key ได้', 'error');
     }
   };
 
@@ -733,6 +749,211 @@ export default function Settings() {
                 </button>
               </div>
             </div>
+
+            {/* Guest Trial Admin Section */}
+            <div className="settings-section" style={{ marginTop: '32px' }}>
+              <h2>🎁 Guest Trial Management</h2>
+              <p>ดูข้อมูลการทดลองใช้งานของ Guest และข้อความที่แปล</p>
+
+              {guestTrialStats ? (
+                <div style={{ marginTop: '20px' }}>
+                  {/* Stats Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                    <div style={{
+                      background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                      borderRadius: '12px',
+                      padding: '20px',
+                      color: 'white'
+                    }}>
+                      <div style={{ fontSize: '13px', opacity: 0.9 }}>Guest ทั้งหมด</div>
+                      <div style={{ fontSize: '32px', fontWeight: 700, marginTop: '4px' }}>{guestTrialStats.total_guests}</div>
+                    </div>
+                    <div style={{
+                      background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                      borderRadius: '12px',
+                      padding: '20px',
+                      color: 'white'
+                    }}>
+                      <div style={{ fontSize: '13px', opacity: 0.9 }}>Guest ที่ Active</div>
+                      <div style={{ fontSize: '32px', fontWeight: 700, marginTop: '4px' }}>{guestTrialStats.active_guests}</div>
+                    </div>
+                    <div style={{
+                      background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                      borderRadius: '12px',
+                      padding: '20px',
+                      color: 'white'
+                    }}>
+                      <div style={{ fontSize: '13px', opacity: 0.9 }}>แปลทั้งหมด</div>
+                      <div style={{ fontSize: '32px', fontWeight: 700, marginTop: '4px' }}>{guestTrialStats.total_translations}</div>
+                    </div>
+                    <div style={{
+                      background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                      borderRadius: '12px',
+                      padding: '20px',
+                      color: 'white'
+                    }}>
+                      <div style={{ fontSize: '13px', opacity: 0.9 }}>แปลวันนี้</div>
+                      <div style={{ fontSize: '32px', fontWeight: 700, marginTop: '4px' }}>{guestTrialStats.translations_today}</div>
+                    </div>
+                  </div>
+
+                  {/* Top Translated Texts */}
+                  {guestTrialStats.top_translated_texts.length > 0 && (
+                    <div style={{
+                      background: 'white',
+                      borderRadius: '12px',
+                      padding: '20px',
+                      border: '1px solid #e5e7eb',
+                      marginBottom: '24px'
+                    }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: '#1f2937' }}>
+                        📊 คำที่ถูกแปลบ่อยที่สุด
+                      </h3>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {guestTrialStats.top_translated_texts.map((item, index) => (
+                          <span key={index} style={{
+                            padding: '6px 12px',
+                            background: '#f3f4f6',
+                            borderRadius: '20px',
+                            fontSize: '13px',
+                            color: '#374151'
+                          }}>
+                            {item.text} <span style={{ color: '#9ca3af' }}>({item.count})</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Toggle Buttons */}
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
+                    <button
+                      onClick={() => setShowTranslationLogs(false)}
+                      style={{
+                        padding: '10px 20px',
+                        background: !showTranslationLogs ? '#3b82f6' : '#e5e7eb',
+                        color: !showTranslationLogs ? 'white' : '#374151',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '14px'
+                      }}
+                    >
+                      👥 Guest Sessions ({guestTrials.length})
+                    </button>
+                    <button
+                      onClick={() => setShowTranslationLogs(true)}
+                      style={{
+                        padding: '10px 20px',
+                        background: showTranslationLogs ? '#3b82f6' : '#e5e7eb',
+                        color: showTranslationLogs ? 'white' : '#374151',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '14px'
+                      }}
+                    >
+                      📝 Translation Logs ({translationLogs.length})
+                    </button>
+                  </div>
+
+                  {/* Guest Sessions Table */}
+                  {!showTranslationLogs && (
+                    <div style={{
+                      background: 'white',
+                      borderRadius: '12px',
+                      border: '1px solid #e5e7eb',
+                      overflow: 'hidden'
+                    }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: '#f9fafb' }}>
+                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>Username</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>ใช้ไป</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>IP</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>สร้างเมื่อ</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {guestTrials.map((trial) => (
+                            <tr key={trial.id} style={{ borderTop: '1px solid #e5e7eb' }}>
+                              <td style={{ padding: '12px 16px', fontSize: '14px', color: '#1f2937' }}>{trial.username}</td>
+                              <td style={{ padding: '12px 16px', fontSize: '14px', color: '#1f2937' }}>{trial.usage_count}/{trial.max_uses}</td>
+                              <td style={{ padding: '12px 16px', fontSize: '14px', color: '#6b7280', fontFamily: 'monospace' }}>{trial.ip_address || '-'}</td>
+                              <td style={{ padding: '12px 16px', fontSize: '14px', color: '#6b7280' }}>{new Date(trial.created_at).toLocaleString('th-TH')}</td>
+                              <td style={{ padding: '12px 16px' }}>
+                                <span style={{
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  fontWeight: 500,
+                                  background: trial.is_active ? '#dcfce7' : '#fee2e2',
+                                  color: trial.is_active ? '#166534' : '#991b1b'
+                                }}>
+                                  {trial.is_active ? 'Active' : 'Expired'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                          {guestTrials.length === 0 && (
+                            <tr>
+                              <td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                                ยังไม่มี Guest Trial
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Translation Logs Table */}
+                  {showTranslationLogs && (
+                    <div style={{
+                      background: 'white',
+                      borderRadius: '12px',
+                      border: '1px solid #e5e7eb',
+                      overflow: 'hidden'
+                    }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: '#f9fafb' }}>
+                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>ข้อความต้นฉบับ (ไทย)</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>คำแปล (อังกฤษ)</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>Session</th>
+                            <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '13px', fontWeight: 600, color: '#6b7280' }}>เวลา</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {translationLogs.map((log) => (
+                            <tr key={log.id} style={{ borderTop: '1px solid #e5e7eb' }}>
+                              <td style={{ padding: '12px 16px', fontSize: '14px', color: '#1f2937', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.original_text}</td>
+                              <td style={{ padding: '12px 16px', fontSize: '14px', color: '#3b82f6', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.translated_text || '-'}</td>
+                              <td style={{ padding: '12px 16px', fontSize: '12px', color: '#6b7280', fontFamily: 'monospace' }}>{log.session_id}</td>
+                              <td style={{ padding: '12px 16px', fontSize: '14px', color: '#6b7280' }}>{new Date(log.created_at).toLocaleString('th-TH')}</td>
+                            </tr>
+                          ))}
+                          {translationLogs.length === 0 && (
+                            <tr>
+                              <td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                                ยังไม่มีข้อมูลการแปล
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+                  Loading guest trial data...
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -752,182 +973,138 @@ export default function Settings() {
             justifyContent: 'center',
             zIndex: 1000
           }}
-          onClick={() => setShowAddKeyModal(false)}
+          onClick={() => !addingKey && setShowAddKeyModal(false)}
         >
           <div
             style={{
               background: 'white',
               borderRadius: '12px',
               padding: '32px',
-              maxWidth: '500px',
+              maxWidth: '450px',
               width: '90%',
               maxHeight: '80vh',
               overflow: 'auto'
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px', color: '#1f2937' }}>
-              🔑 Add AI API Key
-            </h2>
-            <p style={{ color: '#6b7280', marginBottom: '24px' }}>
-              Add an API key for AI services
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Provider */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151' }}>
-                  Provider *
-                </label>
-                <select
-                  value={newKeyData.provider}
-                  onChange={(e) => setNewKeyData({ ...newKeyData, provider: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    outline: 'none'
-                  }}
-                >
-                  <option value="openai">OpenAI (ChatGPT)</option>
-                  <option value="anthropic">Anthropic (Claude)</option>
-                  <option value="google">Google (Gemini)</option>
-                  <option value="azure">Azure OpenAI</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
-
-              {/* Name */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151' }}>
-                  Name *
-                </label>
-                <input
-                  type="text"
-                  value={newKeyData.name}
-                  onChange={(e) => setNewKeyData({ ...newKeyData, name: e.target.value })}
-                  placeholder="e.g., Production GPT-4"
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    outline: 'none'
-                  }}
-                />
-              </div>
-
-              {/* API Key */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151' }}>
-                  API Key *
-                </label>
-                <input
-                  type="password"
-                  value={newKeyData.api_key}
-                  onChange={(e) => setNewKeyData({ ...newKeyData, api_key: e.target.value })}
-                  placeholder="sk-..."
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    outline: 'none',
-                    fontFamily: 'monospace'
-                  }}
-                />
-              </div>
-
-              {/* Model (optional) */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151' }}>
-                  Default Model (optional)
-                </label>
-                <input
-                  type="text"
-                  value={newKeyData.model || ''}
-                  onChange={(e) => setNewKeyData({ ...newKeyData, model: e.target.value })}
-                  placeholder="e.g., gpt-4, claude-3-opus"
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    outline: 'none'
-                  }}
-                />
-              </div>
-
-              {/* Test Result */}
-              {testResult && (
+            {addingKey ? (
+              // Loading state
+              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
                 <div style={{
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  background: testResult.success ? '#dcfce7' : '#fee2e2',
-                  color: testResult.success ? '#166534' : '#991b1b',
-                  fontSize: '14px'
-                }}>
-                  {testResult.success ? '✅' : '❌'} {testResult.message}
-                </div>
-              )}
-            </div>
+                  width: '48px',
+                  height: '48px',
+                  border: '4px solid #e5e7eb',
+                  borderTopColor: '#3b82f6',
+                  borderRadius: '50%',
+                  margin: '0 auto 20px',
+                  animation: 'spin 1s linear infinite'
+                }} />
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#1f2937', marginBottom: '8px' }}>
+                  กำลังตรวจสอบ API Key...
+                </h3>
+                <p style={{ color: '#6b7280', fontSize: '14px' }}>
+                  กรุณารอสักครู่
+                </p>
+              </div>
+            ) : (
+              // Form
+              <>
+                <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px', color: '#1f2937' }}>
+                  🔑 เพิ่ม AI API Key
+                </h2>
+                <p style={{ color: '#6b7280', marginBottom: '24px' }}>
+                  เพิ่ม API Key สำหรับใช้งาน AI
+                </p>
 
-            {/* Actions */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
-              <button
-                onClick={() => {
-                  setShowAddKeyModal(false);
-                  setNewKeyData({ provider: 'openai', name: '', api_key: '', model: '' });
-                  setTestResult(null);
-                }}
-                style={{
-                  padding: '10px 20px',
-                  background: '#e5e7eb',
-                  color: '#374151',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontWeight: 600
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleTestAIKey}
-                disabled={testingKey}
-                style={{
-                  padding: '10px 20px',
-                  background: '#f59e0b',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: testingKey ? 'wait' : 'pointer',
-                  fontWeight: 600,
-                  opacity: testingKey ? 0.7 : 1
-                }}
-              >
-                {testingKey ? '⏳ Testing...' : '🧪 Test Connection'}
-              </button>
-              <button
-                onClick={handleAddAIKey}
-                style={{
-                  padding: '10px 20px',
-                  background: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontWeight: 600
-                }}
-              >
-                ✅ Add Key
-              </button>
-            </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Provider */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151' }}>
+                      Provider
+                    </label>
+                    <select
+                      value={newKeyData.provider}
+                      onChange={(e) => setNewKeyData({ ...newKeyData, provider: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '15px',
+                        outline: 'none',
+                        background: 'white'
+                      }}
+                    >
+                      <option value="openai">OpenAI (ChatGPT)</option>
+                      <option value="anthropic">Anthropic (Claude)</option>
+                      <option value="google">Google (Gemini)</option>
+                      <option value="azure">Azure OpenAI</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+
+                  {/* API Key */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151' }}>
+                      API Key
+                    </label>
+                    <input
+                      type="password"
+                      value={newKeyData.api_key}
+                      onChange={(e) => setNewKeyData({ ...newKeyData, api_key: e.target.value })}
+                      placeholder="sk-..."
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '15px',
+                        outline: 'none',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '28px' }}>
+                  <button
+                    onClick={() => {
+                      setShowAddKeyModal(false);
+                      setNewKeyData({ provider: 'openai', api_key: '', model: '' });
+                    }}
+                    style={{
+                      padding: '12px 24px',
+                      background: '#e5e7eb',
+                      color: '#374151',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '15px'
+                    }}
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    onClick={handleAddAIKey}
+                    style={{
+                      padding: '12px 24px',
+                      background: '#3b82f6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: '15px'
+                    }}
+                  >
+                    ➕ Add Key
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

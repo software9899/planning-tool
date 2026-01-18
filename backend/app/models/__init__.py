@@ -14,6 +14,7 @@ from app.models.other import (
     LeaveBalance
 )
 from app.models.subscription import Plan, Tenant, AIProviderKey
+from app.models.guest import GuestTrial, GuestTranslationLog
 
 __all__ = [
     'User',
@@ -32,4 +33,6 @@ __all__ = [
     'Plan',
     'Tenant',
     'AIProviderKey',
+    'GuestTrial',
+    'GuestTranslationLog',
 ]

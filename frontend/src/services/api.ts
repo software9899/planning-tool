@@ -133,6 +133,37 @@ export type AIProviderTestResponse = {
   models?: string[];
 };
 
+// Guest Trial Admin Types
+export type GuestTrialStats = {
+  total_guests: number;
+  active_guests: number;
+  total_translations: number;
+  translations_today: number;
+  top_translated_texts: { text: string; count: number }[];
+};
+
+export type GuestTrialAdmin = {
+  id: number;
+  session_id: string;
+  username: string;
+  ip_address?: string;
+  usage_count: number;
+  max_uses: number;
+  created_at: string;
+  expires_at: string;
+  last_used_at?: string;
+  is_active: boolean;
+};
+
+export type GuestTranslationLog = {
+  id: number;
+  session_id: string;
+  original_text: string;
+  translated_text?: string;
+  detected_language?: string;
+  created_at: string;
+};
+
 interface MigrationResult {
   migrated: number;
   failed: number;
@@ -148,8 +179,8 @@ const getApiBaseUrl = () => {
     return envApiUrl;
   }
 
-  // Local development
-  if (hostname === 'localhost' && window.location.port === '5173') {
+  // Local development (Vite dev server or Docker)
+  if (hostname === 'localhost' && (window.location.port === '5173' || window.location.port === '3001')) {
     return 'http://localhost:8002/api';
   }
 
@@ -424,6 +455,35 @@ class ApiServiceClass {
       method: 'POST',
       body: JSON.stringify(testData)
     });
+  }
+
+  // ============================================
+  // GUEST TRIAL ADMIN API
+  // ============================================
+
+  /**
+   * Get guest trial statistics
+   */
+  async getGuestTrialStats(): Promise<GuestTrialStats> {
+    return this.request<GuestTrialStats>('/guest/admin/stats');
+  }
+
+  /**
+   * Get list of guest trials
+   */
+  async getGuestTrials(skip: number = 0, limit: number = 50, activeOnly: boolean = false): Promise<GuestTrialAdmin[]> {
+    return this.request<GuestTrialAdmin[]>(`/guest/admin/trials?skip=${skip}&limit=${limit}&active_only=${activeOnly}`);
+  }
+
+  /**
+   * Get translation logs
+   */
+  async getGuestTranslationLogs(skip: number = 0, limit: number = 100, sessionId?: string): Promise<GuestTranslationLog[]> {
+    let url = `/guest/admin/translations?skip=${skip}&limit=${limit}`;
+    if (sessionId) {
+      url += `&session_id=${sessionId}`;
+    }
+    return this.request<GuestTranslationLog[]>(url);
   }
 
   // ============================================
@@ -863,3 +923,10 @@ export const deleteAIProviderKey = (keyId: number, tenantId?: number) =>
   ApiService.deleteAIProviderKey(keyId, tenantId);
 export const testAIProviderKey = (testData: { provider: string; api_key: string; model?: string }) =>
   ApiService.testAIProviderKey(testData);
+
+// Export guest trial admin functions for convenience
+export const getGuestTrialStats = () => ApiService.getGuestTrialStats();
+export const getGuestTrials = (skip?: number, limit?: number, activeOnly?: boolean) =>
+  ApiService.getGuestTrials(skip, limit, activeOnly);
+export const getGuestTranslationLogs = (skip?: number, limit?: number, sessionId?: string) =>
+  ApiService.getGuestTranslationLogs(skip, limit, sessionId);

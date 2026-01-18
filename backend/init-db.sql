@@ -503,6 +503,45 @@ CREATE INDEX IF NOT EXISTS idx_ai_provider_keys_provider ON ai_provider_keys(pro
 COMMENT ON TABLE ai_provider_keys IS 'Encrypted API keys for AI providers (OpenAI, Anthropic, etc.)';
 
 -- ============================================================================
+-- GUEST TRIAL (Virtual Office Translation)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS guest_trials (
+    id SERIAL PRIMARY KEY,
+    session_id VARCHAR(64) UNIQUE NOT NULL,      -- Unique guest session identifier
+    ip_address INET,                              -- Track IP to prevent abuse
+    username VARCHAR(100),                        -- Guest display name
+    usage_count INTEGER DEFAULT 0,               -- Current translation count
+    max_uses INTEGER DEFAULT 10,                 -- Maximum allowed translations
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP + INTERVAL '24 hours',
+    last_used_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_guest_trials_session_id ON guest_trials(session_id);
+CREATE INDEX IF NOT EXISTS idx_guest_trials_ip_address ON guest_trials(ip_address);
+CREATE INDEX IF NOT EXISTS idx_guest_trials_expires_at ON guest_trials(expires_at);
+
+COMMENT ON TABLE guest_trials IS 'Track guest user trial usage for Virtual Office translation feature';
+
+-- Guest translation logs (for admin review)
+CREATE TABLE IF NOT EXISTS guest_translation_logs (
+    id SERIAL PRIMARY KEY,
+    guest_trial_id INTEGER REFERENCES guest_trials(id) ON DELETE CASCADE,
+    session_id VARCHAR(64) NOT NULL,
+    original_text TEXT NOT NULL,
+    translated_text TEXT,
+    detected_language VARCHAR(20),
+    ip_address INET,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_guest_translation_logs_session_id ON guest_translation_logs(session_id);
+CREATE INDEX IF NOT EXISTS idx_guest_translation_logs_created_at ON guest_translation_logs(created_at);
+
+COMMENT ON TABLE guest_translation_logs IS 'Log all guest translations for admin review and system improvement';
+
+-- ============================================================================
 -- HELPER FUNCTIONS
 -- ============================================================================
 

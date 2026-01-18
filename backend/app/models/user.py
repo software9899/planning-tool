@@ -2,7 +2,7 @@
 User model
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from app.utils.database import Base
 
 
@@ -11,8 +11,10 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+    tenant_role = Column(String(50), default="member")
     name = Column(String(255), nullable=False)
-    email = Column(String(255), unique=True, nullable=False)
+    email = Column(String(255), nullable=False)
     password_hash = Column(String(255))
     role = Column(String(50), default="member")
     position = Column(String(255), nullable=True)
