@@ -1,15 +1,36 @@
 # ============================================
-# HTTP Server - Redirect to HTTPS (Main Domain)
+# Subdomain to Service Mapping
+# ============================================
+# เพิ่ม subdomain ใหม่ที่นี่ (subdomain → service:port)
+map $subdomain $backend_service {
+    default         frontend:80;
+    www             frontend:80;
+    office          virtual-office:3000;
+    api             backend:8002;
+    # เพิ่มได้เลย เช่น:
+    # blog          blog-service:3000;
+    # admin         admin-service:8080;
+}
+
+# Extract subdomain from host
+map $host $subdomain {
+    ~^(?<sub>[^.]+)\.${DOMAIN}$  $sub;
+    default                       www;
+}
+
+# Check if service needs WebSocket
+map $subdomain $needs_websocket {
+    default  0;
+    office   1;
+}
+
+# ============================================
+# HTTP Server - Redirect ALL to HTTPS
 # ============================================
 server {
     listen 80;
     listen [::]:80;
-    server_name ${DOMAIN} www.${DOMAIN};
-
-    # Let's Encrypt ACME challenge
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
+    server_name ${DOMAIN} *.${DOMAIN};
 
     # Health check endpoint
     location /health {
@@ -25,26 +46,7 @@ server {
 }
 
 # ============================================
-# HTTP Server - Redirect to HTTPS (Office Subdomain)
-# ============================================
-server {
-    listen 80;
-    listen [::]:80;
-    server_name office.${DOMAIN};
-
-    # Let's Encrypt ACME challenge
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    # Redirect to HTTPS
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-# ============================================
-# HTTPS Server - Main Application (tech2b.fun)
+# HTTPS Server - Main Domain (tech2b.fun)
 # ============================================
 server {
     listen 443 ssl http2;
@@ -57,8 +59,6 @@ server {
     ssl_session_timeout 1d;
     ssl_session_cache shared:SSL:50m;
     ssl_session_tickets off;
-
-    # Modern SSL configuration
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
     ssl_prefer_server_ciphers off;
@@ -68,10 +68,9 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
 
-    # Client body size for file uploads
     client_max_body_size 100M;
 
-    # Health check endpoint
+    # Health check
     location /health {
         access_log off;
         return 200 "healthy\n";
@@ -86,14 +85,12 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
-        # Timeouts
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;
         proxy_read_timeout 300s;
     }
 
-    # Frontend - React SPA (catch-all)
+    # Frontend
     location / {
         proxy_pass http://frontend:80/;
         proxy_http_version 1.1;
@@ -101,36 +98,25 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
-        # SPA routing support
         proxy_intercept_errors on;
         error_page 404 = /index.html;
-    }
-
-    # Static assets caching
-    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {
-        proxy_pass http://frontend:80;
-        expires 1y;
-        add_header Cache-Control "public, immutable";
     }
 }
 
 # ============================================
-# HTTPS Server - Virtual Office (office.tech2b.fun)
+# HTTPS Server - ALL Subdomains (*.tech2b.fun)
 # ============================================
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name office.${DOMAIN};
+    server_name *.${DOMAIN};
 
-    # SSL Configuration (ใช้ wildcard หรือ cert แยก)
+    # SSL Configuration (Wildcard)
     ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
     ssl_session_timeout 1d;
     ssl_session_cache shared:SSL:50m;
     ssl_session_tickets off;
-
-    # Modern SSL configuration
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
     ssl_prefer_server_ciphers off;
@@ -140,10 +126,9 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
 
-    # Client body size
     client_max_body_size 100M;
 
-    # Virtual Office API (proxy to backend)
+    # Backend API (available on all subdomains)
     location /api/ {
         proxy_pass http://backend:8002/api/;
         proxy_http_version 1.1;
@@ -153,39 +138,33 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Socket.IO WebSocket
+    # Socket.IO (for WebSocket services)
     location /socket.io/ {
-        proxy_pass http://virtual-office:3000/socket.io/;
+        proxy_pass http://$backend_service/socket.io/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-
-        # WebSocket support
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-
-        # Timeouts for WebSocket
         proxy_connect_timeout 7d;
         proxy_send_timeout 7d;
         proxy_read_timeout 7d;
     }
 
-    # Virtual Office - Main (catch-all)
+    # Main - Route to service based on subdomain
     location / {
-        proxy_pass http://virtual-office:3000/;
+        proxy_pass http://$backend_service/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # WebSocket support
+        # WebSocket support (for services that need it)
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-
-        # Timeouts for WebSocket
         proxy_connect_timeout 7d;
         proxy_send_timeout 7d;
         proxy_read_timeout 7d;
