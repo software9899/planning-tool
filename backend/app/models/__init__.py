@@ -13,6 +13,7 @@ from app.models.other import (
     LeaveRequest,
     LeaveBalance
 )
+from app.models.subscription import Plan, Tenant, AIProviderKey
 
 __all__ = [
     'User',
@@ -28,4 +29,7 @@ __all__ = [
     'DraftHeadcount',
     'LeaveRequest',
     'LeaveBalance',
+    'Plan',
+    'Tenant',
+    'AIProviderKey',
 ]

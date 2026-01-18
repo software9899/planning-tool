@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAllSettings, updateSetting, getSetting } from '../services/api';
+import { getAllSettings, updateSetting, getSetting, getSubscriptionInfo, getAIProviderKeys, createAIProviderKey, deleteAIProviderKey, testAIProviderKey, type SubscriptionInfo, type AIProviderKey, type AIProviderKeyCreate } from '../services/api';
 import Modal from '../components/Modal';
 import { getAvailablePlugins, isPluginEnabled, togglePlugin, loadPluginFiles, unloadPluginFiles, type PluginMetadata } from '../utils/pluginLoader';
 
@@ -39,10 +39,23 @@ export default function Settings() {
   });
 
   // Tab state - restore from localStorage if available
-  const [activeTab, setActiveTab] = useState<'general' | 'appearance' | 'plugins'>(() => {
+  const [activeTab, setActiveTab] = useState<'general' | 'appearance' | 'plugins' | 'billing'>(() => {
     const savedTab = localStorage.getItem('settingsActiveTab');
-    return (savedTab as 'general' | 'appearance' | 'plugins') || 'general';
+    return (savedTab as 'general' | 'appearance' | 'plugins' | 'billing') || 'general';
   });
+
+  // Subscription & AI Keys state
+  const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
+  const [aiKeys, setAIKeys] = useState<AIProviderKey[]>([]);
+  const [showAddKeyModal, setShowAddKeyModal] = useState(false);
+  const [newKeyData, setNewKeyData] = useState<AIProviderKeyCreate>({
+    provider: 'openai',
+    name: '',
+    api_key: '',
+    model: ''
+  });
+  const [testingKey, setTestingKey] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const showModal = (title: string, message: string, type: 'info' | 'warning' | 'error' | 'success' = 'info') => {
     setModalContent({ title, message, type });
@@ -71,7 +84,72 @@ export default function Settings() {
 
     loadSettings();
     loadPlugins();
+    loadSubscriptionData();
   }, [navigate]);
+
+  const loadSubscriptionData = async () => {
+    try {
+      const info = await getSubscriptionInfo();
+      setSubscriptionInfo(info);
+      const keys = await getAIProviderKeys();
+      setAIKeys(keys);
+    } catch (error) {
+      console.error('Failed to load subscription data:', error);
+    }
+  };
+
+  const handleAddAIKey = async () => {
+    if (!newKeyData.name || !newKeyData.api_key) {
+      showModal('Error', 'Please fill in all required fields', 'error');
+      return;
+    }
+
+    try {
+      await createAIProviderKey(newKeyData);
+      setShowAddKeyModal(false);
+      setNewKeyData({ provider: 'openai', name: '', api_key: '', model: '' });
+      setTestResult(null);
+      await loadSubscriptionData();
+      showModal('Success', 'AI API key added successfully', 'success');
+    } catch (error: any) {
+      showModal('Error', error.message || 'Failed to add API key', 'error');
+    }
+  };
+
+  const handleDeleteAIKey = async (keyId: number, keyName: string) => {
+    if (!confirm(`Are you sure you want to delete "${keyName}"?`)) return;
+
+    try {
+      await deleteAIProviderKey(keyId);
+      await loadSubscriptionData();
+      showModal('Success', 'AI API key deleted successfully', 'success');
+    } catch (error: any) {
+      showModal('Error', error.message || 'Failed to delete API key', 'error');
+    }
+  };
+
+  const handleTestAIKey = async () => {
+    if (!newKeyData.api_key) {
+      setTestResult({ success: false, message: 'Please enter an API key' });
+      return;
+    }
+
+    setTestingKey(true);
+    setTestResult(null);
+
+    try {
+      const result = await testAIProviderKey({
+        provider: newKeyData.provider,
+        api_key: newKeyData.api_key,
+        model: newKeyData.model || undefined
+      });
+      setTestResult(result);
+    } catch (error: any) {
+      setTestResult({ success: false, message: error.message || 'Connection test failed' });
+    } finally {
+      setTestingKey(false);
+    }
+  };
 
   // Save active tab to localStorage whenever it changes
   useEffect(() => {
@@ -283,6 +361,12 @@ export default function Settings() {
         >
           🔌 Plugins
         </button>
+        <button
+          className={`tab-btn ${activeTab === 'billing' ? 'active' : ''}`}
+          onClick={() => setActiveTab('billing')}
+        >
+          💳 Billing & AI
+        </button>
       </div>
 
       <div className="settings-content">
@@ -461,7 +545,392 @@ export default function Settings() {
             )}
           </>
         )}
+
+        {/* Billing & AI Keys Tab */}
+        {activeTab === 'billing' && (
+          <>
+            {/* Subscription Section */}
+            <div className="settings-section">
+              <h2>💳 Subscription Plan</h2>
+              <p>Manage your subscription and view usage</p>
+
+              {subscriptionInfo ? (
+                <div style={{ marginTop: '20px' }}>
+                  <div style={{
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    borderRadius: '12px',
+                    padding: '24px',
+                    color: 'white',
+                    marginBottom: '20px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: '14px', opacity: 0.9 }}>Current Plan</div>
+                        <div style={{ fontSize: '28px', fontWeight: 700, marginTop: '4px' }}>
+                          {subscriptionInfo.plan.display_name}
+                        </div>
+                        <div style={{ fontSize: '14px', opacity: 0.9, marginTop: '4px' }}>
+                          {subscriptionInfo.tenant.subscription_status === 'trialing' ? (
+                            <>Trial ends: {new Date(subscriptionInfo.tenant.trial_ends_at || '').toLocaleDateString()}</>
+                          ) : (
+                            <>{subscriptionInfo.plan.description}</>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '32px', fontWeight: 700 }}>
+                          ${subscriptionInfo.plan.price_monthly}
+                        </div>
+                        <div style={{ fontSize: '14px', opacity: 0.9 }}>/month</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Usage Stats */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+                    {Object.entries(subscriptionInfo.usage).map(([key, value]) => (
+                      <div key={key} style={{
+                        background: 'white',
+                        borderRadius: '8px',
+                        padding: '16px',
+                        border: '1px solid #e5e7eb'
+                      }}>
+                        <div style={{ fontSize: '13px', color: '#6b7280', textTransform: 'capitalize' }}>
+                          {key.replace('_', ' ')}
+                        </div>
+                        <div style={{ fontSize: '24px', fontWeight: 700, color: '#1f2937', marginTop: '4px' }}>
+                          {value.current}
+                          <span style={{ fontSize: '14px', color: '#9ca3af', fontWeight: 400 }}>
+                            /{value.limit === -1 ? '∞' : value.limit}
+                          </span>
+                        </div>
+                        <div style={{
+                          marginTop: '8px',
+                          height: '4px',
+                          background: '#e5e7eb',
+                          borderRadius: '2px',
+                          overflow: 'hidden'
+                        }}>
+                          <div style={{
+                            width: value.limit === -1 ? '0%' : `${Math.min((value.current / value.limit) * 100, 100)}%`,
+                            height: '100%',
+                            background: value.limit !== -1 && value.current / value.limit > 0.8 ? '#ef4444' : '#3b82f6',
+                            borderRadius: '2px',
+                            transition: 'width 0.3s'
+                          }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+                  Loading subscription info...
+                </div>
+              )}
+            </div>
+
+            {/* AI API Keys Section */}
+            <div className="settings-section" style={{ marginTop: '32px' }}>
+              <h2>🤖 AI API Keys</h2>
+              <p>Manage API keys for AI services like ChatGPT, Claude, etc.</p>
+
+              <div style={{ marginTop: '20px' }}>
+                {aiKeys.length > 0 ? (
+                  aiKeys.map(key => (
+                    <div key={key.id} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '16px',
+                      background: 'white',
+                      borderRadius: '8px',
+                      marginBottom: '12px',
+                      border: '1px solid #e5e7eb'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '8px',
+                          background: key.provider === 'openai' ? '#10a37f' :
+                                     key.provider === 'anthropic' ? '#d4a27f' :
+                                     key.provider === 'google' ? '#4285f4' : '#6b7280',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          fontWeight: 700,
+                          fontSize: '14px'
+                        }}>
+                          {key.provider.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: '#1f2937' }}>{key.name}</div>
+                          <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                            {key.provider} • {key.api_key_masked} • Used {key.usage_count}x
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          background: key.is_active ? '#dcfce7' : '#fee2e2',
+                          color: key.is_active ? '#166534' : '#991b1b'
+                        }}>
+                          {key.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteAIKey(key.id, key.name)}
+                          style={{
+                            padding: '8px',
+                            background: '#fee2e2',
+                            color: '#991b1b',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '40px',
+                    background: '#f9fafb',
+                    borderRadius: '8px',
+                    color: '#6b7280'
+                  }}>
+                    No AI API keys configured yet
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setShowAddKeyModal(true)}
+                  style={{
+                    marginTop: '16px',
+                    padding: '12px 24px',
+                    background: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  ➕ Add API Key
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
+
+      {/* Add AI Key Modal */}
+      {showAddKeyModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+          onClick={() => setShowAddKeyModal(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '500px',
+              width: '90%',
+              maxHeight: '80vh',
+              overflow: 'auto'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px', color: '#1f2937' }}>
+              🔑 Add AI API Key
+            </h2>
+            <p style={{ color: '#6b7280', marginBottom: '24px' }}>
+              Add an API key for AI services
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Provider */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151' }}>
+                  Provider *
+                </label>
+                <select
+                  value={newKeyData.provider}
+                  onChange={(e) => setNewKeyData({ ...newKeyData, provider: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="openai">OpenAI (ChatGPT)</option>
+                  <option value="anthropic">Anthropic (Claude)</option>
+                  <option value="google">Google (Gemini)</option>
+                  <option value="azure">Azure OpenAI</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+
+              {/* Name */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151' }}>
+                  Name *
+                </label>
+                <input
+                  type="text"
+                  value={newKeyData.name}
+                  onChange={(e) => setNewKeyData({ ...newKeyData, name: e.target.value })}
+                  placeholder="e.g., Production GPT-4"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* API Key */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151' }}>
+                  API Key *
+                </label>
+                <input
+                  type="password"
+                  value={newKeyData.api_key}
+                  onChange={(e) => setNewKeyData({ ...newKeyData, api_key: e.target.value })}
+                  placeholder="sk-..."
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    outline: 'none',
+                    fontFamily: 'monospace'
+                  }}
+                />
+              </div>
+
+              {/* Model (optional) */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#374151' }}>
+                  Default Model (optional)
+                </label>
+                <input
+                  type="text"
+                  value={newKeyData.model || ''}
+                  onChange={(e) => setNewKeyData({ ...newKeyData, model: e.target.value })}
+                  placeholder="e.g., gpt-4, claude-3-opus"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              {/* Test Result */}
+              {testResult && (
+                <div style={{
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  background: testResult.success ? '#dcfce7' : '#fee2e2',
+                  color: testResult.success ? '#166534' : '#991b1b',
+                  fontSize: '14px'
+                }}>
+                  {testResult.success ? '✅' : '❌'} {testResult.message}
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <button
+                onClick={() => {
+                  setShowAddKeyModal(false);
+                  setNewKeyData({ provider: 'openai', name: '', api_key: '', model: '' });
+                  setTestResult(null);
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: '#e5e7eb',
+                  color: '#374151',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleTestAIKey}
+                disabled={testingKey}
+                style={{
+                  padding: '10px 20px',
+                  background: '#f59e0b',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: testingKey ? 'wait' : 'pointer',
+                  fontWeight: 600,
+                  opacity: testingKey ? 0.7 : 1
+                }}
+              >
+                {testingKey ? '⏳ Testing...' : '🧪 Test Connection'}
+              </button>
+              <button
+                onClick={handleAddAIKey}
+                style={{
+                  padding: '10px 20px',
+                  background: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                ✅ Add Key
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       <Modal

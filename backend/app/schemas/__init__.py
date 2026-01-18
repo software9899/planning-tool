@@ -11,6 +11,18 @@ from app.schemas.collection import (
     CollectionMemberResponse,
     CollectionWithMembers
 )
+from app.schemas.subscription import (
+    PlanResponse,
+    TenantResponse,
+    TenantUpdate,
+    SubscriptionInfo,
+    AIProviderKeyCreate,
+    AIProviderKeyUpdate,
+    AIProviderKeyResponse,
+    AIProviderKeyWithMask,
+    AIProviderTestRequest,
+    AIProviderTestResponse
+)
 
 __all__ = [
     'TaskCreate',
@@ -27,4 +39,14 @@ __all__ = [
     'CollectionMemberAdd',
     'CollectionMemberResponse',
     'CollectionWithMembers',
+    'PlanResponse',
+    'TenantResponse',
+    'TenantUpdate',
+    'SubscriptionInfo',
+    'AIProviderKeyCreate',
+    'AIProviderKeyUpdate',
+    'AIProviderKeyResponse',
+    'AIProviderKeyWithMask',
+    'AIProviderTestRequest',
+    'AIProviderTestResponse',
 ]

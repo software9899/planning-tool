@@ -51,6 +51,88 @@ export type Setting = {
   updated_at?: string;
 };
 
+// Subscription & AI Provider Types
+export type Plan = {
+  id: number;
+  name: string;
+  display_name: string;
+  description?: string;
+  price_monthly: number;
+  price_yearly: number;
+  currency: string;
+  max_users: number;
+  max_tasks: number;
+  max_teams: number;
+  max_storage_mb: number;
+  max_projects: number;
+  features: Record<string, any>;
+  is_active: boolean;
+  is_public: boolean;
+  sort_order: number;
+};
+
+export type Tenant = {
+  id: number;
+  uuid?: string;
+  name: string;
+  slug: string;
+  domain?: string;
+  logo_url?: string;
+  email: string;
+  timezone: string;
+  plan_id: number;
+  subscription_status: string;
+  trial_ends_at?: string;
+  subscription_ends_at?: string;
+  settings: Record<string, any>;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type SubscriptionInfo = {
+  tenant: Tenant;
+  plan: Plan;
+  usage: {
+    users: { current: number; limit: number };
+    tasks: { current: number; limit: number };
+    teams: { current: number; limit: number };
+    storage_mb: { current: number; limit: number };
+    projects: { current: number; limit: number };
+  };
+};
+
+export type AIProviderKey = {
+  id: number;
+  tenant_id: number;
+  user_id?: number;
+  provider: string;
+  name: string;
+  model?: string;
+  base_url?: string;
+  settings: Record<string, any>;
+  is_active: boolean;
+  last_used_at?: string;
+  usage_count: number;
+  created_at: string;
+  updated_at: string;
+  api_key_masked: string;
+};
+
+export type AIProviderKeyCreate = {
+  provider: string;
+  name: string;
+  api_key: string;
+  model?: string;
+  base_url?: string;
+  settings?: Record<string, any>;
+};
+
+export type AIProviderTestResponse = {
+  success: boolean;
+  message: string;
+  models?: string[];
+};
+
 interface MigrationResult {
   migrated: number;
   failed: number;
@@ -263,6 +345,84 @@ class ApiServiceClass {
   async deleteSetting(key: string): Promise<void> {
     return this.request<void>(`/settings/${key}`, {
       method: 'DELETE'
+    });
+  }
+
+  // ============================================
+  // SUBSCRIPTION API
+  // ============================================
+
+  /**
+   * Get all available subscription plans
+   */
+  async getPlans(): Promise<Plan[]> {
+    return this.request<Plan[]>('/subscription/plans');
+  }
+
+  /**
+   * Get subscription info for current tenant
+   */
+  async getSubscriptionInfo(tenantId: number = 1): Promise<SubscriptionInfo> {
+    return this.request<SubscriptionInfo>(`/subscription/info?tenant_id=${tenantId}`);
+  }
+
+  /**
+   * Update tenant settings
+   */
+  async updateTenant(tenantData: Partial<Tenant>, tenantId: number = 1): Promise<Tenant> {
+    return this.request<Tenant>(`/subscription/tenant?tenant_id=${tenantId}`, {
+      method: 'PUT',
+      body: JSON.stringify(tenantData)
+    });
+  }
+
+  // ============================================
+  // AI PROVIDER KEYS API
+  // ============================================
+
+  /**
+   * Get all AI provider keys for tenant (masked)
+   */
+  async getAIProviderKeys(tenantId: number = 1): Promise<AIProviderKey[]> {
+    return this.request<AIProviderKey[]>(`/subscription/ai-keys?tenant_id=${tenantId}`);
+  }
+
+  /**
+   * Create a new AI provider key
+   */
+  async createAIProviderKey(keyData: AIProviderKeyCreate, tenantId: number = 1): Promise<AIProviderKey> {
+    return this.request<AIProviderKey>(`/subscription/ai-keys?tenant_id=${tenantId}`, {
+      method: 'POST',
+      body: JSON.stringify(keyData)
+    });
+  }
+
+  /**
+   * Update an AI provider key
+   */
+  async updateAIProviderKey(keyId: number, keyData: Partial<AIProviderKeyCreate>, tenantId: number = 1): Promise<AIProviderKey> {
+    return this.request<AIProviderKey>(`/subscription/ai-keys/${keyId}?tenant_id=${tenantId}`, {
+      method: 'PUT',
+      body: JSON.stringify(keyData)
+    });
+  }
+
+  /**
+   * Delete an AI provider key
+   */
+  async deleteAIProviderKey(keyId: number, tenantId: number = 1): Promise<void> {
+    return this.request<void>(`/subscription/ai-keys/${keyId}?tenant_id=${tenantId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  /**
+   * Test an AI provider API key
+   */
+  async testAIProviderKey(testData: { provider: string; api_key: string; model?: string }): Promise<AIProviderTestResponse> {
+    return this.request<AIProviderTestResponse>('/subscription/ai-keys/test', {
+      method: 'POST',
+      body: JSON.stringify(testData)
     });
   }
 
@@ -686,3 +846,20 @@ export const createSetting = (settingData: { key: string; value: string; descrip
 export const updateSetting = (key: string, settingData: { value: string; description?: string }) =>
   ApiService.updateSetting(key, settingData);
 export const deleteSetting = (key: string) => ApiService.deleteSetting(key);
+
+// Export subscription functions for convenience
+export const getPlans = () => ApiService.getPlans();
+export const getSubscriptionInfo = (tenantId?: number) => ApiService.getSubscriptionInfo(tenantId);
+export const updateTenant = (tenantData: Partial<Tenant>, tenantId?: number) =>
+  ApiService.updateTenant(tenantData, tenantId);
+
+// Export AI provider key functions for convenience
+export const getAIProviderKeys = (tenantId?: number) => ApiService.getAIProviderKeys(tenantId);
+export const createAIProviderKey = (keyData: AIProviderKeyCreate, tenantId?: number) =>
+  ApiService.createAIProviderKey(keyData, tenantId);
+export const updateAIProviderKey = (keyId: number, keyData: Partial<AIProviderKeyCreate>, tenantId?: number) =>
+  ApiService.updateAIProviderKey(keyId, keyData, tenantId);
+export const deleteAIProviderKey = (keyId: number, tenantId?: number) =>
+  ApiService.deleteAIProviderKey(keyId, tenantId);
+export const testAIProviderKey = (testData: { provider: string; api_key: string; model?: string }) =>
+  ApiService.testAIProviderKey(testData);

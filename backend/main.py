@@ -23,6 +23,9 @@ from email.mime.multipart import MIMEMultipart
 # Import authentication utilities
 from auth import UserRegister, UserLogin, Token, get_password_hash, verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 
+# Import routers
+from app.routes.subscription import router as subscription_router
+
 # Database Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres123@localhost:5432/planning_tool")
 
@@ -580,6 +583,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(subscription_router)
 
 # Exception handler for validation errors
 @app.exception_handler(RequestValidationError)
