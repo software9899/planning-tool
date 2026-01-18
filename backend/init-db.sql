@@ -553,13 +553,14 @@ VALUES ('Demo Company', 'demo', 'admin@example.com', 3, 'trialing', NOW() + INTE
 ON CONFLICT (slug) DO NOTHING;
 
 -- Default Users (tenant_id = 1)
+-- Password for all users: password123
 INSERT INTO users (tenant_id, tenant_role, name, email, password_hash, role, position)
 VALUES
-    (1, 'owner', 'Admin User', 'admin@example.com', '$2b$12$R.qu4.IwBPsFvYURYsKNfOofVQqaj3bV75Fz1KDr/PKkTSz2LTqmW', 'admin', 'System Administrator'),
-    (1, 'member', 'Toffee2', 'toffee2@example.com', '$2b$12$J6gIGBKYIISPRuJRnp97behR2SLchrnyufu0ws0Mv7w9nmtz2n4bW', 'developer', 'Senior Developer'),
-    (1, 'member', 'Natchapon', 'natchapon@example.com', '$2b$12$J6gIGBKYIISPRuJRnp97behR2SLchrnyufu0ws0Mv7w9nmtz2n4bW', 'developer', 'Developer'),
-    (1, 'member', 'Test User 1', 'test1@example.com', '$2b$12$J6gIGBKYIISPRuJRnp97behR2SLchrnyufu0ws0Mv7w9nmtz2n4bW', 'qa', 'QA Engineer'),
-    (1, 'member', 'Test User 2', 'test2@example.com', '$2b$12$J6gIGBKYIISPRuJRnp97behR2SLchrnyufu0ws0Mv7w9nmtz2n4bW', 'designer', 'UI/UX Designer')
+    (1, 'owner', 'Admin User', 'admin@example.com', '$2b$12$.YSpLLGurirdehbb/E/zdOV6alUAIx3Ed.zSNfqFvE/5tJ1lgPXWu', 'admin', 'System Administrator'),
+    (1, 'member', 'Toffee2', 'toffee2@example.com', '$2b$12$.YSpLLGurirdehbb/E/zdOV6alUAIx3Ed.zSNfqFvE/5tJ1lgPXWu', 'developer', 'Senior Developer'),
+    (1, 'member', 'Natchapon', 'natchapon@example.com', '$2b$12$.YSpLLGurirdehbb/E/zdOV6alUAIx3Ed.zSNfqFvE/5tJ1lgPXWu', 'developer', 'Developer'),
+    (1, 'member', 'Test User 1', 'test1@example.com', '$2b$12$.YSpLLGurirdehbb/E/zdOV6alUAIx3Ed.zSNfqFvE/5tJ1lgPXWu', 'qa', 'QA Engineer'),
+    (1, 'member', 'Test User 2', 'test2@example.com', '$2b$12$.YSpLLGurirdehbb/E/zdOV6alUAIx3Ed.zSNfqFvE/5tJ1lgPXWu', 'designer', 'UI/UX Designer')
 ON CONFLICT (tenant_id, email) DO NOTHING;
 
 -- Default Teams
