@@ -229,38 +229,46 @@ elif [[ "$AUTO_MODE" == "false" ]]; then
 fi
 
 ################################################################################
-# SSL CERTIFICATE SETUP
+# SSL CERTIFICATE SETUP (Wildcard via DigitalOcean DNS)
 ################################################################################
 
 SSL_CERT_PATH="./certbot/conf/live/$DOMAIN/fullchain.pem"
 
-if [[ ! -f "$SSL_CERT_PATH" ]]; then
-    log_info "SSL certificate not found. Obtaining certificate..."
+log_info "SSL: Wildcard certificate for *.$DOMAIN"
 
-    # Stop any service using port 80
-    if lsof -Pi :80 -sTCP:LISTEN -t >/dev/null; then
-        log_warning "Port 80 is in use. Stopping services..."
-        docker compose -f docker-compose.prod.yml down nginx 2>/dev/null || true
+if [[ ! -f "$SSL_CERT_PATH" ]]; then
+    log_info "SSL certificate not found. Obtaining wildcard certificate..."
+
+    # Check for DigitalOcean API token
+    if [[ -z "$DO_API_TOKEN" ]] || [[ "$DO_API_TOKEN" == "your_digitalocean_api_token_here" ]]; then
+        log_error "DO_API_TOKEN is required for wildcard SSL"
+        log_info "Get your token from: https://cloud.digitalocean.com/account/api/tokens"
+        log_info "Then add to .env: DO_API_TOKEN=your_token"
+        error_exit "Missing DO_API_TOKEN"
     fi
 
-    # Create certbot directories
+    # Create certbot directories and credentials
     mkdir -p ./certbot/conf ./certbot/www
 
-    # Run certbot in standalone mode
+    # Create DigitalOcean credentials file
+    echo "dns_digitalocean_token = $DO_API_TOKEN" > ./certbot/conf/digitalocean.ini
+    chmod 600 ./certbot/conf/digitalocean.ini
+
+    # Run certbot with DNS challenge for wildcard
     docker run -it --rm \
-        -p 80:80 \
         -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
-        -v "$(pwd)/certbot/www:/var/www/certbot" \
-        certbot/certbot certonly \
-        --standalone \
+        certbot/dns-digitalocean certonly \
+        --dns-digitalocean \
+        --dns-digitalocean-credentials /etc/letsencrypt/digitalocean.ini \
+        --dns-digitalocean-propagation-seconds 60 \
         --email "$SSL_EMAIL" \
         --agree-tos \
         --no-eff-email \
-        --force-renewal \
         -d "$DOMAIN" \
-        -d "www.$DOMAIN" || error_exit "Failed to obtain SSL certificate"
+        -d "*.$DOMAIN" || error_exit "Failed to obtain SSL certificate"
 
-    log_success "SSL certificate obtained successfully"
+    log_success "Wildcard SSL certificate obtained successfully"
+    log_info "Covers: $DOMAIN and *.$DOMAIN (all subdomains)"
 else
     log_success "SSL certificate already exists"
 fi

@@ -31,14 +31,14 @@ services:
       start_period: 10s
 
   certbot:
-    image: certbot/certbot:latest
+    image: certbot/dns-digitalocean:latest
     container_name: planning-tool-certbot
     volumes:
       - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --dns-digitalocean --dns-digitalocean-credentials /etc/letsencrypt/digitalocean.ini; sleep 12h & wait $${!}; done;'"
     networks:
       - planning-network
+    restart: unless-stopped
 
   # ==========================================================================
   # DATABASES
